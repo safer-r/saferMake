@@ -1,0 +1,10 @@
+^dev$
+^vignettes/articles$
+^_pkgdown\.yml$
+^Licence\.txt$
+^docs$
+^pkgdown$
+^\.github$
+^cran-comments\.md$
+^CRAN-SUBMISSION$
+^README.md$
