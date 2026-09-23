@@ -56,7 +56,7 @@ The different *saferMake* releases are tagged [here](https://github.com/safer-r/
 ## Installation
 
 ```r
-install.packages("saferMake")
+remotes::install_github("https://github.com/safer-r/saferMake") # later install.packages("saferMake")
 ```
 
 Older versions can be installed like this:
@@ -68,16 +68,16 @@ remotes::install_github(paste0("https://github.com/safer-r/saferMake", "/tree/",
 
  ## How to run
 
+In a R session, after package installation :
+
+```r
+saferMake::make()
+```
+
 Downloading the repo :
 
 ```r
 shiny::runApp("C:/Users/gmillot/Documents/Git_projects/safer-r/saferMake/inst/app/")
-```
-
-After package installation :
-
-```r
-saferMake::make()
 ```
 
 ## Docker image
