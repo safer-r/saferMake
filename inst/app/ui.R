@@ -46,16 +46,16 @@ ui <- fluidPage(
           div(class = "wy-side-scroll",
               # 1) Titre complet dans le carré bleu en haut à gauche
               div(class = "wy-side-nav-search",
-                  a(href = "#", "function > safer-r function converter"),
+                  a(href = "#", HTML("function > safer-r function<br>converter")),
                   div(class = "version", "v1.0")
               ),
               # 4) Table des matières cliquable pointant vers les h4()
               div(class = "wy-menu wy-menu-vertical",
                   p(class = "caption", "Table of Contents"),
                   tags$ul(
-                      tags$li(a(href = "#sec_code", "➔ Code of your function")),
-                      tags$li(a(href = "#sec_package", "➔ Package name")),
-                      tags$li(a(href = "#sec_report", "➔ Report"))
+                      tags$li(a(href = "#sec_code", "Code of your function")),
+                      tags$li(a(href = "#sec_package", "Package name")),
+                      tags$li(a(href = "#sec_report", "Report"))
                   )
               )
           )

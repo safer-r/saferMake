@@ -14,3 +14,36 @@ html{box-sizing:border-box}*,:after,:before{box-sizing:inherit}article,aside,det
 .wy-nav-content-wrap {
     background: #ffffff !important;
 }
+/* 1) Barre latérale noire / bleu Sphinx */
+.wy-nav-side { width: 300px; background: #343131; color: #b3b3b3; flex-shrink: 0; position: fixed; height: 100vh; }
+
+/* 1) Barre latérale noire / bleu Sphinx (Forced Center) */
+.wy-nav-side { width: 300px; background: #343131; color: #b3b3b3; flex-shrink: 0; position: fixed; height: 100vh; }
+
+/* Forces the outer blue container to push items to the center */
+.wy-side-nav-search { 
+background: #2980B9 !important; 
+padding: 20px 15px !important; 
+text-align: center !important; 
+display: flex !important;
+flex-direction: column !important;
+align-items: center !important;
+justify-content: center !important;
+}
+
+/* Forces both lines of the link text to align completely in the middle */
+.wy-side-nav-search a { 
+display: block !important; 
+width: 100% !important;
+text-align: center !important; 
+color: white !important; 
+font-weight: bold !important; 
+font-size: 15px !important; 
+text-decoration: none !important; 
+word-wrap: break-word !important; 
+line-height: 1.4 !important; 
+white-space: pre-line !important; 
+}
+
+.wy-side-nav-search .version { color: rgba(255,255,255,0.6) !important; font-size: 11px !important; margin-top: 5px !important; text-align: center !important; }
+
