@@ -67,7 +67,9 @@ ui <- fluidPage(
       
       /* 2 & 3) Page principale décalée pour laisser la place à la sidebar fixe */
       .wy-nav-content-wrap { flex-grow: 1; margin-left: 300px; background: #edf0f2; padding: 40px 20px; min-height: 100vh; }
-      .rst-content { background: #ffffff; padding: 30px; border: 1px solid #e1e4e6; border-radius: 4px; }
+      
+      /* REMOVED GREY BORDER HERE (border: none !important) */
+      .rst-content { background: #ffffff; padding: 30px; border: none !important; border-radius: 4px; }
       
       /* Style pour le bloc d'instructions de style Sphinx Notice */
       .instruction-box {
