@@ -71,19 +71,22 @@ ui <- fluidPage(
       /* REMOVED GREY BORDER HERE (border: none !important) */
       .rst-content { background: #ffffff; padding: 30px; border: none !important; border-radius: 4px; }
       
-      /* Style pour le bloc d'instructions de style Sphinx Notice */
-      .instruction-box {
-        background-color: #f3f6f6 !important;
-        border-left: 4px solid #2980B9 !important;
-        padding: 15px 20px !important;
-        margin-bottom: 25px !important;
-        border-radius: 0 4px 4px 0;
+      /* Style pour le bloc d'instructions inséré comme un label */
+      .input-instruction-label {
+        font-weight: bold;
+        color: #333333;
+        margin-bottom: 8px;
+        font-size: 14px;
+        display: block;
       }
-      .instruction-box p {
-        margin: 0 !important;
-        line-height: 1.6 !important;
-        color: #333333 !important;
-        font-size: 14px !important;
+      
+      .input-instruction-list {
+        margin: 5px 0 12px 0;
+        padding-left: 20px;
+        color: #555555;
+        font-size: 13px;
+        line-height: 1.5;
+        font-weight: normal;
       }
       
       /* Ajustements des titres de sections */
@@ -121,12 +124,6 @@ ui <- fluidPage(
           div(class = "rst-content",
               div(role = "main", class = "document",
                   
-                  # Insertion des instructions au tout début du contenu principal
-                  div(class = "instruction-box",
-                      tags$p(HTML("Fill the field.<br/>Click on the run button.<br/>Go to the newly created tab and complete the fields."))
-                  ),
-                  
-                  # Réintégration exacte de votre structure d'origine (sans le titlePanel du haut)
                   fluidRow(
                       column(
                           width = 12, # Utilisation de toute la largeur de la zone blanche Sphinx
@@ -137,7 +134,15 @@ ui <- fluidPage(
                               h4(id = "sec_code", "Code of your function"),
                               textAreaInput(
                                   inputId = "user_ini_fun",
-                                  label   = "Paste your R function code here.",
+                                  # LE REMPLACEMENT : Les instructions stylisées prennent la place du label de texte brut
+                                  label   = tags$div(
+                                      tags$ol(
+                                          class = "input-instruction-list",
+                                          tags$li("Fill the field."),
+                                          tags$li("Click on the run button."),
+                                          tags$li("Go to the newly created tab and complete the fields.")
+                                      )
+                                  ),
                                   placeholder = "my_fun <- function(x){\n    x + 1\n}",
                                   rows = 15,
                                   width = "100%"
@@ -158,7 +163,7 @@ ui <- fluidPage(
                               # Section 3 : Rapport
                               h4(id = "sec_report", "Report"),
                               textInput(
-                                  inputId = "report_name", # Ajusté ici pour éviter le conflit d'ID avec package_name
+                                  inputId = "report_name", 
                                   label   = "Leave empty for NULL, or type a package name",
                                   placeholder = "NULL"
                               ),
@@ -190,7 +195,5 @@ ui <- fluidPage(
           )
       )
   ),
-  
-  # Script JavaScript Sphinx (Optionnel, gère le responsive mobile si inclus)
   tags$script(type = "text/javascript", src = "theme.js")
 )
