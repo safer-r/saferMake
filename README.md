@@ -68,13 +68,13 @@ remotes::install_github(paste0("https://github.com/safer-r/saferMake", "/tree/",
 
  ## How to run
 
-In a R session, after package installation :
+In a R session, after package installation:
 
 ```r
 saferMake::make()
 ```
 
-Downloading the repo :
+Running the local folder:
 
 ```r
 shiny::runApp("C:/Users/gmillot/Documents/Git_projects/safer-r/saferMake/inst/app/")
