@@ -6,8 +6,8 @@
 #' @author \href{mailto:gael.millot@pasteur.fr}{Gael Millot} 
 #' @export
 #' @importFrom shiny runApp
+
 make <- function(){
-    launch_app <- function() {
     # Locate the shiny app files inside the installed package
     app_dir <- system.file("app", package = "saferMake")
     

@@ -1,0 +1,21 @@
+Package: saferMake
+Type: Package
+Title: Shiny app to convert a R function to a safer-r function
+Version: 1.0.0
+Date: 2026-09-22
+Authors@R: c(
+    person(given = "Gael", family = "Millot",  email = "gael.millot@pasteur.fr", role = c("cre", "aut", "ctb"), comment = c(ORCID = "0000-0002-0591-3509"))
+  )
+Encoding: UTF-8
+Maintainer: Gael Millot <gael.millot@pasteur.fr>
+Description: the make function convert a user function according to the safer-r project recommendations (see <https://github.com/safer-r>). This includes checking argument values, ensuring correct specification of all mandatory arguments for embedded functions, as well as their explicit package namespace qualification, among other things.
+URL: <https://github.com/safer-r/saferDev>, <https://safer-r.github.io/saferDev/>
+License: GPL-3
+Config/roxygen2/version: 8.0.0
+Imports: 
+    shiny
+Suggests: 
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0)
+VignetteBuilder: knitr
