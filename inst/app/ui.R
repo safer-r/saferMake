@@ -109,15 +109,8 @@ ui <- fluidPage(
                       a(href = "https://github.com/safer-r/.github/blob/main/profile/backbone.R", 
                         "Backbone v19.5", target = "_blank"))
               ),
-              div(class = "wy-menu wy-menu-vertical",
-                  p(class = "caption", "Table of Contents"),
-                  tags$ul(
-                    tags$li(a(href = "#intro", "Introduction")), 
-                    tags$li(a(href = "#sec_code", "Code of your function"))
-                    # When the final new sections are defined, add entries here, e.g.:
-                    # tags$li(a(href = "#sec_new1", "New section 1"))
-                  )
-              )
+              # Table of Contents: dynamique, adaptée à l'écran courant
+              uiOutput("toc")
           )
       ),
       
@@ -125,7 +118,7 @@ ui <- fluidPage(
       tags$section(class = "wy-nav-content-wrap",
           div(class = "rst-content",
               div(role = "main", class = "document", 
-                  uiOutput("screen")   # <- the ONLY change in your layout
+                  uiOutput("screen")
               )
           )
       )

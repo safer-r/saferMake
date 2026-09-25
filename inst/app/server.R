@@ -6,13 +6,26 @@ server <- function(input, output, session) {
   rv <- reactiveValues(
     screen    = "input",   # "input" | "error" | "result"
     code      = "",        # last pasted code (so "Back" restores the box)
-    error_msg = NULL,
+    error_msg = NULL,      # real error: logged to console only, NEVER displayed
     fun_name  = NULL,
     fun_args  = NULL,      # character vector of argument names
     fun_body  = NULL       # single string: everything after '{'
   )
   
-  # ---- Shared UI fragments (identical on every screen) ---------------------
+  # Fixed error message requested by the user (what the user sees)
+  ERROR_TEXT <- "The code provided returned an error. Please, click on the back button and provide a function that runs well."
+  
+  # Build a valid HTML id from an argument name
+  arg_id <- function(nm) paste0("arg_", gsub("[^[:alnum:]_]", "_", nm))
+  
+  # Go to the error screen; detail is logged in the R console for the developer
+  go_error <- function(detail) {
+    message("App error (not shown to the user): ", detail)
+    rv$error_msg <- detail
+    rv$screen    <- "error"
+  }
+  
+  # ---- Shared UI fragments (used on input and error screens) --------------
   intro <- function() {
     list(
       h4(id = "intro", "Introduction"),
@@ -64,13 +77,11 @@ server <- function(input, output, session) {
     
     # Empty field -> error screen
     if (!nzchar(trimws(code))) {
-      rv$error_msg <- "The field is empty: there is no code to run."
-      rv$screen <- "error"
+      go_error("The field is empty.")
       return(invisible())
     }
     
-    # 1) Parse + execute in a scratch environment (errors are caught here,
-    #    whether they come from parse() itself or from evaluation)
+    # 1) Parse + execute in a scratch environment
     env <- new.env(parent = globalenv())
     err <- NULL
     res <- tryCatch(
@@ -79,8 +90,7 @@ server <- function(input, output, session) {
     )
     
     if (!is.null(err)) {
-      rv$error_msg <- err
-      rv$screen <- "error"
+      go_error(err)
       return(invisible())
     }
     
@@ -94,14 +104,11 @@ server <- function(input, output, session) {
       rv$fun_name <- "<anonymous>"     # e.g. just `function(x) ...` was pasted
       f <- res
     } else if (length(fnames) > 1L) {
-      rv$error_msg <- paste0("Execution succeeded but the code defines several functions (",
-                             paste(fnames, collapse = ", "),
-                             "). Please define exactly one function.")
-      rv$screen <- "error"
+      go_error(paste0("Execution succeeded but the code defines several functions (",
+                      paste(fnames, collapse = ", "), ")."))
       return(invisible())
     } else {
-      rv$error_msg <- "Execution succeeded but no function was defined by the code."
-      rv$screen <- "error"
+      go_error("Execution succeeded but no function was defined by the code.")
       return(invisible())
     }
     
@@ -120,6 +127,27 @@ server <- function(input, output, session) {
   # ---- BACK buttons ---------------------------------------------------------
   observeEvent(input$back_from_error,  { rv$screen <- "input" })
   observeEvent(input$back_from_result, { rv$screen <- "input" })
+  
+  # ---- Sidebar: Table of Contents (depends on the current screen) -----------
+  output$toc <- renderUI({
+    entries <- if (identical(rv$screen, "result")) {
+      if (length(rv$fun_args) == 0L) {
+        list(tags$li("No arguments"))
+      } else {
+        lapply(rv$fun_args, function(nm) {
+          tags$li(tags$a(href = paste0("#", arg_id(nm)), nm))
+        })
+      }
+    } else {
+      list(
+        tags$li(tags$a(href = "#intro", "Introduction")),
+        tags$li(tags$a(href = "#sec_code", "Code of your function"))
+      )
+    }
+    div(class = "wy-menu wy-menu-vertical",
+        p(class = "caption", "Table of Contents"),
+        tags$ul(entries))
+  })
   
   # ---- The three screens -----------------------------------------------------
   output$screen <- renderUI({
@@ -143,38 +171,35 @@ server <- function(input, output, session) {
           intro(),
           h4(id = "sec_code", "Code of your function"),
           code_instructions(),
-          # the pasted-code box is REPLACED by the error message
+          # the pasted-code box is REPLACED by the fixed error message
           div(class = "alert alert-danger", role = "alert", style = "margin-top: 10px;",
-              tags$strong("Error: "), rv$error_msg),
+              ERROR_TEXT),
           hr(),
           back_btn("back_from_error")
         ),
         
-        result = tagList(
-          intro(),
-          h4(id = "sec_code", "Code of your function"),
-          tags$pre(rv$code),   # your pasted code, shown read-only
-          hr(),
-          # =================================================================
-          # NEW SECTIONS - PLACEHOLDERS. Tell me the sections you want and
-          # I replace this block. Everything you need is already available
-          # server-side in: rv$fun_name, rv$fun_args, rv$fun_body, rv$code.
-          # =================================================================
-          h4(id = "sec_new1", "Section title 1"),
-          p(class = "input-instruction-label", "Function name"),
-          tags$pre(rv$fun_name),
-          
-          h4(id = "sec_new2", "Section title 2"),
-          p(class = "input-instruction-label", "Argument names"),
-          tags$ul(lapply(rv$fun_args, tags$li)),
-          
-          h4(id = "sec_new3", "Section title 3"),
-          p(class = "input-instruction-label", "Function body (everything after '{')"),
-          tags$pre(rv$fun_body),
-          
-          hr(),
-          back_btn("back_from_result")
-        )
+        # Result screen: ONLY one section per argument name (+ Back button)
+        result = {
+          if (length(rv$fun_args) == 0L) {
+            tagList(
+              p(class = "input-instruction-label",
+                "The provided function has no arguments."),
+              hr(),
+              back_btn("back_from_result")
+            )
+          } else {
+            n <- length(rv$fun_args)
+            tagList(
+              lapply(seq_len(n), function(i) {
+                sec <- tagList(h4(id = arg_id(rv$fun_args[i]), rv$fun_args[i]))
+                if (i < n) sec <- tagList(sec, hr())
+                sec
+              }),
+              hr(),
+              back_btn("back_from_result")
+            )
+          }
+        }
       )
     )
   })
