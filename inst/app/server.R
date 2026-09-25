@@ -10,7 +10,9 @@ server <- function(input, output, session) {
     error_msg = NULL,      # real error: logged to console only, NEVER displayed
     fun_name  = NULL,
     fun_args  = NULL,      # character vector of argument names
-    fun_body  = NULL       # single string: everything after '{'
+    fun_body  = NULL,      # verbatim body text (everything between '{' and '}')
+    aa        = NULL,      # verbatim: beginning of pasted code up to the last argument
+    rebuilt   = NULL       # not strictly needed; kept for future preview use
   )
   
   # Fixed error message requested by the user (what the user sees)
@@ -24,6 +26,77 @@ server <- function(input, output, session) {
     message("App error (not shown to the user): ", detail)
     rv$error_msg <- detail
     rv$screen    <- "error"
+  }
+  
+  # ---- Verbatim capture helpers --------------------------------------------
+  # Position of the closing bracket matching the one at position 'open'
+  match_close <- function(txt, open, close_ch) {
+    open_ch  <- substring(txt, open, open)
+    chars    <- strsplit(txt, "")[[1]]
+    depth    <- 0L
+    for (i in open:nchar(txt)) {
+      if (chars[i] == open_ch) {
+        depth <- depth + 1L
+      } else if (chars[i] == close_ch) {
+        depth <- depth - 1L
+        if (depth == 0L) return(i)
+      }
+    }
+    -1L
+  }
+  
+  # Extracts:
+  #   $aa   : verbatim text from position 1 up to the last argument
+  #           (i.e., everything BEFORE the closing ')' of the signature)
+  #   $body : verbatim text between the '{' and '}' of the function body
+  extract_aa_body <- function(code) {
+    m <- regexpr("function[[:space:]]*\\(", code)
+    if (m == -1) return(NULL)
+    p_open  <- m + attr(m, "match.length") - 1L        # position of '('
+    p_close <- match_close(code, p_open, ")")
+    if (p_close == -1) return(NULL)
+    aa <- substring(code, 1, p_close - 1L)
+    
+    # Locate the body after the signature's ')'
+    rest    <- substring(code, p_close + 1L)
+    m2      <- regexpr("\\S", rest)
+    if (m2 == -1) return(list(aa = aa, body = ""))
+    p_body <- p_close + m2                              # first non-space char
+    
+    if (substring(code, p_body, p_body) == "{") {
+      p_end <- match_close(code, p_body, "}")
+      if (p_end == -1) return(NULL)
+      body <- substring(code, p_body + 1L, p_end - 1L)
+      list(aa = aa, body = body)
+    } else {
+      # Single-expression body, e.g. function(x) x + 1
+      list(aa = aa, body = trimws(rest))
+    }
+  }
+  
+  # ---- Rebuild the safer function -------------------------------------------
+  build_rebuilt <- function(aa, body, pkg) {
+    aa   <- sub("[[:space:]]+$", "", aa)
+    body <- sub("[[:space:]]+$", "", sub("^[[:space:]]*\n", "", body))
+    
+    # Comma after the last initial argument (not if signature is empty
+    # or already ends with a comma)
+    comma <- if (grepl("\\($", aa) || grepl(",$", aa)) "" else ","
+    
+    pkg_line <- if (nzchar(pkg)) {
+      paste0("package_name <- ", deparse(pkg))
+    } else {
+      "package_name <- NULL"
+    }
+    
+    paste0(
+      aa, comma,
+      "\n    lib_path = NULL, \n    safer_check = TRUE, \n    error_text = \"\" \n){\n",
+      "\n    #### package name\n    ", pkg_line, "\n    #### end package name\n",
+      "\n    #### main code\n",
+      body,
+      "\n    #### end main code\n}\n"
+    )
   }
   
   # ---- Shared UI fragments (used on input and error screens) --------------
@@ -75,6 +148,7 @@ server <- function(input, output, session) {
     rv$fun_name  <- NULL
     rv$fun_args  <- NULL
     rv$fun_body  <- NULL
+    rv$aa        <- NULL
     
     # Empty field -> error screen
     if (!nzchar(trimws(code))) {
@@ -113,26 +187,52 @@ server <- function(input, output, session) {
       return(invisible())
     }
     
-    # 3) Extract: argument names + full body (everything after '{')
+    # 3) Extract: argument names + verbatim AA + verbatim body
     args <- names(formals(f))
     rv$fun_args <- if (is.null(args)) character(0) else args
     
-    bl <- deparse(body(f), width.cutoff = 500L)
-    if (length(bl) && identical(trimws(bl[1]), "{"))          bl <- bl[-1]
-    if (length(bl) && identical(trimws(bl[length(bl)]), "}")) bl <- bl[-length(bl)]
-    rv$fun_body <- paste(bl, collapse = "\n")
+    parts <- extract_aa_body(code)
+    if (is.null(parts)) {
+      go_error("Could not locate the function signature/body in the pasted code.")
+      return(invisible())
+    }
+    rv$aa       <- parts$aa
+    rv$fun_body <- parts$body
+    
+    # 4) Validate that the rebuilt function is valid R
+    ok <- tryCatch({
+      parse(text = build_rebuilt(rv$aa, rv$fun_body, ""))
+      TRUE
+    }, error = function(e) FALSE)
+    if (!ok) {
+      go_error(paste0("The rebuilt function does not parse. Possible cause: an argument ",
+                      "is already named lib_path, safer_check or error_text."))
+      return(invisible())
+    }
     
     rv$screen <- "result"
   })
   
   # ---- BACK buttons ---------------------------------------------------------
-  # Keep the package name typed by the user before leaving the result screen
   observeEvent(input$back_from_result, {
     pkg <- input$pkg_name
     rv$pkg_name <- if (is.null(pkg)) "" else pkg
     rv$screen <- "input"
   })
   observeEvent(input$back_from_error, { rv$screen <- "input" })
+  
+  # ---- DOWNLOAD: the modified (safer) function -------------------------------
+  output$download_safer <- downloadHandler(
+    filename = function() {
+      paste0(rv$fun_name, "_safer.R")
+    },
+    content = function(file) {
+      pkg  <- if (is.null(input$pkg_name)) "" else trimws(input$pkg_name)
+      code <- build_rebuilt(rv$aa, rv$fun_body, pkg)
+      rv$rebuilt <- code
+      writeLines(code, file)
+    }
+  )
   
   # ---- Sidebar: Table of Contents (depends on the current screen) -----------
   output$toc <- renderUI({
@@ -180,17 +280,14 @@ server <- function(input, output, session) {
           intro(),
           h4(id = "sec_code", "Code of your function"),
           code_instructions(),
-          # the pasted-code box is REPLACED by the fixed error message
           div(class = "alert alert-danger", role = "alert", style = "margin-top: 10px;",
               ERROR_TEXT),
           hr(),
           back_btn("back_from_error")
         ),
         
-        # Result screen:
-        #   1) untitled detection text (intro style, NOT in the TOC)
-        #   2) "Package name" section (in the TOC)
-        #   3) one titled section per argument name (in the TOC)
+        # Result screen: detection text, Package name section,
+        # one section per argument, then [Run] [Back]
         result = {
           args_txt <- if (length(rv$fun_args) == 0L) {
             "none"
@@ -198,7 +295,6 @@ server <- function(input, output, session) {
             paste(rv$fun_args, collapse = ", ")
           }
           
-          # 1) Detection text, styled exactly like the intro list items
           detected_block <- tags$div(
             tags$ol(class = "input-instruction-list",
               tags$li(paste0("Function detected: ", rv$fun_name)),
@@ -206,7 +302,6 @@ server <- function(input, output, session) {
             )
           )
           
-          # 2) "Package name" section
           pkg_section <- tagList(
             h4(id = "pkg_section", "Package name"),
             tags$div(
@@ -221,13 +316,22 @@ server <- function(input, output, session) {
                       width = "100%")
           )
           
+          # Bottom row: the download ("Run") button BESIDE the Back button
+          result_footer <- div(
+            style = "text-align: right;",
+            downloadButton(outputId = "download_safer",
+                           label = "Run", class = "btn-primary"),
+            actionButton(inputId = "back_from_result",
+                         label = "Back", icon = icon("arrow-left"))
+          )
+          
           if (length(rv$fun_args) == 0L) {
             tagList(
               detected_block,
               hr(),
               pkg_section,
               hr(),
-              back_btn("back_from_result")
+              result_footer
             )
           } else {
             n <- length(rv$fun_args)
@@ -242,7 +346,7 @@ server <- function(input, output, session) {
                 sec
               }),
               hr(),
-              back_btn("back_from_result")
+              result_footer
             )
           }
         }
