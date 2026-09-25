@@ -27,7 +27,8 @@ ui <- fluidPage(
         justify-content: center !important;
       }
       
-      .wy-side-nav-search a { 
+      /* FIX: Changed from '.wy-side-nav-search a' to '> a' so it ONLY targets the main title link */
+      .wy-side-nav-search > a { 
         display: block !important; 
         width: 100% !important;
         text-align: center !important; 
@@ -45,6 +46,18 @@ ui <- fluidPage(
         font-size: 11px !important; 
         margin-top: 5px !important; 
         text-align: center !important; 
+      }
+      
+      /* FIX: Explicitly style the link inside the version block to match exactly what it was before */
+      .wy-side-nav-search .version a {
+        color: rgba(255,255,255,0.6) !important;
+        font-size: 11px !important;
+        font-weight: normal !important;
+        text-decoration: none !important;
+        display: inline !important;
+      }
+      .wy-side-nav-search .version a:hover {
+        text-decoration: underline !important; /* Optional: adds a nice hover indicator */
       }
       
       /* 4) Liens de navigation de la sidebar style Sphinx (Table of Contents Blue Match) */
@@ -68,25 +81,24 @@ ui <- fluidPage(
       /* 2 & 3) Page principale décalée pour laisser la place à la sidebar fixe */
       .wy-nav-content-wrap { flex-grow: 1; margin-left: 300px; background: #edf0f2; padding: 40px 20px; min-height: 100vh; }
       
-      /* REMOVED GREY BORDER HERE (border: none !important) */
       .rst-content { background: #ffffff; padding: 30px; border: none !important; border-radius: 4px; }
       
       /* Style pour le bloc d'instructions inséré comme un label */
-      .input-instruction-label {
-        font-weight: bold;
-        color: #333333;
-        margin-bottom: 8px;
-        font-size: 14px;
-        display: block;
+      .input-instruction-label { 
+        font-weight: bold; 
+        color: #333333; 
+        margin-bottom: 8px; 
+        font-size: 14px; 
+        display: block; 
       }
       
-      .input-instruction-list {
-        margin: 5px 0 12px 0;
-        padding-left: 20px;
-        color: #555555;
-        font-size: 13px;
-        line-height: 1.5;
-        font-weight: normal;
+      .input-instruction-list { 
+        margin: 5px 0 12px 0; 
+        padding-left: 20px; 
+        color: #555555; 
+        font-size: 13px; 
+        line-height: 1.5; 
+        font-weight: normal; 
       }
       
       /* Ajustements des titres de sections */
@@ -104,8 +116,13 @@ ui <- fluidPage(
           div(class = "wy-side-scroll",
               # 1) Titre complet dans le carré bleu en haut à gauche
               div(class = "wy-side-nav-search",
-                  a(href = "#", HTML("function > safer-r function<br>converter")),
-                  div(class = "version", "v1.0")
+                  a(href = "#", HTML("Function -> <i>safer-r</i> Function<br>Converter")),
+                  div(class = "version", 
+                      # The clean HTML anchor tag linked to your script
+                      a(href = "https://github.com/safer-r/.github/blob/main/profile/backbone.R", 
+                        "Backbone v19.5", 
+                        target = "_blank")
+                  )
               ),
               # 4) Table des matières cliquable pointant vers les h4()
               div(class = "wy-menu wy-menu-vertical",
@@ -122,11 +139,10 @@ ui <- fluidPage(
       # PAGE PRINCIPALE
       tags$section(class = "wy-nav-content-wrap",
           div(class = "rst-content",
-              div(role = "main", class = "document",
-                  
+              div(role = "main", class = "document", 
                   fluidRow(
                       column(
-                          width = 12, # Utilisation de toute la largeur de la zone blanche Sphinx
+                          width = 12, 
                           wellPanel(
                               style = "background-color: #fcfcfc; border: none; padding: 0; margin: 0;",
                               
@@ -134,8 +150,7 @@ ui <- fluidPage(
                               h4(id = "sec_code", "Code of your function"),
                               textAreaInput(
                                   inputId = "user_ini_fun",
-                                  # LE REMPLACEMENT : Les instructions stylisées prennent la place du label de texte brut
-                                  label   = tags$div(
+                                  label = tags$div(
                                       tags$ol(
                                           class = "input-instruction-list",
                                           tags$li("Fill the field."),
@@ -143,57 +158,44 @@ ui <- fluidPage(
                                           tags$li("Go to the newly created tab and complete the fields.")
                                       )
                                   ),
-                                  placeholder = "my_fun <- function(x){\n    x + 1\n}",
+                                  placeholder = "my_fun <- function(x){\n x + 1\n}",
                                   rows = 15,
                                   width = "100%"
                               ),
-                              
                               hr(),
                               
                               # Section 2 : Nom du package
                               h4(id = "sec_package", "Package name"),
                               textInput(
                                   inputId = "package_name",
-                                  label   = "Leave empty for NULL, or type a package name",
+                                  label = "Leave empty for NULL, or type a package name",
                                   placeholder = "NULL"
                               ),
-                              
                               hr(),
-
+                              
                               # Section 3 : Rapport
                               h4(id = "sec_report", "Report"),
                               textInput(
-                                  inputId = "report_name", 
-                                  label   = "Leave empty for NULL, or type a package name",
+                                  inputId = "report_name",
+                                  label = "Leave empty for NULL, or type a package name",
                                   placeholder = "NULL"
                               ),
-                              
                               hr(),
-
+                              
                               # Bouton Exécuter
                               div(
                                   style = "text-align: right;",
                                   downloadButton(
                                       outputId = "run_button",
-                                      label    = "Run",
-                                      class    = "btn-primary"
+                                      label = "Run",
+                                      class = "btn-primary"
                                   )
                               )
                           )
                       )
                   )
-                  
-              ),
-              
-              # Footer style Sphinx
-              tags$footer(
-                  hr(),
-                  div(role = "contentinfo",
-                      p("© Copyright 2026. Built with Shiny & Sphinx Theme Style.")
-                  )
               )
           )
       )
-  ),
-  tags$script(type = "text/javascript", src = "theme.js")
+  )
 )
