@@ -2,30 +2,37 @@ library(shiny)
 
 server <- function(input, output, session) {
   
+  # ---- Constants ------------------------------------------------------------
+  # The three additional safer-r arguments
+  SAFER_ARGS <- c("lib_path", "safer_check", "error_text")
+  
+  # Fixed error message requested by the user (default on the error screen)
+  ERROR_TEXT <- "The code provided returned an error. Please, click on the back button and provide a function that runs well."
+  
   # ---- App state ----------------------------------------------------------
   rv <- reactiveValues(
-    screen    = "input",   # "input" | "error" | "result"
-    code      = "",        # last pasted code (so "Back" restores the box)
-    pkg_name  = "",        # value typed in the "Package name" box (kept on Back)
-    error_msg = NULL,      # real error: logged to console only, NEVER displayed
+    screen        = "input",   # "input" | "error" | "result"
+    code          = "",        # last pasted code (so "Back" restores the box)
+    pkg_name      = "",        # value typed in the "Package name" box (kept on Back)
+    error_msg     = NULL,      # real error: logged to console only, NEVER displayed
+    error_display = NULL,      # text actually displayed on the error screen
     fun_name  = NULL,
-    fun_args  = NULL,      # character vector of argument names
-    fun_body  = NULL,      # verbatim body text (everything between '{' and '}')
-    aa        = NULL,      # verbatim: beginning of pasted code up to the last argument
-    rebuilt   = NULL       # not strictly needed; kept for future preview use
+    fun_args  = NULL,          # character vector of argument names
+    fun_body  = NULL,          # verbatim body text (everything between '{' and '}')
+    aa        = NULL,          # verbatim: beginning of pasted code up to the last argument
+    rebuilt   = NULL           # not strictly needed; kept for future preview use
   )
-  
-  # Fixed error message requested by the user (what the user sees)
-  ERROR_TEXT <- "The code provided returned an error. Please, click on the back button and provide a function that runs well."
   
   # Build a valid HTML id from an argument name
   arg_id <- function(nm) paste0("arg_", gsub("[^[:alnum:]_]", "_", nm))
   
-  # Go to the error screen; detail is logged in the R console for the developer
-  go_error <- function(detail) {
+  # Go to the error screen; 'detail' is logged in the R console for the developer,
+  # 'display' is what the user sees (defaults to the fixed message)
+  go_error <- function(detail, display = NULL) {
     message("App error (not shown to the user): ", detail)
-    rv$error_msg <- detail
-    rv$screen    <- "error"
+    rv$error_msg     <- detail
+    rv$error_display <- if (is.null(display)) ERROR_TEXT else display
+    rv$screen        <- "error"
   }
   
   # ---- Verbatim capture helpers --------------------------------------------
@@ -199,14 +206,30 @@ server <- function(input, output, session) {
     rv$aa       <- parts$aa
     rv$fun_body <- parts$body
     
-    # 4) Validate that the rebuilt function is valid R
+    # 3b) SPECIFIC ERROR: any of the three safer-r argument names already
+    #     present among the user's arguments?
+    collide <- intersect(rv$fun_args, SAFER_ARGS)
+    if (length(collide) > 0L) {
+      go_error(
+        paste0("Argument name collision with safer-r arguments: ",
+               paste(collide, collapse = ", "), "."),
+        display = paste0(
+          "The following argument ", ifelse(test = length(collide) > 1, "names", no = "name"), " of your function ", ifelse(test = length(collide) > 1, "are", no = "is"), " reserved by the ",
+          "safer-r rules and cannot be used:\n",
+          paste(collide, collapse = "\n"),
+          ".\nPlease rename ", ifelse(test = length(collide) > 1, "them", no = "it"), " and run again."
+        )
+      )
+      return(invisible())
+    }
+    
+    # 4) Validate that the rebuilt function is valid R (safety net)
     ok <- tryCatch({
       parse(text = build_rebuilt(rv$aa, rv$fun_body, ""))
       TRUE
     }, error = function(e) FALSE)
     if (!ok) {
-      go_error(paste0("The rebuilt function does not parse. Possible cause: an argument ",
-                      "is already named lib_path, safer_check or error_text."))
+      go_error("The rebuilt function does not parse.")
       return(invisible())
     }
     
@@ -280,8 +303,11 @@ server <- function(input, output, session) {
           intro(),
           h4(id = "sec_code", "Code of your function"),
           code_instructions(),
-          div(class = "alert alert-danger", role = "alert", style = "margin-top: 10px;",
-              ERROR_TEXT),
+          # Specific message when set; fixed message otherwise.
+          # white-space: pre-line  ->  every \n becomes a real line break
+          div(class = "alert alert-danger", role = "alert",
+              style = "margin-top: 10px; white-space: pre-line;",
+              if (is.null(rv$error_display)) ERROR_TEXT else rv$error_display),
           hr(),
           back_btn("back_from_error")
         ),
