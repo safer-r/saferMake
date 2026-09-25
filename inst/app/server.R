@@ -1,85 +1,181 @@
 library(shiny)
 
-# Finds the character offset (in code_text) of the opening "{" that starts
-# the body of the first function() found, using R's own parser.
-find_body_brace_offset <- function(code_text) {
-    expr <- tryCatch(
-        parse(text = code_text, keep.source = TRUE),
-        error = function(e) NULL
-    )
-    if (is.null(expr)) {
-        stop("The pasted code could not be parsed as valid R code. Please check for syntax errors.")
-    }
-    pd <- getParseData(expr)
-    if (is.null(pd) || nrow(pd) == 0) {
-        stop("Could not analyze the code structure (no parse data returned).")
-    }
-    fun_rows <- pd[pd$token == "FUNCTION", ]
-    if (nrow(fun_rows) == 0) {
-        stop("No `function(...)` definition was found in the pasted code.")
-    }
-    first_fun <- fun_rows[order(fun_rows$line1, fun_rows$col1), ][1, ]
-    
-    brace_rows <- pd[pd$token == "'{'", ]
-    after_fun <- brace_rows[
-        (brace_rows$line1 > first_fun$line1) |
-            (brace_rows$line1 == first_fun$line1 & brace_rows$col1 > first_fun$col1),
-    ]
-    if (nrow(after_fun) == 0) {
-        stop("No opening brace `{` was found after `function(...)`. Brace-less one-line functions are not supported yet.")
-    }
-    brace <- after_fun[order(after_fun$line1, after_fun$col1), ][1, ]
-    
-    lines <- strsplit(code_text, "\n", fixed = TRUE)[[1]]
-    n_prev_lines <- brace$line1 - 1
-    offset <- if (n_prev_lines > 0) {
-        sum(nchar(lines[seq_len(n_prev_lines)])) + n_prev_lines  # + newline chars
-    } else {
-        0
-    }
-    offset + brace$col2  # position of the "{" character itself
-}
-
-# Inserts the package_name block right after the function body's "{"
-build_output_code <- function(user_ini_fun, package_name) {
-    offset <- find_body_brace_offset(user_ini_fun)
-    before <- substr(user_ini_fun, 1, offset)
-    after  <- substr(user_ini_fun, offset + 1, nchar(user_ini_fun))
-    pkg_value <- if (is.null(package_name) || trimws(package_name) == "") {
-        "NULL"
-    } else {
-        paste0('"', package_name, '"')
-    }
-    insertion <- paste0(
-        "\n    #### package name\n",
-        "    package_name <- ", pkg_value, "\n",
-        "    #### end package name\n"
-    )
-    paste0(before, insertion, after)
-}
-
 server <- function(input, output, session) {
-    output$run_button <- downloadHandler(
-        filename = function() {
-            "generated_function.R"
-        },
-        content = function(file) {
-            validate(
-                need(nzchar(trimws(input$user_ini_fun)), "Please paste your function code in field 1 before clicking Run.")
-            )
-            
-            result <- tryCatch(
-                build_output_code(input$user_ini_fun, input$package_name),
-                error = function(e) e
-            )
-            
-            if (inherits(result, "error")) {
-                showNotification(conditionMessage(result), type = "error", duration = NULL)
-                stop(conditionMessage(result))
-            }
-            
-            writeLines(result, con = file)
-        },
-        contentType = "text/plain"
+  
+  # ---- App state ----------------------------------------------------------
+  rv <- reactiveValues(
+    screen    = "input",   # "input" | "error" | "result"
+    code      = "",        # last pasted code (so "Back" restores the box)
+    error_msg = NULL,
+    fun_name  = NULL,
+    fun_args  = NULL,      # character vector of argument names
+    fun_body  = NULL       # single string: everything after '{'
+  )
+  
+  # ---- Shared UI fragments (identical on every screen) ---------------------
+  intro <- function() {
+    list(
+      h4(id = "intro", "Introduction"),
+      tags$div(
+        tags$ol(class = "input-instruction-list",
+          tags$li(
+            "This interface helps to convert a R function of class S3 into a function of same class including the ",
+            tags$a(href = "https://github.com/safer-r", "safer-r rules",
+                   target = "_blank",
+                   style = "color: #2980B9; text-decoration: none; font-style: italic;"),
+            " to make the function safer."
+          ),
+          tags$li(HTML("The returned function includes a backbone at the beginning of the internal code, as well as three additional <i>safer-r</i> arguments."))
+        )
+      ),
+      hr()
     )
+  }
+  
+  code_instructions <- function() {
+    tags$div(
+      tags$ol(class = "input-instruction-list",
+        tags$li("Fill the field."),
+        tags$li("Click on the run button."),
+        tags$li("Go to the newly created tab and complete the fields.")
+      )
+    )
+  }
+  
+  wrap_panel <- function(...) {
+    fluidRow(column(width = 12,
+      wellPanel(style = "background-color: #fcfcfc; border: none; padding: 0; margin: 0;", ...)))
+  }
+  
+  back_btn <- function(id) {
+    div(style = "text-align: right;",
+        actionButton(inputId = id, label = "Back", icon = icon("arrow-left")))
+  }
+  
+  # ---- RUN: catch the pasted code, execute it, extract the pieces ----------
+  observeEvent(input$run_button, {
+    code <- isolate(input$user_ini_fun)
+    code <- if (is.null(code)) "" else code
+    rv$code      <- code
+    rv$error_msg <- NULL
+    rv$fun_name  <- NULL
+    rv$fun_args  <- NULL
+    rv$fun_body  <- NULL
+    
+    # Empty field -> error screen
+    if (!nzchar(trimws(code))) {
+      rv$error_msg <- "The field is empty: there is no code to run."
+      rv$screen <- "error"
+      return(invisible())
+    }
+    
+    # 1) Parse + execute in a scratch environment (errors are caught here,
+    #    whether they come from parse() itself or from evaluation)
+    env <- new.env(parent = globalenv())
+    err <- NULL
+    res <- tryCatch(
+      eval(parse(text = code), envir = env),
+      error = function(e) { err <<- conditionMessage(e); NULL }
+    )
+    
+    if (!is.null(err)) {
+      rv$error_msg <- err
+      rv$screen <- "error"
+      return(invisible())
+    }
+    
+    # 2) Identify the function defined by the pasted code
+    fnames <- Filter(function(n) is.function(get(n, envir = env)), ls(envir = env))
+    f <- NULL
+    if (length(fnames) == 1L) {
+      rv$fun_name <- fnames
+      f <- get(fnames, envir = env)
+    } else if (length(fnames) == 0L && is.function(res)) {
+      rv$fun_name <- "<anonymous>"     # e.g. just `function(x) ...` was pasted
+      f <- res
+    } else if (length(fnames) > 1L) {
+      rv$error_msg <- paste0("Execution succeeded but the code defines several functions (",
+                             paste(fnames, collapse = ", "),
+                             "). Please define exactly one function.")
+      rv$screen <- "error"
+      return(invisible())
+    } else {
+      rv$error_msg <- "Execution succeeded but no function was defined by the code."
+      rv$screen <- "error"
+      return(invisible())
+    }
+    
+    # 3) Extract: argument names + full body (everything after '{')
+    args <- names(formals(f))
+    rv$fun_args <- if (is.null(args)) character(0) else args
+    
+    bl <- deparse(body(f), width.cutoff = 500L)
+    if (length(bl) && identical(trimws(bl[1]), "{"))          bl <- bl[-1]
+    if (length(bl) && identical(trimws(bl[length(bl)]), "}")) bl <- bl[-length(bl)]
+    rv$fun_body <- paste(bl, collapse = "\n")
+    
+    rv$screen <- "result"
+  })
+  
+  # ---- BACK buttons ---------------------------------------------------------
+  observeEvent(input$back_from_error,  { rv$screen <- "input" })
+  observeEvent(input$back_from_result, { rv$screen <- "input" })
+  
+  # ---- The three screens -----------------------------------------------------
+  output$screen <- renderUI({
+    wrap_panel(
+      switch(rv$screen,
+        
+        input = tagList(
+          intro(),
+          h4(id = "sec_code", "Code of your function"),
+          code_instructions(),
+          textAreaInput(inputId = "user_ini_fun", label = NULL,
+                        value = rv$code,   # restores the pasted code after "Back"
+                        placeholder = "my_fun <- function(x){\n    x + 1\n}",
+                        rows = 15, width = "100%"),
+          hr(),
+          div(style = "text-align: right;",
+              actionButton(inputId = "run_button", label = "Run", class = "btn-primary"))
+        ),
+        
+        error = tagList(
+          intro(),
+          h4(id = "sec_code", "Code of your function"),
+          code_instructions(),
+          # the pasted-code box is REPLACED by the error message
+          div(class = "alert alert-danger", role = "alert", style = "margin-top: 10px;",
+              tags$strong("Error: "), rv$error_msg),
+          hr(),
+          back_btn("back_from_error")
+        ),
+        
+        result = tagList(
+          intro(),
+          h4(id = "sec_code", "Code of your function"),
+          tags$pre(rv$code),   # your pasted code, shown read-only
+          hr(),
+          # =================================================================
+          # NEW SECTIONS - PLACEHOLDERS. Tell me the sections you want and
+          # I replace this block. Everything you need is already available
+          # server-side in: rv$fun_name, rv$fun_args, rv$fun_body, rv$code.
+          # =================================================================
+          h4(id = "sec_new1", "Section title 1"),
+          p(class = "input-instruction-label", "Function name"),
+          tags$pre(rv$fun_name),
+          
+          h4(id = "sec_new2", "Section title 2"),
+          p(class = "input-instruction-label", "Argument names"),
+          tags$ul(lapply(rv$fun_args, tags$li)),
+          
+          h4(id = "sec_new3", "Section title 3"),
+          p(class = "input-instruction-label", "Function body (everything after '{')"),
+          tags$pre(rv$fun_body),
+          
+          hr(),
+          back_btn("back_from_result")
+        )
+      )
+    )
+  })
 }
