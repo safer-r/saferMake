@@ -57,7 +57,7 @@ ui <- fluidPage(
         display: inline !important;
       }
       .wy-side-nav-search .version a:hover {
-        text-decoration: underline !important; /* Optional: adds a nice hover indicator */
+        text-decoration: underline !important; 
       }
       
       /* 4) Liens de navigation de la sidebar style Sphinx (Table of Contents Blue Match) */
@@ -118,7 +118,6 @@ ui <- fluidPage(
               div(class = "wy-side-nav-search",
                   a(href = "#", HTML("Function -> <i>safer-r</i> Function<br>Converter")),
                   div(class = "version", 
-                      # The clean HTML anchor tag linked to your script
                       a(href = "https://github.com/safer-r/.github/blob/main/profile/backbone.R", 
                         "Backbone v19.5", 
                         target = "_blank")
@@ -128,9 +127,8 @@ ui <- fluidPage(
               div(class = "wy-menu wy-menu-vertical",
                   p(class = "caption", "Table of Contents"),
                   tags$ul(
-                      tags$li(a(href = "#sec_code", "Code of your function")),
-                      tags$li(a(href = "#sec_package", "Package name")),
-                      tags$li(a(href = "#sec_report", "Report"))
+                    tags$li(a(href = "#intro", "Introduction")), 
+                    tags$li(a(href = "#sec_code", "Code of your function"))
                   )
               )
           )
@@ -145,40 +143,46 @@ ui <- fluidPage(
                           width = 12, 
                           wellPanel(
                               style = "background-color: #fcfcfc; border: none; padding: 0; margin: 0;",
-                              
-                              # Section 1 : Code de la fonction
+
+                              # Section 1 : Introduction
+                              h4(id = "intro", "Introduction"),
+                              tags$div(
+                                tags$ol(
+                                    class = "input-instruction-list",
+                                    tags$li(
+                                        "This interface helps to convert a R function of class S3 into a function of same class including the ",
+                                        tags$a(
+                                            href = "https://github.com/safer-r", 
+                                            "safer-r rules", 
+                                            target = "_blank",
+                                            style = "color: #2980B9; text-decoration: none; font-style: italic;"
+                                        ),
+                                        " to make the function safer."
+                                    ),
+                                    tags$li(HTML("The returned function includes a backbone at the beginning of the internal code, as well as three additional <i>safer-r</i> arguments."))
+                                )
+                              ),
+                              hr(),
+
+                              # Section 2 : Code de la fonction
                               h4(id = "sec_code", "Code of your function"),
+                              
+                              # FIX: Moved the instruction block out of the text area element 
+                              # so both sections render under identical global CSS parameters.
+                              tags$div(
+                                tags$ol(
+                                    class = "input-instruction-list",
+                                    tags$li("Fill the field."),
+                                    tags$li("Click on the run button."),
+                                    tags$li("Go to the newly created tab and complete the fields.")
+                                )
+                              ),
                               textAreaInput(
                                   inputId = "user_ini_fun",
-                                  label = tags$div(
-                                      tags$ol(
-                                          class = "input-instruction-list",
-                                          tags$li("Fill the field."),
-                                          tags$li("Click on the run button."),
-                                          tags$li("Go to the newly created tab and complete the fields.")
-                                      )
-                                  ),
-                                  placeholder = "my_fun <- function(x){\n x + 1\n}",
+                                  label = NULL, # Set label to NULL since instructions live independently above
+                                  placeholder = "my_fun <- function(x){\n    x + 1\n}",
                                   rows = 15,
                                   width = "100%"
-                              ),
-                              hr(),
-                              
-                              # Section 2 : Nom du package
-                              h4(id = "sec_package", "Package name"),
-                              textInput(
-                                  inputId = "package_name",
-                                  label = "Leave empty for NULL, or type a package name",
-                                  placeholder = "NULL"
-                              ),
-                              hr(),
-                              
-                              # Section 3 : Rapport
-                              h4(id = "sec_report", "Report"),
-                              textInput(
-                                  inputId = "report_name",
-                                  label = "Leave empty for NULL, or type a package name",
-                                  placeholder = "NULL"
                               ),
                               hr(),
                               
