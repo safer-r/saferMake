@@ -6,6 +6,7 @@ server <- function(input, output, session) {
   rv <- reactiveValues(
     screen    = "input",   # "input" | "error" | "result"
     code      = "",        # last pasted code (so "Back" restores the box)
+    pkg_name  = "",        # value typed in the "Package name" box (kept on Back)
     error_msg = NULL,      # real error: logged to console only, NEVER displayed
     fun_name  = NULL,
     fun_args  = NULL,      # character vector of argument names
@@ -125,19 +126,27 @@ server <- function(input, output, session) {
   })
   
   # ---- BACK buttons ---------------------------------------------------------
-  observeEvent(input$back_from_error,  { rv$screen <- "input" })
-  observeEvent(input$back_from_result, { rv$screen <- "input" })
+  # Keep the package name typed by the user before leaving the result screen
+  observeEvent(input$back_from_result, {
+    pkg <- input$pkg_name
+    rv$pkg_name <- if (is.null(pkg)) "" else pkg
+    rv$screen <- "input"
+  })
+  observeEvent(input$back_from_error, { rv$screen <- "input" })
   
   # ---- Sidebar: Table of Contents (depends on the current screen) -----------
   output$toc <- renderUI({
     entries <- if (identical(rv$screen, "result")) {
-      if (length(rv$fun_args) == 0L) {
-        list(tags$li("No arguments"))
-      } else {
-        lapply(rv$fun_args, function(nm) {
-          tags$li(tags$a(href = paste0("#", arg_id(nm)), nm))
-        })
-      }
+      c(
+        list(tags$li(tags$a(href = "#pkg_section", "Package name"))),
+        if (length(rv$fun_args) == 0L) {
+          list(tags$li("No arguments"))
+        } else {
+          lapply(rv$fun_args, function(nm) {
+            tags$li(tags$a(href = paste0("#", arg_id(nm)), nm))
+          })
+        }
+      )
     } else {
       list(
         tags$li(tags$a(href = "#intro", "Introduction")),
@@ -178,18 +187,55 @@ server <- function(input, output, session) {
           back_btn("back_from_error")
         ),
         
-        # Result screen: ONLY one section per argument name (+ Back button)
+        # Result screen:
+        #   1) untitled detection text (intro style, NOT in the TOC)
+        #   2) "Package name" section (in the TOC)
+        #   3) one titled section per argument name (in the TOC)
         result = {
+          args_txt <- if (length(rv$fun_args) == 0L) {
+            "none"
+          } else {
+            paste(rv$fun_args, collapse = ", ")
+          }
+          
+          # 1) Detection text, styled exactly like the intro list items
+          detected_block <- tags$div(
+            tags$ol(class = "input-instruction-list",
+              tags$li(paste0("Function detected: ", rv$fun_name)),
+              tags$li(paste0("Arguments detected: ", args_txt))
+            )
+          )
+          
+          # 2) "Package name" section
+          pkg_section <- tagList(
+            h4(id = "pkg_section", "Package name"),
+            tags$div(
+              tags$ol(class = "input-instruction-list",
+                tags$li("Does this function belong to a package? If yes, indicate its name. Otherwise, leave blanck.")
+              )
+            ),
+            textInput(inputId = "pkg_name",
+                      label = NULL,
+                      value = rv$pkg_name,
+                      placeholder = "Package name",
+                      width = "100%")
+          )
+          
           if (length(rv$fun_args) == 0L) {
             tagList(
-              p(class = "input-instruction-label",
-                "The provided function has no arguments."),
+              detected_block,
+              hr(),
+              pkg_section,
               hr(),
               back_btn("back_from_result")
             )
           } else {
             n <- length(rv$fun_args)
             tagList(
+              detected_block,
+              hr(),
+              pkg_section,
+              hr(),
               lapply(seq_len(n), function(i) {
                 sec <- tagList(h4(id = arg_id(rv$fun_args[i]), rv$fun_args[i]))
                 if (i < n) sec <- tagList(sec, hr())
