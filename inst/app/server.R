@@ -179,7 +179,7 @@ server <- function(input, output, session) {
         "        recycle0 = FALSE\n",
         "    )\n",
         "    ######## end basic error text start\n",
-        "\n",
+        "\n", 
         "    ######## internal error text\n",
         "    intern_error_text_start <- base::paste0(\n",
         "        package_function_name, \n",
