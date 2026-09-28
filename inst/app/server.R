@@ -6,38 +6,45 @@ server <- function(input, output, session) {
   # The three additional safer-r arguments
   SAFER_ARGS <- c("lib_path", "safer_check", "error_text")
   
-  # Fixed error message requested by the user (default on the error screen)
+  # Channel 1: ONLY for errors raised when running the pasted function
   ERROR_TEXT <- "The code provided returned an error. Please, click on the back button and provide a function that runs well."
+  
+  # Channel 3: internal errors of the interface
+  INTERNAL_ERROR_TEXT <- "An internal error occurred in the interface. This is not related to your function. Please report here https://github.com/safer-r/saferMake/issues/new."
   
   # ---- App state ----------------------------------------------------------
   rv <- reactiveValues(
-    screen        = "input",   # "input" | "error" | "result"
-    code          = "",        # last pasted code (so "Back" restores the box)
-    pkg_name      = "",        # value typed in the "Package name" box (kept on Back)
-    link_name     = "",        # value typed in the "Error report link" box (kept on Back)
-    error_msg     = NULL,      # real error: logged to console only, NEVER displayed
-    error_display = NULL,      # text actually displayed on the error screen
-    fun_name      = NULL,
-    fun_args      = NULL,      # character vector of argument names
-    fun_body      = NULL,      # verbatim body text (everything between '{' and '}')
-    aa            = NULL,     # verbatim: beginning of pasted code up to the last argument
-    rebuilt       = NULL      # not strictly needed; kept for future preview use
+    screen          = "input",   # "input" | "error" | "result"
+    code            = "",        # last pasted code (so "Back" restores the box)
+    pkg_name        = "",        # "Package name" box value (kept on Back)
+    link_name       = "",        # "Error report link" box value (kept on Back)
+    null_args       = character(0),  # argument names checked as NULL-accepting
+    non_null_args   = character(0),  # argument names NOT checked
+    error_msg       = NULL,      # real error: logged to console only, NEVER displayed
+    error_display   = NULL,      # text actually displayed on the error screen
+    fun_name        = NULL,
+    fun_args        = NULL,      # character vector of argument names
+    fun_body        = NULL,      # verbatim body text (everything between '{' and '}')
+    aa              = NULL,      # verbatim: beginning of pasted code up to the last argument
+    rebuilt         = NULL      # not strictly needed; kept for future preview use
   )
   
   # Build a valid HTML id from an argument name
   arg_id <- function(nm) paste0("arg_", gsub("[^[:alnum:]_]", "_", nm))
+  # Checkbox id for a given argument name
+  null_cb_id <- function(nm) paste0("null_", arg_id(nm))
   
-  # Go to the error screen; 'detail' is logged in the R console for the developer,
-  # 'display' is what the user sees (defaults to the fixed message)
-  go_error <- function(detail, display = NULL) {
+  # ---- Error channels -------------------------------------------------------
+  set_error <- function(detail, display) {
     message("App error (not shown to the user): ", detail)
     rv$error_msg     <- detail
-    rv$error_display <- if (is.null(display)) ERROR_TEXT else display
+    rv$error_display <- display
     rv$screen        <- "error"
   }
+  user_code_error <- function(detail) set_error(detail, ERROR_TEXT)
+  internal_error  <- function(detail) set_error(detail, INTERNAL_ERROR_TEXT)
   
   # ---- Verbatim capture helpers --------------------------------------------
-  # Position of the closing bracket matching the one at position 'open'
   match_close <- function(txt, open, close_ch) {
     open_ch  <- substring(txt, open, open)
     chars    <- strsplit(txt, "")[[1]]
@@ -53,22 +60,18 @@ server <- function(input, output, session) {
     -1L
   }
   
-  # Extracts:
-  #   $aa   : verbatim text from position 1 up to the last argument
-  #   $body : verbatim text between the '{' and '}' of the function body
   extract_aa_body <- function(code) {
     m <- regexpr("function[[:space:]]*\\(", code)
     if (m == -1) return(NULL)
-    p_open  <- m + attr(m, "match.length") - 1L        # position of '('
+    p_open  <- m + attr(m, "match.length") - 1L
     p_close <- match_close(code, p_open, ")")
     if (p_close == -1) return(NULL)
     aa <- substring(code, 1, p_close - 1L)
     
-    # Locate the body after the signature's ')'
     rest    <- substring(code, p_close + 1L)
     m2      <- regexpr("\\S", rest)
     if (m2 == -1) return(list(aa = aa, body = ""))
-    p_body <- p_close + m2                              # first non-space char
+    p_body <- p_close + m2
     
     if (substring(code, p_body, p_body) == "{") {
       p_end <- match_close(code, p_body, "}")
@@ -76,47 +79,77 @@ server <- function(input, output, session) {
       body <- substring(code, p_body + 1L, p_end - 1L)
       list(aa = aa, body = body)
     } else {
-      # Single-expression body, e.g. function(x) x + 1
       list(aa = aa, body = trimws(rest))
     }
   }
   
   # ---- Rebuild the safer function -------------------------------------------
-  build_rebuilt <- function(
-    aa, 
-    body, 
-    pkg, 
-    link = ""
-    ) {
+  # null_args     : argument names that ACCEPT NULL -> commented out in tempo_arg
+  # non_null_args : argument names that must NOT be NULL -> active in tempo_arg
+  build_rebuilt <- function(aa, body, pkg, link,
+                            null_args = character(0),
+                            non_null_args = character(0)) {
     aa   <- sub("[[:space:]]+$", "", aa)
     body <- sub("[[:space:]]+$", "", sub("^[[:space:]]*\n", "", body))
     
-    # Comma after the last initial argument (not if signature is empty
-    # or already ends with a comma)
     comma <- if (grepl("\\($", aa) || grepl(",$", aa)) "" else ","
     
-    pkg_line <- if (nzchar(pkg)) {
-      paste0("package_name <- ", deparse(pkg))
-    } else {
-      "package_name <- NULL"
-    }
-    
-    # NOTE: "NULL" as a STRING, so the line stays valid R even when the
-    # link box is empty (paste0() would silently DROP a real NULL,
-    # producing "internal_error_report_link <-  # ..." which does not parse)
+    pkg_line  <- if (nzchar(pkg)) paste0("package_name <- ", deparse(pkg)) else "package_name <- NULL"
     link_line <- if (nzchar(link)) deparse(link) else "NULL"
+    
+    # FIX (bug 3): one line per argument, each comma-terminated, so commenting
+    # a line out never breaks the c(...) call (a trailing comma is valid R).
+    # ACTIVE line    -> argument must NOT be NULL (checked by tempo_log)
+    # COMMENTED line -> argument accepts NULL (excluded from the check)
+    non_null_lines <- vapply(
+      non_null_args,
+      function(nm) paste0("        ", deparse(nm, width.cutoff = 500L), ", "),
+      character(1L)
+    )
+    null_lines <- vapply(
+      null_args,
+      function(nm) paste0("        # ", deparse(nm, width.cutoff = 500L),
+                           ", # inactivated because can be NULL"),
+      character(1L)
+    )
+    tempo_arg_block <- paste0(
+      "    tempo_arg <- base::c(\n",
+      paste(c(non_null_lines, null_lines,
+              "        \"safer_check\", ",
+              "        # \"lib_path\", # inactivated because can be NULL",
+              "        # \"error_text\" # inactivated because NULL converted to \"\" above"),
+            collapse = "\n"),
+      "\n    )\n"
+    )
     
     paste0(
       aa, comma,
       "\n    lib_path = NULL, \n    safer_check = TRUE, \n    error_text = \"\" \n){\n",
-      "\n    #### package name\n    ", pkg_line, " # write NULL if the function developed is not in a package\n    #### end package name\n",
+      "\n    #### package name\n    ", pkg_line, "\n    #### end package name\n",
       "\n    #### internal error report link\n",
       "    internal_error_report_link <- ", link_line,
       " # link where to post an issue indicated in an internal error message. Write NULL if no link to propose, or no internal error message\n",
-      "    #### end internal error report link\n",
+      "    #### end internal error report link\n\n",
+      "    ######## management of NULL arguments\n",
+      "    # before NA checking because is.na(NULL) return logical(0) and all(logical(0)) is TRUE (but secured with & base::length(x = x) > 0)\n",
+        tempo_arg_block, 
+      "    tempo_log <- base::sapply(X = base::lapply(X = tempo_arg, FUN = function(x){base::get(x = x, pos = -1L, envir = base::parent.frame(n = 2), mode = \"any\", inherits = FALSE)}), FUN = function(x){base::is.null(x = x)}, simplify = TRUE, USE.NAMES = TRUE) # parent.frame(n = 2) because sapply(lapply())\n",
+      "    if(base::any(tempo_log, na.rm = TRUE)){ # normally no NA with base::is.null()\n",
+      "        tempo_cat <- base::paste0(\n",
+      "            error_text_start, \n",
+      "            base::ifelse(test = base::sum(tempo_log, na.rm = TRUE) > 1, yes = \"THESE ARGUMENTS\", no = \"THIS ARGUMENT\"), \n",
+      "            \" CANNOT BE NULL:\\n\", \n",
+      "            base::paste0(tempo_arg[tempo_log], collapse = \"\\n\", recycle0 = FALSE), \n",
+      "            collapse = NULL, \n",
+      "            recycle0 = FALSE\n",
+      "        )\n",
+      "        base::stop(base::paste0(\"\\n\\n================\\n\\n\", tempo_cat, \"\\n\\n================\\n\\n\", collapse = NULL, recycle0 = FALSE), call. = FALSE, domain = NULL)\n",
+      "    }\n",
+      "    ######## end management of NULL arguments\n", 
       "\n    #### main code\n",
       body,
-      "\n    #### end main code\n}\n"
+      "\n    #### end main code\n",
+      "}\n"
     )
   }
   
@@ -160,71 +193,72 @@ server <- function(input, output, session) {
         actionButton(inputId = id, label = "Back", icon = icon("arrow-left")))
   }
   
-  # ---- RUN: catch the pasted code, execute it, extract the pieces ----------
-  observeEvent(input$run_button, {
+  # ---- RUN logic -------------------------------------------------------------
+  run_clicked <- function() {
     code <- isolate(input$user_ini_fun)
     code <- if (is.null(code)) "" else code
-    rv$code      <- code
-    rv$error_msg <- NULL
-    rv$fun_name  <- NULL
-    rv$fun_args  <- NULL
-    rv$fun_body  <- NULL
-    rv$aa        <- NULL
+    rv$code          <- code
+    rv$error_msg     <- NULL
+    rv$error_display <- NULL
+    rv$fun_name      <- NULL
+    rv$fun_args      <- NULL
+    rv$fun_body      <- NULL
+    rv$aa            <- NULL
+    rv$null_args     <- character(0)
+    rv$non_null_args <- character(0)
     
-    # Empty field -> error screen
     if (!nzchar(trimws(code))) {
-      go_error("The field is empty.")
+      set_error("The field is empty.", "The field is empty: there is no code to run.")
       return(invisible())
     }
     
-    # 1) Parse + execute in a scratch environment
     env <- new.env(parent = globalenv())
     err <- NULL
     res <- tryCatch(
       eval(parse(text = code), envir = env),
       error = function(e) { err <<- conditionMessage(e); NULL }
     )
-    
     if (!is.null(err)) {
-      go_error(err)
+      user_code_error(err)
       return(invisible())
     }
     
-    # 2) Identify the function defined by the pasted code
     fnames <- Filter(function(n) is.function(get(n, envir = env)), ls(envir = env))
     f <- NULL
     if (length(fnames) == 1L) {
       rv$fun_name <- fnames
       f <- get(fnames, envir = env)
     } else if (length(fnames) == 0L && is.function(res)) {
-      rv$fun_name <- "<anonymous>"     # e.g. just `function(x) ...` was pasted
+      rv$fun_name <- "<anonymous>"
       f <- res
     } else if (length(fnames) > 1L) {
-      go_error(paste0("Execution succeeded but the code defines several functions (",
-                      paste(fnames, collapse = ", "), ")."))
+      set_error(
+        paste0("Several functions defined: ", paste(fnames, collapse = ", "), "."),
+        paste0("The pasted code defines several functions (",
+               paste(fnames, collapse = ", "),
+               "). Please paste the code of exactly one function.")
+      )
       return(invisible())
     } else {
-      go_error("Execution succeeded but no function was defined by the code.")
+      set_error("No function defined.",
+                "The pasted code does not define any function. Please paste the code of a function.")
       return(invisible())
     }
     
-    # 3) Extract: argument names + verbatim AA + verbatim body
     args <- names(formals(f))
     rv$fun_args <- if (is.null(args)) character(0) else args
     
     parts <- extract_aa_body(code)
     if (is.null(parts)) {
-      go_error("Could not locate the function signature/body in the pasted code.")
+      internal_error("extract_aa_body() could not locate the signature/body.")
       return(invisible())
     }
-    rv$aa       <- parts$aa
-    rv$fun_body <- parts$body
+    rv$aa        <- parts$aa
+    rv$fun_body  <- parts$body
     
-    # 3b) SPECIFIC ERROR: any of the three safer-r argument names already
-    #     present among the user's arguments?
     collide <- intersect(rv$fun_args, SAFER_ARGS)
     if (length(collide) > 0L) {
-      go_error(
+      set_error(
         paste0("Argument name collision with safer-r arguments: ",
                paste(collide, collapse = ", "), "."),
         display = paste0(
@@ -237,26 +271,49 @@ server <- function(input, output, session) {
       return(invisible())
     }
     
-    # 4) Validate that the rebuilt function is valid R (safety net)
-    #    FIX: pass the 4th argument (link) as well
+    # FIX (bug 1): pass ALL arguments (named) and log the real parse error
+    # (previously: 5 args for a 6-arg function -> error swallowed -> every
+    # Run landed on the internal-error screen).
     ok <- tryCatch({
-      parse(text = build_rebuilt(rv$aa, rv$fun_body, "", ""))
+      parse(text = build_rebuilt(aa = rv$aa, body = rv$fun_body, pkg = "", link = "",
+                                 null_args = character(0),
+                                 non_null_args = character(0)))
       TRUE
-    }, error = function(e) FALSE)
+    }, error = function(e) {
+      message("Parse check of the rebuilt function failed: ", conditionMessage(e))
+      FALSE
+    })
     if (!ok) {
-      go_error("The rebuilt function does not parse.")
+      internal_error("The rebuilt function does not parse - check build_rebuilt()/server.R.")
       return(invisible())
     }
     
     rv$screen <- "result"
+  }
+  
+  observeEvent(input$run_button, {
+    tryCatch(
+      run_clicked(),
+      error = function(e) {
+        internal_error(paste0("Unexpected error in the server code: ",
+                             conditionMessage(e)))
+      }
+    )
   })
   
-  # ---- BACK buttons ---------------------------------------------------------
+  # ---- BACK buttons (checkbox states are preserved like pkg/link) ----------
   observeEvent(input$back_from_result, {
     pkg  <- input$pkg_name
     rv$pkg_name <- if (is.null(pkg)) "" else pkg
     link <- input$link_name
     rv$link_name <- if (is.null(link)) "" else link
+    if (length(rv$fun_args) > 0L) {
+      checked <- vapply(rv$fun_args, function(nm) {
+        isTRUE(input[[null_cb_id(nm)]])
+      }, logical(1L))
+      rv$null_args     <- rv$fun_args[checked]
+      rv$non_null_args <- rv$fun_args[!checked]
+    }
     rv$screen <- "input"
   })
   observeEvent(input$back_from_error, { rv$screen <- "input" })
@@ -269,8 +326,36 @@ server <- function(input, output, session) {
     content = function(file) {
       pkg  <- if (is.null(input$pkg_name)) "" else trimws(input$pkg_name)
       link <- if (is.null(input$link_name)) "" else trimws(input$link_name)
-      code <- build_rebuilt(rv$aa, rv$fun_body, pkg, link)
+      
+      if (length(rv$fun_args) > 0L) {
+        checked <- vapply(rv$fun_args, function(nm) {
+          isTRUE(input[[null_cb_id(nm)]])
+        }, logical(1L))
+        null_argument     <- rv$fun_args[checked]
+        non_null_argument <- rv$fun_args[!checked]
+      } else {
+        null_argument     <- character(0)
+        non_null_argument <- character(0)
+      }
+      rv$null_args     <- null_argument     # kept in sync for "Back"
+      rv$non_null_args <- non_null_argument # available for your part 4
+      
+      # FIX (bug 2): pass the two LOCAL vectors (previously 'null_args' /
+      # 'non_null_args', which do not exist in this scope -> download failed)
+      code <- build_rebuilt(aa = rv$aa, body = rv$fun_body, pkg = pkg, link = link,
+                            null_args = null_argument,
+                            non_null_args = non_null_argument)
       rv$rebuilt <- code
+      
+      # Guard: never write a file that does not parse
+      if (!tryCatch({ parse(text = code); TRUE },
+                    error = function(e) {
+                      message("Download blocked (rebuilt code does not parse): ",
+                              conditionMessage(e))
+                      FALSE
+                    })) {
+        return(invisible())
+      }
       writeLines(code, file)
     }
   )
@@ -310,7 +395,7 @@ server <- function(input, output, session) {
           h4(id = "sec_code", "Code of your function"),
           code_instructions(),
           textAreaInput(inputId = "user_ini_fun", label = NULL,
-                        value = rv$code,   # restores the pasted code after "Back"
+                        value = rv$code,
                         placeholder = "my_fun <- function(x){\n    x + 1\n}",
                         rows = 15, width = "100%"),
           hr(),
@@ -322,8 +407,6 @@ server <- function(input, output, session) {
           intro(),
           h4(id = "sec_code", "Code of your function"),
           code_instructions(),
-          # Specific message when set; fixed message otherwise.
-          # white-space: pre-line  ->  every \n becomes a real line break
           div(class = "alert alert-danger", role = "alert",
               style = "margin-top: 10px; white-space: pre-line;",
               if (is.null(rv$error_display)) ERROR_TEXT else rv$error_display),
@@ -331,8 +414,6 @@ server <- function(input, output, session) {
           back_btn("back_from_error")
         ),
         
-        # Result screen: detection text, Package name section, Error report link
-        # section, one section per argument, then [Run] [Back]
         result = {
           args_txt <- if (length(rv$fun_args) == 0L) {
             "none"
@@ -347,8 +428,6 @@ server <- function(input, output, session) {
             )
           )
           
-          # FIX: two SEPARATE variables (before, the second assignment
-          # overwrote pkg_section and the Package name box disappeared)
           pkg_section <- tagList(
             h4(id = "pkg_section", "Package name"),
             tags$div(
@@ -377,7 +456,6 @@ server <- function(input, output, session) {
                       width = "100%")
           )
           
-          # Bottom row: the download ("Run") button BESIDE the Back button
           result_footer <- div(
             style = "text-align: right;",
             downloadButton(outputId = "download_safer",
@@ -405,8 +483,16 @@ server <- function(input, output, session) {
               hr(),
               link_section,
               hr(),
+              # One section per argument: title "Argument: <name>" + checkbox
               lapply(seq_len(n), function(i) {
-                sec <- tagList(h4(id = arg_id(rv$fun_args[i]), rv$fun_args[i]))
+                nm <- rv$fun_args[i]
+                sec <- tagList(
+                  h4(id = arg_id(nm), paste0("Argument: ", nm)),
+                  checkboxInput(inputId = null_cb_id(nm),
+                                label = "This argument accepts the NULL value",
+                                value = nm %in% rv$null_args,
+                                width = "100%")
+                )
                 if (i < n) sec <- tagList(sec, hr())
                 sec
               }),
