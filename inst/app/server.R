@@ -129,7 +129,19 @@ server <- function(input, output, session) {
       "\n    #### internal error report link\n",
       "    internal_error_report_link <- ", link_line,
       " # link where to post an issue indicated in an internal error message. Write NULL if no link to propose, or no internal error message\n",
-      "    #### end internal error report link\n\n",
+      "    #### end internal error report link\n",
+      "\n",
+      
+
+
+
+
+
+
+
+
+
+      
       "    ######## management of NULL arguments\n",
       "    # before NA checking because is.na(NULL) return logical(0) and all(logical(0)) is TRUE (but secured with & base::length(x = x) > 0)\n",
         tempo_arg_block, 
