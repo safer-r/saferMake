@@ -14,13 +14,14 @@ server <- function(input, output, session) {
     screen        = "input",   # "input" | "error" | "result"
     code          = "",        # last pasted code (so "Back" restores the box)
     pkg_name      = "",        # value typed in the "Package name" box (kept on Back)
+    link_name     = "",        # value typed in the "Error report link" box (kept on Back)
     error_msg     = NULL,      # real error: logged to console only, NEVER displayed
     error_display = NULL,      # text actually displayed on the error screen
-    fun_name  = NULL,
-    fun_args  = NULL,          # character vector of argument names
-    fun_body  = NULL,          # verbatim body text (everything between '{' and '}')
-    aa        = NULL,          # verbatim: beginning of pasted code up to the last argument
-    rebuilt   = NULL           # not strictly needed; kept for future preview use
+    fun_name      = NULL,
+    fun_args      = NULL,      # character vector of argument names
+    fun_body      = NULL,      # verbatim body text (everything between '{' and '}')
+    aa            = NULL,     # verbatim: beginning of pasted code up to the last argument
+    rebuilt       = NULL      # not strictly needed; kept for future preview use
   )
   
   # Build a valid HTML id from an argument name
@@ -54,7 +55,6 @@ server <- function(input, output, session) {
   
   # Extracts:
   #   $aa   : verbatim text from position 1 up to the last argument
-  #           (i.e., everything BEFORE the closing ')' of the signature)
   #   $body : verbatim text between the '{' and '}' of the function body
   extract_aa_body <- function(code) {
     m <- regexpr("function[[:space:]]*\\(", code)
@@ -82,7 +82,12 @@ server <- function(input, output, session) {
   }
   
   # ---- Rebuild the safer function -------------------------------------------
-  build_rebuilt <- function(aa, body, pkg) {
+  build_rebuilt <- function(
+    aa, 
+    body, 
+    pkg, 
+    link = ""
+    ) {
     aa   <- sub("[[:space:]]+$", "", aa)
     body <- sub("[[:space:]]+$", "", sub("^[[:space:]]*\n", "", body))
     
@@ -96,10 +101,19 @@ server <- function(input, output, session) {
       "package_name <- NULL"
     }
     
+    # NOTE: "NULL" as a STRING, so the line stays valid R even when the
+    # link box is empty (paste0() would silently DROP a real NULL,
+    # producing "internal_error_report_link <-  # ..." which does not parse)
+    link_line <- if (nzchar(link)) deparse(link) else "NULL"
+    
     paste0(
       aa, comma,
       "\n    lib_path = NULL, \n    safer_check = TRUE, \n    error_text = \"\" \n){\n",
-      "\n    #### package name\n    ", pkg_line, "\n    #### end package name\n",
+      "\n    #### package name\n    ", pkg_line, " # write NULL if the function developed is not in a package\n    #### end package name\n",
+      "\n    #### internal error report link\n",
+      "    internal_error_report_link <- ", link_line,
+      " # link where to post an issue indicated in an internal error message. Write NULL if no link to propose, or no internal error message\n",
+      "    #### end internal error report link\n",
       "\n    #### main code\n",
       body,
       "\n    #### end main code\n}\n"
@@ -224,8 +238,9 @@ server <- function(input, output, session) {
     }
     
     # 4) Validate that the rebuilt function is valid R (safety net)
+    #    FIX: pass the 4th argument (link) as well
     ok <- tryCatch({
-      parse(text = build_rebuilt(rv$aa, rv$fun_body, ""))
+      parse(text = build_rebuilt(rv$aa, rv$fun_body, "", ""))
       TRUE
     }, error = function(e) FALSE)
     if (!ok) {
@@ -238,8 +253,10 @@ server <- function(input, output, session) {
   
   # ---- BACK buttons ---------------------------------------------------------
   observeEvent(input$back_from_result, {
-    pkg <- input$pkg_name
+    pkg  <- input$pkg_name
     rv$pkg_name <- if (is.null(pkg)) "" else pkg
+    link <- input$link_name
+    rv$link_name <- if (is.null(link)) "" else link
     rv$screen <- "input"
   })
   observeEvent(input$back_from_error, { rv$screen <- "input" })
@@ -251,7 +268,8 @@ server <- function(input, output, session) {
     },
     content = function(file) {
       pkg  <- if (is.null(input$pkg_name)) "" else trimws(input$pkg_name)
-      code <- build_rebuilt(rv$aa, rv$fun_body, pkg)
+      link <- if (is.null(input$link_name)) "" else trimws(input$link_name)
+      code <- build_rebuilt(rv$aa, rv$fun_body, pkg, link)
       rv$rebuilt <- code
       writeLines(code, file)
     }
@@ -262,6 +280,7 @@ server <- function(input, output, session) {
     entries <- if (identical(rv$screen, "result")) {
       c(
         list(tags$li(tags$a(href = "#pkg_section", "Package name"))),
+        list(tags$li(tags$a(href = "#link_section", "Error report link"))),
         if (length(rv$fun_args) == 0L) {
           list(tags$li("No arguments"))
         } else {
@@ -312,8 +331,8 @@ server <- function(input, output, session) {
           back_btn("back_from_error")
         ),
         
-        # Result screen: detection text, Package name section,
-        # one section per argument, then [Run] [Back]
+        # Result screen: detection text, Package name section, Error report link
+        # section, one section per argument, then [Run] [Back]
         result = {
           args_txt <- if (length(rv$fun_args) == 0L) {
             "none"
@@ -328,6 +347,8 @@ server <- function(input, output, session) {
             )
           )
           
+          # FIX: two SEPARATE variables (before, the second assignment
+          # overwrote pkg_section and the Package name box disappeared)
           pkg_section <- tagList(
             h4(id = "pkg_section", "Package name"),
             tags$div(
@@ -339,6 +360,20 @@ server <- function(input, output, session) {
                       label = NULL,
                       value = rv$pkg_name,
                       placeholder = "Package name",
+                      width = "100%")
+          )
+          
+          link_section <- tagList(
+            h4(id = "link_section", "Error report link"),
+            tags$div(
+              tags$ol(class = "input-instruction-list",
+                tags$li("Do you have a link for users of your function to report any internal errors? If yes, indicate the full link. Otherwise, leave blanck.")
+              )
+            ),
+            textInput(inputId = "link_name",
+                      label = NULL,
+                      value = rv$link_name,
+                      placeholder = "Error report link",
                       width = "100%")
           )
           
@@ -357,6 +392,8 @@ server <- function(input, output, session) {
               hr(),
               pkg_section,
               hr(),
+              link_section,
+              hr(),
               result_footer
             )
           } else {
@@ -365,6 +402,8 @@ server <- function(input, output, session) {
               detected_block,
               hr(),
               pkg_section,
+              hr(),
+              link_section,
               hr(),
               lapply(seq_len(n), function(i) {
                 sec <- tagList(h4(id = arg_id(rv$fun_args[i]), rv$fun_args[i]))
