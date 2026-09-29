@@ -20,6 +20,7 @@ server <- function(input, output, session) {
     link_name       = "",        # "Error report link" box value (kept on Back)
     null_args       = character(0),  # argument names checked as NULL-accepting
     non_null_args   = character(0),  # argument names NOT checked
+    no_default_args = character(0),  # NEW: argument names with NO default value
     error_msg       = NULL,      # real error: logged to console only, NEVER displayed
     error_display   = NULL,      # text actually displayed on the error screen
     fun_name        = NULL,
@@ -43,6 +44,20 @@ server <- function(input, output, session) {
   }
   user_code_error <- function(detail) set_error(detail, ERROR_TEXT)
   internal_error  <- function(detail) set_error(detail, INTERNAL_ERROR_TEXT)
+    
+  # ---- Argument helper ------------------------------------------------------
+  # NEW: names of the arguments of f that have NO default value.
+  # In formals(), a default-less argument holds the 'missing' object,
+  # which is identical to quote(expr = ). An explicit default of NULL
+  # (e.g. function(x = NULL)) is NOT 'no default': it has a default (NULL).
+  args_without_default <- function(f) {
+    fm <- formals(f)
+    if (is.null(fm)) return(character(0))
+    fm <- as.list(fm) # pairlist -> plain list, so vapply is safe
+    if (length(fm) == 0L) return(character(0))
+    no_def <- vapply(fm, function(v) identical(v, quote(expr = )), logical(1L))
+    names(fm)[no_def]
+  }
   
   # ---- Verbatim capture helpers --------------------------------------------
   match_close <- function(txt, open, close_ch) {
@@ -84,11 +99,14 @@ server <- function(input, output, session) {
   }
   
   # ---- Rebuild the safer function -------------------------------------------
-  # null_args     : argument names that ACCEPT NULL -> commented out in tempo_arg
-  # non_null_args : argument names that must NOT be NULL -> active in tempo_arg
-  build_rebuilt <- function(aa, body, pkg, link,
+  # null_args       : argument names that ACCEPT NULL -> commented out in tempo_arg
+  # non_null_args   : argument names that must NOT be NULL -> active in tempo_arg
+  # no_default_args : NEW - argument names with NO default value -> conditional
+  #                   "arg with no default values" section (omitted when empty)
+  build_rebuilt <- function(aa, body, pkg, link,                       # MODIFIED: parameter added
                             null_args = character(0),
-                            non_null_args = character(0)) {
+                            non_null_args = character(0),
+                            no_default_args = character(0)) {
     aa   <- sub("[[:space:]]+$", "", aa)
     body <- sub("[[:space:]]+$", "", sub("^[[:space:]]*\n", "", body))
     
@@ -122,6 +140,42 @@ server <- function(input, output, session) {
       "\n    )\n"
     )
     
+    # NEW: emitted ONLY if at least one argument has no default value.
+    # paste0() drops zero-length arguments (including NULL), so when
+    # no_default_args is empty, no_def_block is NULL and the whole
+    # "arg with no default values" section is simply absent from the
+    # generated code.
+    no_def_block <- if (length(no_default_args) > 0L) {
+      no_def_lines <- vapply(
+        no_default_args,
+        function(nm) paste0("        ", deparse(nm, width.cutoff = 500L)),
+        character(1L)
+      )
+      paste0(
+        "    ######## arg with no default values\n",
+        "    # optional section: remove the code if none of your arguments has no default value\n",
+        "    no_def_args <- base::c(\n",
+        paste(no_def_lines, collapse = ",\n"), "\n    )\n",
+        "    tempo <- base::eval(expr = base::parse(text = base::paste0(\"base::c(base::missing(\", base::paste0(no_def_args, collapse = \"),base::missing(\", recycle0 = FALSE), \"))\", collapse = NULL, recycle0 = FALSE), file = \"\", n = NULL, prompt = \"?\", keep.source = base::getOption(x = \"keep.source\", default = NULL), srcfile = NULL, encoding = \"unknown\"), envir = base::environment(fun = NULL), enclos = base::environment(fun = NULL))\n",
+        "    if(base::any(tempo, na.rm = TRUE)){\n",
+        "        tempo_cat <- base::paste0(\n",
+        "            error_text_start, \n",
+        "            \"FOLLOWING ARGUMENT\", \n",
+        "            base::ifelse(test = base::sum(tempo, na.rm = TRUE) > 1, yes = \"S HAVE\", no = \" HAS\"), \n",
+        "            \" NO DEFAULT VALUE AND REQUIRE ONE:\\n\", \n",
+        "            base::paste0(no_def_args[tempo], collapse = \"\\n\", recycle0 = FALSE), \n",
+        "            collapse = NULL, \n",
+        "            recycle0 = FALSE\n",
+        "        )\n",
+        "        base::stop(base::paste0(\"\\n\\n================\\n\\n\", tempo_cat, \"\\n\\n================\\n\\n\", collapse = NULL, recycle0 = FALSE), call. = FALSE, domain = NULL)\n",
+        "    }\n",
+        "    ######## end arg with no default values\n",
+        "\n"
+      )
+    } else {
+      NULL
+    }
+    
         paste0(
         aa, comma,
         "\n    lib_path = NULL, \n    safer_check = TRUE, \n    error_text = \"\" \n){\n",
@@ -131,7 +185,6 @@ server <- function(input, output, session) {
         " # link where to post an issue indicated in an internal error message. Write NULL if no link to propose, or no internal error message\n",
         "    #### end internal error report link\n",
         "\n",
-
         "    #### function name\n",
         "    tempo_settings <- base::as.list(x = base::match.call(definition = base::sys.function(which = base::sys.parent(n = 0)), call = base::sys.call(which = base::sys.parent(n = 0)), expand.dots = FALSE, envir = base::parent.frame(n = 2L))) # warning: I have written n = 0 to avoid error when a safer function is inside another functions. In addition, arguments values retrieved are not evaluated base::match.call, but this is solved with get() below\n",
         "    function_name <- base::paste0(tempo_settings[[1]], \"()\", collapse = NULL, recycle0 = FALSE) \n",
@@ -179,7 +232,7 @@ server <- function(input, output, session) {
         "        recycle0 = FALSE\n",
         "    )\n",
         "    ######## end basic error text start\n",
-        "\n", 
+        "\n",
         "    ######## internal error text\n",
         "    intern_error_text_start <- base::paste0(\n",
         "        package_function_name, \n",
@@ -217,6 +270,7 @@ server <- function(input, output, session) {
         "    # nocov end\n",
         "    ######## end arg ... forbidden\n",
         "\n",
+
         "    ######## mandatory arg of safer-r functions\n",
         "    mandat_args <- base::c(\"lib_path\", \"safer_check\", \"error_text\")\n",
         "    tempo_log <- ! mandat_args %in% arg_names\n",
@@ -235,32 +289,7 @@ server <- function(input, output, session) {
         "    }\n",
         "    ######## end mandatory arg of safer-r functions\n",
         "\n",
-        "    ######## arg with no default values\n",
-        "    # optional section: remove the code if none of your arguments has no default value\n",
-        "    no_def_args <- base::c(\n",
-        "        \"data\"\n",
-        "    )\n",
-        "    tempo <- base::eval(expr = base::parse(text = base::paste0(\"base::c(base::missing(\", base::paste0(no_def_args, collapse = \"),base::missing(\", recycle0 = FALSE), \"))\", collapse = NULL, recycle0 = FALSE), file = \"\", n = NULL, prompt = \"?\", keep.source = base::getOption(x = \"keep.source\", default = NULL), srcfile = NULL, encoding = \"unknown\"), envir = base::environment(fun = NULL), enclos = base::environment(fun = NULL))\n",
-        "    if(base::any(tempo, na.rm = TRUE)){\n",
-        "        tempo_cat <- base::paste0(\n",
-        "            error_text_start, \n",
-        "            \"FOLLOWING ARGUMENT\", \n",
-        "            base::ifelse(test = base::sum(tempo, na.rm = TRUE) > 1, yes = \"S HAVE\", no = \" HAS\"), \n",
-        "            \" NO DEFAULT VALUE AND REQUIRE ONE:\\n\", \n",
-        "            base::paste0(no_def_args[tempo], collapse = \"\\n\", recycle0 = FALSE), \n",
-        "            collapse = NULL, \n",
-        "            recycle0 = FALSE\n",
-        "        )\n",
-        "        base::stop(base::paste0(\"\\n\\n================\\n\\n\", tempo_cat, \"\\n\\n================\\n\\n\", collapse = NULL, recycle0 = FALSE), call. = FALSE, domain = NULL)\n",
-        "    }\n",
-        "    ######## end arg with no default values\n",
-        "\n", 
-
-
-
-
-
-        
+        no_def_block,                                                        # MODIFIED: replaces the hardcoded section
         "    ######## management of NULL arguments\n",
         "    # before NA checking because is.na(NULL) return logical(0) and all(logical(0)) is TRUE (but secured with & base::length(x = x) > 0)\n",
             tempo_arg_block, 
@@ -337,6 +366,7 @@ server <- function(input, output, session) {
     rv$aa            <- NULL
     rv$null_args     <- character(0)
     rv$non_null_args <- character(0)
+    rv$no_default_args <- character(0)
     
     if (!nzchar(trimws(code))) {
       set_error("The field is empty.", "The field is empty: there is no code to run.")
@@ -378,7 +408,7 @@ server <- function(input, output, session) {
     
     args <- names(formals(f))
     rv$fun_args <- if (is.null(args)) character(0) else args
-    
+    rv$no_default_args <- args_without_default(f)    
     parts <- extract_aa_body(code)
     if (is.null(parts)) {
       internal_error("extract_aa_body() could not locate the signature/body.")
@@ -408,7 +438,8 @@ server <- function(input, output, session) {
     ok <- tryCatch({
       parse(text = build_rebuilt(aa = rv$aa, body = rv$fun_body, pkg = "", link = "",
                                  null_args = character(0),
-                                 non_null_args = character(0)))
+                                 non_null_args = character(0),
+                                 no_default_args = rv$no_default_args))      # MODIFIED
       TRUE
     }, error = function(e) {
       message("Parse check of the rebuilt function failed: ", conditionMessage(e))
@@ -475,7 +506,8 @@ server <- function(input, output, session) {
       # 'non_null_args', which do not exist in this scope -> download failed)
       code <- build_rebuilt(aa = rv$aa, body = rv$fun_body, pkg = pkg, link = link,
                             null_args = null_argument,
-                            non_null_args = non_null_argument)
+                            non_null_args = non_null_argument,
+                            no_default_args = rv$no_default_args)          # MODIFIED
       rv$rebuilt <- code
       
       # Guard: never write a file that does not parse
@@ -501,7 +533,7 @@ server <- function(input, output, session) {
           list(tags$li("No arguments"))
         } else {
           lapply(rv$fun_args, function(nm) {
-            tags$li(tags$a(href = paste0("#", arg_id(nm)), nm))
+            tags$li(tags$a(href = paste0("#", arg_id(nm)), paste0("Argument: ", nm)))
           })
         }
       )
@@ -551,11 +583,18 @@ server <- function(input, output, session) {
           } else {
             paste(rv$fun_args, collapse = ", ")
           }
+        # NEW: text for the "no default value" line
+          no_def_txt <- if (length(rv$no_default_args) == 0L) {
+            "none"
+          } else {
+            paste(rv$no_default_args, collapse = ", ")
+          }
           
           detected_block <- tags$div(
             tags$ol(class = "input-instruction-list",
               tags$li(paste0("Function detected: ", rv$fun_name)),
-              tags$li(paste0("Arguments detected: ", args_txt))
+              tags$li(paste0("Arguments detected: ", args_txt)),
+                tags$li(paste0("Arguments with no default value: ", no_def_txt))
             )
           )
           
@@ -620,7 +659,7 @@ server <- function(input, output, session) {
                 sec <- tagList(
                   h4(id = arg_id(nm), paste0("Argument: ", nm)),
                   checkboxInput(inputId = null_cb_id(nm),
-                                label = "This argument accepts the NULL value",
+                                label = "Accepts the NULL value",
                                 value = nm %in% rv$null_args,
                                 width = "100%")
                 )
