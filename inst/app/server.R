@@ -125,7 +125,7 @@ server <- function(input, output, session) {
       len_val     <- arg_check_parse_length(st$length)
       length_val  <- if (is.null(len_val)) "NULL" else paste0(len_val, "L")
       opts        <- arg_check_parse_options(st$options)
-      options_val <- if (is.null(opts)) "NULL" else deparse(opts)
+      options_val <- if (is.null(opts)) "NULL" else if (identical(opts, "NULL")) "NULL" else deparse(opts)
       paste0(
         "    tempo <- saferDev::arg_check(data = ", nm,
         ", class = ", class_val,
@@ -156,8 +156,7 @@ server <- function(input, output, session) {
       "    text_check <- NULL\n",
       "    checked_arg_names <- NULL # for function debbuging: used by r_debugging_tools\n",
       "    arg_check_error_text <- base::paste0(\"ERROR \", embed_error_text, \"\\n\\n\", collapse = NULL, recycle0 = FALSE) # must be used instead of error_text = embed_error_text when several arg_check are performed on the same argument (tempo1, tempo2, see below)\n",
-      "    ee <- base::expression(argum_check <- base::c(argum_check, tempo$problem) , text_check <- base::c(text_check, tempo$text) , checked_arg_names <- base::c(checked_arg_names, tempo$object.name))\n",
-      "\n"
+      "    ee <- base::expression(argum_check <- base::c(argum_check, tempo$problem) , text_check <- base::c(text_check, tempo$text) , checked_arg_names <- base::c(checked_arg_names, tempo$object.name))\n"
     )
     footer <- paste0(
       "    # lib_path already checked above\n",
@@ -176,7 +175,7 @@ server <- function(input, output, session) {
       "    #### end argument secondary checking\n",
       "\n"
     )
-    paste0(header, paste(calls, collapse = "\n"), footer)
+    paste0(header, paste(calls, collapse = ""), footer)
   }
   
   # ---- Error channels -------------------------------------------------------
