@@ -6,6 +6,32 @@ server <- function(input, output, session) {
   # The three additional safer-r arguments
   SAFER_ARGS <- c("lib_path", "safer_check", "error_text")
   
+  
+  ARG_CHECK_DEFAULTS <- list(
+    class                     = "NULL",  # "NULL" in selectInput = no constraint
+    typeof                    = "NULL",
+    mode                      = "numeric",
+    length                    = "",      # "" in textInput = NULL
+    prop                      = FALSE,
+    double_as_integer_allowed = FALSE,
+    options                   = "",
+    all_options_in_data       = FALSE,
+    na_contain                = TRUE,
+    neg_values                = TRUE,
+    inf_values                = TRUE
+  )
+  
+  AC_CLASS_CHOICES  <- c("NULL", "character", "numeric", "integer", "logical", "factor",
+                         "list", "matrix", "data.frame", "array", "table", "function",
+                         "environment", "expression", "call", "name", "Date",
+                         "POSIXct", "POSIXlt")
+  AC_TYPEOF_CHOICES <- c("NULL", "double", "integer", "character", "logical", "complex",
+                         "raw", "list", "pairlist", "closure", "builtin", "special",
+                         "environment", "symbol", "expression")
+  AC_MODE_CHOICES <- c("NULL", "numeric", "character", "logical", "complex", "raw",
+                       "list", "expression", "call", "name", "function",
+                       "environment", "S4", "any", "pairlist")
+  
   # Channel 1: ONLY for errors raised when running the pasted function
   ERROR_TEXT <- "The code provided returned an error. Please, click on the back button and provide a function that runs well."
   
@@ -20,8 +46,8 @@ server <- function(input, output, session) {
     link_name       = "",        # "Error report link" box value (kept on Back)
     null_args       = character(0),  # argument names checked as NULL-accepting
     non_null_args   = character(0),  # argument names NOT checked
-    empty_args      = character(0),  # NEW: argument names checked as empty-accepting
-    non_empty_args  = character(0),  # NEW: argument names NOT checked (empty checkbox)
+    empty_args      = character(0),  # argument names checked as empty-accepting
+    non_empty_args  = character(0),  # argument names NOT checked (empty checkbox)
     no_default_args = character(0),  # argument names with NO default value
     error_msg       = NULL,      # real error: logged to console only, NEVER displayed
     error_display   = NULL,      # text actually displayed on the error screen
@@ -29,14 +55,135 @@ server <- function(input, output, session) {
     fun_args        = NULL,      # character vector of argument names
     fun_body        = NULL,      # verbatim body text (everything between '{' and '}')
     aa              = NULL,      # verbatim: beginning of pasted code up to the last argument
-    rebuilt         = NULL      # not strictly needed; kept for future preview use
+    rebuilt         = NULL,      # not strictly needed; kept for future preview use
+    arg_check_settings = list()  # NEW: per-argument arg_check() settings (key = arg_id(nm))
   )
   
   # Build a valid HTML id from an argument name
   arg_id <- function(nm) paste0("arg_", gsub("[^[:alnum:]_]", "_", nm))
   # Checkbox id for a given argument name
   null_cb_id <- function(nm) paste0("null_", arg_id(nm))
-  empty_cb_id <- function(nm) paste0("empty_", arg_id(nm))   # NEW
+  empty_cb_id <- function(nm) paste0("empty_", arg_id(nm))
+  
+  # ---- NEW: arg_check() helpers ---------------------------------------------
+  arg_check_field_ids <- function(id) {
+    list(
+      class                     = paste0("ac_class_",   id),
+      typeof                    = paste0("ac_typeof_",  id),
+      mode                      = paste0("ac_mode_",    id),
+      length                    = paste0("ac_length_",  id),
+      prop                      = paste0("ac_prop_",    id),
+      double_as_integer_allowed = paste0("ac_dbl_int_", id),
+      options                   = paste0("ac_options_", id),
+      all_options_in_data       = paste0("ac_all_opt_", id),
+      na_contain                = paste0("ac_na_",      id),
+      neg_values                = paste0("ac_neg_",     id),
+      inf_values                = paste0("ac_inf_",     id)
+    )
+  }
+  
+  get_arg_check_settings <- function() {
+    if (length(rv$fun_args) == 0L) return(list())
+    out <- lapply(rv$fun_args, function(nm) {
+      ids <- arg_check_field_ids(arg_id(nm))
+      list(
+        class                     = if (is.null(input[[ids$class]])) "NULL" else input[[ids$class]],
+        typeof                    = if (is.null(input[[ids$typeof]])) "NULL" else input[[ids$typeof]],
+        mode                      = if (is.null(input[[ids$mode]])) "numeric" else input[[ids$mode]],
+        length                    = if (is.null(input[[ids$length]])) "" else input[[ids$length]],
+        prop                      = isTRUE(input[[ids$prop]]),
+        double_as_integer_allowed = isTRUE(input[[ids$double_as_integer_allowed]]),
+        options                   = if (is.null(input[[ids$options]])) "" else input[[ids$options]],
+        all_options_in_data       = isTRUE(input[[ids$all_options_in_data]]),
+        na_contain                = isTRUE(input[[ids$na_contain]]),
+        neg_values                = isTRUE(input[[ids$neg_values]]),
+        inf_values                = isTRUE(input[[ids$inf_values]])
+      )
+    })
+    names(out) <- vapply(rv$fun_args, arg_id, character(1L), USE.NAMES = FALSE)
+    out
+  }
+  
+  # "a, b 2 c" -> c("a", "b", "2", "c"); numeric if ALL parts parse as numbers
+  arg_check_parse_options <- function(txt) {
+    parts <- trimws(unlist(strsplit(txt, "[,;[:space:]]+")))
+    parts <- parts[nzchar(parts)]
+    if (length(parts) == 0L) return(NULL)
+    num <- suppressWarnings(as.numeric(parts))
+    if (!anyNA(num)) num else parts
+  }
+  
+  arg_check_parse_length <- function(txt) {
+    t <- trimws(txt)
+    if (grepl("^[0-9]+$", t)) as.integer(t) else NULL
+  }
+  
+# Builds the whole "#### argument secondary checking" section.
+  # Each argument produces EXACTLY one line:
+  #     tempo <- saferDev::arg_check(data = <arg>, class = NULL, typeof = NULL, mode = "numeric", length = NULL, prop = FALSE, double_as_integer_allowed = FALSE, options = NULL, all_options_in_data = FALSE, na_contain = TRUE, neg_values = TRUE, inf_values = TRUE, print = FALSE, data_name = NULL, data_arg = TRUE, safer_check = FALSE, lib_path = lib_path, error_text = embed_error_text) ; base::eval(expr = ee, envir = base::environment(fun = NULL), enclos = base::environment(fun = NULL))
+  build_arg_check_section <- function(fun_args, arg_check_settings) {
+    calls <- vapply(fun_args, function(nm) {
+      st <- arg_check_settings[[arg_id(nm)]]
+      if (is.null(st)) st <- ARG_CHECK_DEFAULTS
+      class_val   <- if (identical(st$class, "NULL"))  "NULL" else deparse(st$class)
+      typeof_val  <- if (identical(st$typeof, "NULL")) "NULL" else deparse(st$typeof)
+      mode_val    <- if (identical(st$mode, "NULL"))   "NULL" else deparse(st$mode)
+      len_val     <- arg_check_parse_length(st$length)
+      length_val  <- if (is.null(len_val)) "NULL" else paste0(len_val, "L")
+      opts        <- arg_check_parse_options(st$options)
+      options_val <- if (is.null(opts)) "NULL" else deparse(opts)
+      paste0(
+        "    tempo <- saferDev::arg_check(data = ", nm,
+        ", class = ", class_val,
+        ", typeof = ", typeof_val,
+        ", mode = ", mode_val,
+        ", length = ", length_val,
+        ", prop = ", as.character(isTRUE(st$prop)),
+        ", double_as_integer_allowed = ", as.character(isTRUE(st$double_as_integer_allowed)),
+        ", options = ", options_val,
+        ", all_options_in_data = ", as.character(isTRUE(st$all_options_in_data)),
+        ", na_contain = ", as.character(isTRUE(st$na_contain)),
+        ", neg_values = ", as.character(isTRUE(st$neg_values)),
+        ", inf_values = ", as.character(isTRUE(st$inf_values)),
+        ", print = FALSE",
+        ", data_name = NULL",
+        ", data_arg = TRUE",
+        ", safer_check = FALSE",
+        ", lib_path = lib_path",
+        ", error_text = embed_error_text",
+        ") ; base::eval(expr = ee, envir = base::environment(fun = NULL), enclos = base::environment(fun = NULL))\n"
+      )
+    }, character(1L), USE.NAMES = FALSE)
+    header <- paste0(
+      "    #### argument secondary checking\n",
+      "\n",
+      "    ######## argument checking with arg_check()\n",
+      "    argum_check <- NULL\n",
+      "    text_check <- NULL\n",
+      "    checked_arg_names <- NULL # for function debbuging: used by r_debugging_tools\n",
+      "    arg_check_error_text <- base::paste0(\"ERROR \", embed_error_text, \"\\n\\n\", collapse = NULL, recycle0 = FALSE) # must be used instead of error_text = embed_error_text when several arg_check are performed on the same argument (tempo1, tempo2, see below)\n",
+      "    ee <- base::expression(argum_check <- base::c(argum_check, tempo$problem) , text_check <- base::c(text_check, tempo$text) , checked_arg_names <- base::c(checked_arg_names, tempo$object.name))\n",
+      "\n"
+    )
+    footer <- paste0(
+      "    # lib_path already checked above\n",
+      "    # safer_check already checked above\n",
+      "    # error_text converted to single string above\n",
+      "    if( ! base::is.null(x = argum_check)){\n",
+      "        if(base::any(argum_check, na.rm = TRUE)){\n",
+      "            base::stop(base::paste0(\"\\n\\n================\\n\\n\", base::paste0(text_check[argum_check], collapse = \"\\n\\n\", recycle0 = FALSE), \"\\n\\n================\\n\\n\", collapse = NULL, recycle0 = FALSE), call. = FALSE, domain = NULL)\n",
+      "        }\n",
+      "    }\n",
+      "    # check with r_debugging_tools\n",
+      "    # source(\"https://gitlab.pasteur.fr/gmillot/debugging_tools_for_r_dev/-/raw/v1.8/r_debugging_tools.R\") ; eval(parse(text = str_basic_arg_check_dev)) ; eval(parse(text = str_arg_check_with_fun_check_dev)) # activate this line and use the function (with no arguments left as NULL) to check arguments status and if they have been checked using saferDev::arg_check()\n",
+      "    # end check with r_debugging_tools\n",
+      "    ######## end argument checking with arg_check()\n",
+      "\n",
+      "    #### end argument secondary checking\n",
+      "\n"
+    )
+    paste0(header, paste(calls, collapse = "\n"), footer)
+  }
   
   # ---- Error channels -------------------------------------------------------
   set_error <- function(detail, display) {
@@ -104,16 +251,20 @@ server <- function(input, output, session) {
   # ---- Rebuild the safer function -------------------------------------------
   # null_args       : argument names that ACCEPT NULL -> commented out in tempo_arg
   # non_null_args   : argument names that must NOT be NULL -> active in tempo_arg
-  # empty_args      : NEW - argument names that ACCEPT empty non NULL values
+  # empty_args      : argument names that ACCEPT empty non NULL values
   #                   -> commented out in the tempo_arg of the empty section
-  # non_empty_args  : NEW - argument names that must NOT be empty -> active there
+  # non_empty_args  : argument names that must NOT be empty -> active there
   # no_default_args : argument names with NO default value -> conditional section
+  # fun_args        : NEW - all argument names (to emit the arg_check() blocks)
+  # arg_check_settings : NEW - named list (key = arg_id(nm)) of arg_check() settings
   build_rebuilt <- function(aa, body, pkg, link,
                             null_args = character(0),
                             non_null_args = character(0),
-                            empty_args = character(0),        # NEW
-                            non_empty_args = character(0),   # NEW
-                            no_default_args = character(0)) {
+                            empty_args = character(0),
+                            non_empty_args = character(0),
+                            no_default_args = character(0),
+                            fun_args = character(0),          # NEW
+                            arg_check_settings = list()) {    # NEW
     aa   <- sub("[[:space:]]+$", "", aa)
     body <- sub("[[:space:]]+$", "", sub("^[[:space:]]*\n", "", body))
     
@@ -183,7 +334,7 @@ server <- function(input, output, session) {
       NULL
     }
     
-    # ---- NEW: tempo_arg block of the "empty non NULL" management section ----
+    # ---- tempo_arg block of the "empty non NULL" management section ----
     # Same convention as the NULL block:
     #   ACTIVE line    -> argument must NOT be an empty non NULL object (checked)
     #   COMMENTED line -> argument accepts empty non NULL objects (excluded)
@@ -344,7 +495,7 @@ server <- function(input, output, session) {
         "    }\n",
         "    ######## end management of NULL arguments\n",
 
-        # ---- NEW: block inserted after "end management of NULL arguments" ----
+        # ---- block inserted after "end management of NULL arguments" ----
         "\n",
         "    ######## management of empty non NULL arguments\n",
         "    # # before NA checking because is.na(logical()) is logical(0) (but secured with & base::length(x = x) > 0)\n",
@@ -516,6 +667,11 @@ server <- function(input, output, session) {
         "    #### end environment checking\n",
         # ---- end of the NEW block ---------------------------------------------
 
+        # ---- NEW: argument secondary checking (arg_check() blocks) ------------
+        "\n",
+        build_arg_check_section(fun_args = fun_args, arg_check_settings = arg_check_settings),
+        # ---- end of the NEW block ---------------------------------------------
+
         "\n    #### main code\n",
         body,
         "\n    #### end main code\n",
@@ -576,9 +732,10 @@ server <- function(input, output, session) {
     rv$aa            <- NULL
     rv$null_args     <- character(0)
     rv$non_null_args <- character(0)
-    rv$empty_args    <- character(0)   # NEW
-    rv$non_empty_args <- character(0)  # NEW
+    rv$empty_args    <- character(0)
+    rv$non_empty_args <- character(0)
     rv$no_default_args <- character(0)
+    rv$arg_check_settings <- list()   # NEW
     
     if (!nzchar(trimws(code))) {
       set_error("The field is empty.", "The field is empty: there is no code to run.")
@@ -649,9 +806,11 @@ server <- function(input, output, session) {
       parse(text = build_rebuilt(aa = rv$aa, body = rv$fun_body, pkg = "", link = "",
                                  null_args = character(0),
                                  non_null_args = character(0),
-                                 empty_args = character(0),        # NEW
-                                 non_empty_args = character(0),   # NEW
-                                 no_default_args = rv$no_default_args))
+                                 empty_args = character(0),
+                                 non_empty_args = character(0),
+                                 no_default_args = rv$no_default_args,
+                                 fun_args = rv$fun_args,           # NEW
+                                 arg_check_settings = list()))      # NEW (defaults on first parse check)
       TRUE
     }, error = function(e) {
       message("Parse check of the rebuilt function failed: ", conditionMessage(e))
@@ -687,12 +846,13 @@ server <- function(input, output, session) {
       }, logical(1L))
       rv$null_args     <- rv$fun_args[checked]
       rv$non_null_args <- rv$fun_args[!checked]
-      checked_empty <- vapply(rv$fun_args, function(nm) {     # NEW
+      checked_empty <- vapply(rv$fun_args, function(nm) {
         isTRUE(input[[empty_cb_id(nm)]])
       }, logical(1L))
-      rv$empty_args     <- rv$fun_args[checked_empty]         # NEW
-      rv$non_empty_args <- rv$fun_args[!checked_empty]        # NEW
+      rv$empty_args     <- rv$fun_args[checked_empty]
+      rv$non_empty_args <- rv$fun_args[!checked_empty]
     }
+    rv$arg_check_settings <- get_arg_check_settings()   # NEW
     rv$screen <- "input"
   })
   observeEvent(input$back_from_error, { rv$screen <- "input" })
@@ -712,29 +872,34 @@ server <- function(input, output, session) {
         }, logical(1L))
         null_argument     <- rv$fun_args[checked]
         non_null_argument <- rv$fun_args[!checked]
-        checked_empty <- vapply(rv$fun_args, function(nm) {          # NEW
+        checked_empty <- vapply(rv$fun_args, function(nm) {
           isTRUE(input[[empty_cb_id(nm)]])
         }, logical(1L))
-        empty_argument     <- rv$fun_args[checked_empty]             # NEW
-        non_empty_argument <- rv$fun_args[!checked_empty]            # NEW
+        empty_argument     <- rv$fun_args[checked_empty]
+        non_empty_argument <- rv$fun_args[!checked_empty]
       } else {
         null_argument      <- character(0)
         non_null_argument  <- character(0)
-        empty_argument     <- character(0)   # NEW
-        non_empty_argument <- character(0)   # NEW
+        empty_argument     <- character(0)
+        non_empty_argument <- character(0)
       }
       rv$null_args      <- null_argument      # kept in sync for "Back"
       rv$non_null_args  <- non_null_argument  # available for your part 4
-      rv$empty_args     <- empty_argument     # NEW
-      rv$non_empty_args <- non_empty_argument # NEW
+      rv$empty_args     <- empty_argument
+      rv$non_empty_args <- non_empty_argument
+      
+      arg_check_settings <- get_arg_check_settings()    # NEW
+      rv$arg_check_settings <- arg_check_settings       # NEW (kept in sync for "Back")
       
       # FIX (bug 2): pass the LOCAL vectors
       code <- build_rebuilt(aa = rv$aa, body = rv$fun_body, pkg = pkg, link = link,
                             null_args = null_argument,
                             non_null_args = non_null_argument,
-                            empty_args = empty_argument,          # NEW
-                            non_empty_args = non_empty_argument,  # NEW
-                            no_default_args = rv$no_default_args)
+                            empty_args = empty_argument,
+                            non_empty_args = non_empty_argument,
+                            no_default_args = rv$no_default_args,
+                            fun_args = rv$fun_args,                     # NEW
+                            arg_check_settings = arg_check_settings)    # NEW
       rv$rebuilt <- code
       
       # Guard: never write a file that does not parse
@@ -879,19 +1044,45 @@ server <- function(input, output, session) {
               hr(),
               link_section,
               hr(),
-              # One section per argument: title + NULL checkbox + empty checkbox
+              # One section per argument: title + NULL checkbox + empty checkbox + arg_check() settings
               lapply(seq_len(n), function(i) {
                 nm <- rv$fun_args[i]
+                aid <- arg_id(nm)                                    # NEW
+                st  <- rv$arg_check_settings[[aid]]                  # NEW
+                if (is.null(st)) st <- ARG_CHECK_DEFAULTS            # NEW
+                ids <- arg_check_field_ids(aid)                      # NEW
                 sec <- tagList(
-                  h4(id = arg_id(nm), paste0("Argument: ", nm)),
+                  h4(id = aid, paste0("Argument: ", nm)),
                   checkboxInput(inputId = null_cb_id(nm),
                                 label = "Accepts the NULL value",
                                 value = nm %in% rv$null_args,
                                 width = "100%"),
-                  checkboxInput(inputId = empty_cb_id(nm),                       # NEW
+                  checkboxInput(inputId = empty_cb_id(nm),
                                 label = HTML("Can be an empty argument (e.g., <code>character()</code>)"),
                                 value = nm %in% rv$empty_args,
-                                width = "100%")
+                                width = "100%"),
+                  fluidRow(
+                    column(width = 4, selectInput(inputId = ids$class, label = "Class",
+                                                  choices = AC_CLASS_CHOICES, selected = st$class, width = "100%")),
+                    column(width = 4, selectInput(inputId = ids$typeof, label = "Typeof",
+                                                  choices = AC_TYPEOF_CHOICES, selected = st$typeof, width = "100%")),
+                    column(width = 4, selectInput(inputId = ids$mode, label = "Mode",
+                                                  choices = AC_MODE_CHOICES, selected = st$mode, width = "100%"))
+                  ),
+                  fluidRow(
+                    column(width = 4,
+                      textInput(inputId = ids$length, label = "Length", value = st$length, width = "100%"),
+                      textInput(inputId = ids$options, label = "Options (separated by commas/spaces)", value = st$options, width = "100%")
+                    ),
+                    column(width = 8,
+                      checkboxInput(inputId = ids$prop, label = "prop (TRUE?)", value = isTRUE(st$prop), width = "100%"),
+                      checkboxInput(inputId = ids$double_as_integer_allowed, label = "double_as_integer_allowed (tick means TRUE)", value = isTRUE(st$double_as_integer_allowed), width = "100%"),
+                      checkboxInput(inputId = ids$all_options_in_data, label = "all_options_in_data (tick means TRUE)", value = isTRUE(st$all_options_in_data), width = "100%"),
+                      checkboxInput(inputId = ids$na_contain, label = "na_contain (tick means TRUE)", value = isTRUE(st$na_contain), width = "100%"),
+                      checkboxInput(inputId = ids$neg_values, label = "neg_values (tick means TRUE)", value = isTRUE(st$neg_values), width = "100%"),
+                      checkboxInput(inputId = ids$inf_values, label = "inf_values (tick means TRUE)", value = isTRUE(st$inf_values), width = "100%")
+                    )
+                  )
                 )
                 if (i < n) sec <- tagList(sec, hr())
                 sec
