@@ -11,11 +11,11 @@ server <- function(input, output, session) {
   ARG_CHECK_DEFAULTS <- list(
     class                     = "NULL",  # blank field -> "NULL" = no constraint
     typeof                    = "NULL",  # blank field -> "NULL" = no constraint
-    mode                      = "numeric",
-    length                    = "",      # blank field -> no constraint
+    mode                      = "NULL",  # blank field -> "NULL" = no constraint
+    length                    = "NULL",  # blank field -> no constraint
     prop                      = FALSE,
     double_as_integer_allowed = FALSE,
-    options                   = "",
+    options                   = "NULL", # blank field -> no constraint
     all_options_in_data       = FALSE,
     na_contain                = TRUE,
     neg_values                = TRUE,
@@ -114,11 +114,11 @@ server <- function(input, output, session) {
         # mode: "numeric", length/options: "" = no constraint)
         class                     = if (field_blank(input[[ids$class]])) "NULL" else trimws(input[[ids$class]]),
         typeof                    = if (field_blank(input[[ids$typeof]])) "NULL" else trimws(input[[ids$typeof]]),
-        mode                      = if (field_blank(input[[ids$mode]])) "numeric" else trimws(input[[ids$mode]]),
-        length                    = if (field_blank(input[[ids$length]])) "" else trimws(input[[ids$length]]),
+        mode                      = if (field_blank(input[[ids$mode]])) "NULL" else trimws(input[[ids$mode]]),
+        length                    = if (field_blank(input[[ids$length]])) "NULL" else trimws(input[[ids$length]]),
         prop                      = isTRUE(input[[ids$prop]]),
         double_as_integer_allowed = isTRUE(input[[ids$double_as_integer_allowed]]),
-        options                   = if (field_blank(input[[ids$options]])) "" else trimws(input[[ids$options]]),
+        options                   = if (field_blank(input[[ids$options]])) "NULL" else trimws(input[[ids$options]]),
         all_options_in_data       = isTRUE(input[[ids$all_options_in_data]]),
         na_contain                = isTRUE(input[[ids$na_contain]]),
         neg_values                = isTRUE(input[[ids$neg_values]]),
@@ -600,9 +600,8 @@ server <- function(input, output, session) {
       "    arg_names <- base::names(x = base::formals(fun = base::sys.function(which = base::sys.parent(n = 2)), envir = base::parent.frame(n = 1))) # names of all the arguments\n",
       "    #### end arguments settings\n",
       "\n",
-
       "    #### error_text initiation\n",
-
+  "\n",
       "    ######## basic error text start\n",
       "    error_text <- base::paste0(base::unlist(x = error_text, recursive = TRUE, use.names = TRUE), collapse = \"\", recycle0 = FALSE) # convert everything to string. if error_text is a string, changes nothing. If NULL or empty (even list) -> \"\" so no need to check for management of NULL or empty value\n",
       "    package_function_name <- base::paste0(\n",
@@ -620,7 +619,7 @@ server <- function(input, output, session) {
       "        recycle0 = FALSE\n",
       "    )\n",
       "    ######## end basic error text start\n",
-
+  "\n",
       "    ######## internal error text\n",
       "    intern_error_text_start <- base::paste0(\n",
       "        package_function_name, \n",
@@ -631,17 +630,16 @@ server <- function(input, output, session) {
       "    )\n",
       "    intern_error_text_end <- base::ifelse(test = base::is.null(x = internal_error_report_link), yes = \"\", no = base::paste0(\"\\n\\nPLEASE, REPORT THIS ERROR HERE: \", internal_error_report_link, \".\", collapse = NULL, recycle0 = FALSE))\n",
       "    ######## end internal error text\n",
-
+  "\n",
       "    ######## error text when embedding\n",
       "    # use this in the error_text of safer functions if present in your main code \n",
       "    embed_error_text  <- base::sub(pattern = \"^ERROR IN \", replacement = \" INSIDE \", x = error_text_start, ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)\n",
       "    embed_error_text  <- base::sub(pattern = \"\\n*$\", replacement = \"\", x = embed_error_text, ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE) # remove all the trailing \\n, because added later\n",
       "    ######## end error text when embedding\n",
       "    #### end error_text initiation\n",
-
+      "\n",
       "    #### argument primary checking\n",
       "\n",
-
       "    ######## arg ... forbidden\n",
       "    # nocov start\n",
       "    # codecov inactivated because it is an internal control of code writing, impossible to cover with argument values.\n",
@@ -658,7 +656,6 @@ server <- function(input, output, session) {
       "    # nocov end\n",
       "    ######## end arg ... forbidden\n",
       "\n",
-
       "    ######## mandatory arg of safer-r functions\n",
       "    mandat_args <- base::c(\"lib_path\", \"safer_check\", \"error_text\")\n",
       "    tempo_log <- ! mandat_args %in% arg_names\n",
@@ -820,7 +817,7 @@ server <- function(input, output, session) {
       "                ini_lib_path <- base::.libPaths(new = , include.site = TRUE) # normal to have empty new argument\n",
       "                base::on.exit(expr = base::.libPaths(new = ini_lib_path, include.site = TRUE), add = TRUE, after = TRUE) # return to the previous libPaths()\n",
       "                base::.libPaths(new = base::sub(x = base::c(ini_lib_path, lib_path), pattern = \"/$|\\\\\\\\$\", replacement = \"\", ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE), include.site = TRUE) # base::.libPaths(new = ) add path to default path. BEWARE: base::.libPaths() does not support / at the end of a submitted path. The reason of the check and replacement of the last / or \\\\ in path\n",
-      "                lib_path <- base::.libPaths(new = , include.site = TRUE) # normal to have empty new argument # base::.libPaths(new = lib_path) # or base::.libPaths(new = base::c(base:::.libPaths(), lib_path))\n",
+      "                lib_path <- base::.libPaths(new = , include.site = TRUE) # normal to have empty new argument\n",
       "            }\n",
       "        }else{\n",
       "            lib_path <- base::.libPaths(new = , include.site = TRUE) # normal to have empty new argument # base::.libPaths(new = lib_path) # or base::.libPaths(new = base::c(base:::.libPaths(), lib_path))\n",
