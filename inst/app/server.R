@@ -1,12 +1,13 @@
+
 library(shiny)
 
 server <- function(input, output, session) {
-  
+
   # ---- Constants ------------------------------------------------------------
   # The three additional safer-r arguments
   SAFER_ARGS <- c("lib_path", "safer_check", "error_text")
-  
-  
+
+
   ARG_CHECK_DEFAULTS <- list(
     class                     = "NULL",  # blank field -> "NULL" = no constraint
     typeof                    = "NULL",  # blank field -> "NULL" = no constraint
@@ -20,13 +21,13 @@ server <- function(input, output, session) {
     neg_values                = TRUE,
     inf_values                = TRUE
   )
-  
+
   # Channel 1: ONLY for errors raised when running the pasted function
   ERROR_TEXT <- "The code provided returned an error. Please, click on the back button and provide a function that runs well."
-  
+
   # Channel 3: internal errors of the interface
   INTERNAL_ERROR_TEXT <- "An internal error occurred in the interface. This is not related to your function. Please report here https://github.com/safer-r/saferMake/issues/new."
-  
+
   # ---- App state ----------------------------------------------------------
   rv <- reactiveValues(
     screen          = "input",   # "input" | "error" | "result"
@@ -46,15 +47,44 @@ server <- function(input, output, session) {
     aa              = NULL,      # verbatim: beginning of pasted code up to the last argument
     rebuilt         = NULL,      # not strictly needed; kept for future preview use
     arg_check_settings = list(), # per-argument arg_check() settings (key = arg_id(nm))
-    arg_check_test   = list()    # NEW: per-argument test result (ok, message, value_code)
+    arg_check_test   = list(),   # per-argument test result (ok, message, value_code)
+    # NEW: state needed for the requested behaviours
+    prev_fun_name    = NULL,     # function name of the previous successful run
+    prev_fun_args    = NULL,     # argument names of the previous successful run
+    prev_screen      = NULL,     # screen to return to from the error screen
+    check_failed     = character(0), # arguments whose arg_check() test failed
+    scroll_to        = NULL      # html id of the block to scroll to (or NULL)
   )
-  
+
   # Build a valid HTML id from an argument name
   arg_id <- function(nm) paste0("arg_", gsub("[^[:alnum:]_]", "_", nm))
   # Checkbox id for a given argument name
   null_cb_id <- function(nm) paste0("null_", arg_id(nm))
   empty_cb_id <- function(nm) paste0("empty_", arg_id(nm))
-  
+
+  # ---- JS message handler (register the programmatic download trigger) ------
+  # Registered once per rendered screen; re-registering is harmless (overwrite).
+  js_download_handler <- function() {
+    tags$script(HTML("
+      if (typeof Shiny !== 'undefined') {
+        Shiny.addCustomMessageHandler('safer_trigger_download', function(id) {
+          var el = document.getElementById(id);
+          if (el) { el.click(); }
+        });
+      }
+    "))
+  }
+
+  # NEW: build the inline script that scrolls the window to a target element
+  scroll_to_js <- function(target) {
+    if (is.null(target) || !nzchar(target)) return(NULL)
+    tags$script(HTML(sprintf(
+      "setTimeout(function(){var el = document.getElementById('%s');
+       if(el){el.scrollIntoView({behavior:'smooth', block:'start'});}}, 50);",
+      target
+    )))
+  }
+
   # ---- arg_check() helpers ---------------------------------------------
   arg_check_field_ids <- function(id) {
     list(
@@ -71,10 +101,10 @@ server <- function(input, output, session) {
       inf_values                = paste0("ac_inf_",     id)
     )
   }
-  
+
   # TRUE if the field is NULL (not yet rendered) or blank/whitespace only
   field_blank <- function(v) is.null(v) || !nzchar(trimws(v))
-  
+
   get_arg_check_settings <- function() {
     if (length(rv$fun_args) == 0L) return(list())
     out <- lapply(rv$fun_args, function(nm) {
@@ -98,7 +128,7 @@ server <- function(input, output, session) {
     names(out) <- vapply(rv$fun_args, arg_id, character(1L), USE.NAMES = FALSE)
     out
   }
-  
+
   # "a, b 2 c" -> c("a", "b", "2", "c"); numeric if ALL parts parse as numbers
   arg_check_parse_options <- function(txt) {
     parts <- trimws(unlist(strsplit(txt, "[,;[:space:]]+")))
@@ -107,12 +137,12 @@ server <- function(input, output, session) {
     num <- suppressWarnings(as.numeric(parts))
     if (!anyNA(num)) num else parts
   }
-  
+
   arg_check_parse_length <- function(txt) {
     t <- trimws(txt)
     if (grepl("^[0-9]+$", t)) as.integer(t) else NULL
   }
-  
+
   # Shared builder of the saferDev::arg_check(...) call text (no leading spaces,
   # no "; base::eval(...)" suffix). Used both by the code generator and by the
   # interactive test runner, so the tested line is identical to the generated one.
@@ -149,7 +179,7 @@ server <- function(input, output, session) {
       ")"
     )
   }
-  
+
   # Build the R code (as text) of a test value consistent with the settings:
   # kind from class, else typeof, else mode (default "numeric");
   # length from the length field (default 1); options used when provided.
@@ -166,7 +196,7 @@ server <- function(input, output, session) {
     n <- arg_check_parse_length(st$length)
     if (is.null(n) || n < 1L) n <- 1L
     opts <- arg_check_parse_options(st$options)
-    
+
     vals <- if (n <= 26L) letters[seq_len(n)] else paste0("x", seq_len(n))
     char_code <- if (n == 1L) paste0("\"", vals, "\"") else
       paste0("c(", paste0("\"", vals, "\"", collapse = ", "), ")")
@@ -176,7 +206,7 @@ server <- function(input, output, session) {
       paste0("c(", paste0(seq_len(n), "L", collapse = ", "), ")")
     log_code <- if (n == 1L) "TRUE" else
       paste0("c(", paste(rep(c("TRUE", "FALSE"), length.out = n), collapse = ", "), ")")
-    
+
     # If options were provided, try to build the value from them (coerced to kind)
     if (!is.null(opts)) {
       num_opts <- suppressWarnings(as.numeric(opts))
@@ -195,7 +225,7 @@ server <- function(input, output, session) {
       }
       # not coercible -> default maker below (arg_check() will report the mismatch)
     }
-    
+
     switch(kind,
       "character"   = char_code,
       "numeric"     = num_code,
@@ -226,7 +256,7 @@ server <- function(input, output, session) {
       num_code      # fallback for unknown/unsupported kinds (e.g. typos, S4)
     )
   }
-  
+
   # Evaluate each generated arg_check() line with the test value (instead of the
   # real argument) and collect ok / message / tested value, keyed by arg_id(nm).
   run_arg_check_tests <- function(fun_args, arg_check_settings) {
@@ -283,10 +313,10 @@ server <- function(input, output, session) {
     }
     out
   }
-  
+
   # Builds the whole "#### argument secondary checking" section.
   # Each argument produces EXACTLY one line:
-  #     tempo <- saferDev::arg_check(data = <arg>, class = NULL, typeof = NULL, mode = "numeric", length = NULL, prop = FALSE, double_as_integer_allowed = FALSE, options = NULL, all_options_in_data = FALSE, na_contain = TRUE, neg_values = TRUE, inf_values = TRUE, print = FALSE, data_name = NULL, data_arg = TRUE, safer_check = FALSE, lib_path = lib_path, error_text = embed_error_text) ; base::eval(expr = ee, envir = base::environment(fun = NULL), enclos = base::environment(fun = NULL))
+  #     tempo <- saferDev::arg_check(data = <arg>, ...) ; base::eval(expr = ee, envir = base::environment(fun = NULL), enclos = base::environment(fun = NULL))
   build_arg_check_section <- function(fun_args, arg_check_settings) {
     calls <- vapply(fun_args, function(nm) {
       st <- arg_check_settings[[arg_id(nm)]]
@@ -326,17 +356,45 @@ server <- function(input, output, session) {
     )
     paste0(header, paste(calls, collapse = "\n"), footer)
   }
-  
+
   # ---- Error channels -------------------------------------------------------
+  # NEW: snapshot_result_inputs() keeps the current result-screen inputs so that
+  # the Back button can restore the settings page with all the user values.
+  snapshot_result_inputs <- function() {
+    pkg <- input$pkg_name
+    rv$pkg_name <- if (is.null(pkg)) rv$pkg_name else trimws(pkg)
+    lnk <- input$link_name
+    rv$link_name <- if (is.null(lnk)) rv$link_name else trimws(lnk)
+    if (length(rv$fun_args) > 0L) {
+      checked <- vapply(rv$fun_args, function(nm) {
+        isTRUE(input[[null_cb_id(nm)]])
+      }, logical(1L))
+      rv$null_args     <- rv$fun_args[checked]
+      rv$non_null_args <- rv$fun_args[!checked]
+      checked_empty <- vapply(rv$fun_args, function(nm) {
+        isTRUE(input[[empty_cb_id(nm)]])
+      }, logical(1L))
+      rv$empty_args     <- rv$fun_args[checked_empty]
+      rv$non_empty_args <- rv$fun_args[!checked_empty]
+      s <- get_arg_check_settings()
+      if (length(s) > 0L) rv$arg_check_settings <- s
+    }
+  }
+
   set_error <- function(detail, display) {
+    # NEW: preserve the user values if the error occurs on the result screen
+    if (identical(rv$screen, "result")) snapshot_result_inputs()
+    # NEW: remember where to go back when the Back button of the error screen is used
+    rv$prev_screen   <- if (identical(rv$screen, "result")) "result" else "input"
     message("App error (not shown to the user): ", detail)
     rv$error_msg     <- detail
     rv$error_display <- display
+    rv$scroll_to     <- "error_alert_top"   # NEW: scroll target for the error screen
     rv$screen        <- "error"
   }
   user_code_error <- function(detail) set_error(detail, ERROR_TEXT)
   internal_error  <- function(detail) set_error(detail, INTERNAL_ERROR_TEXT)
-  
+
   # ---- Argument helper ------------------------------------------------------
   # names of the arguments of f that have NO default value.
   # In formals(), a default-less argument holds the 'missing' object,
@@ -350,7 +408,7 @@ server <- function(input, output, session) {
     no_def <- vapply(fm, function(v) identical(v, quote(expr = )), logical(1L))
     names(fm)[no_def]
   }
-  
+
   # ---- Verbatim capture helpers --------------------------------------------
   match_close <- function(txt, open, close_ch) {
     open_ch  <- substring(txt, open, open)
@@ -366,7 +424,7 @@ server <- function(input, output, session) {
     }
     -1L
   }
-  
+
   extract_aa_body <- function(code) {
     m <- regexpr("function[[:space:]]*\\(", code)
     if (m == -1) return(NULL)
@@ -374,12 +432,12 @@ server <- function(input, output, session) {
     p_close <- match_close(code, p_open, ")")
     if (p_close == -1) return(NULL)
     aa <- substring(code, 1, p_close - 1L)
-    
+
     rest    <- substring(code, p_close + 1L)
     m2      <- regexpr("\\S", rest)
     if (m2 == -1) return(list(aa = aa, body = ""))
     p_body <- p_close + m2
-    
+
     if (substring(code, p_body, p_body) == "{") {
       p_end <- match_close(code, p_body, "}")
       if (p_end == -1) return(NULL)
@@ -389,7 +447,7 @@ server <- function(input, output, session) {
       list(aa = aa, body = trimws(rest))
     }
   }
-  
+
   # ---- Rebuild the safer function -------------------------------------------
   # null_args       : argument names that ACCEPT NULL -> commented out in tempo_arg
   # non_null_args   : argument names that must NOT be NULL -> active in tempo_arg
@@ -409,12 +467,12 @@ server <- function(input, output, session) {
                             arg_check_settings = list()) {
     aa   <- sub("[[:space:]]+$", "", aa)
     body <- sub("[[:space:]]+$", "", sub("^[[:space:]]*\n", "", body))
-    
+
     comma <- if (grepl("\\($", aa) || grepl(",$", aa)) "" else ","
-    
+
     pkg_line  <- if (nzchar(pkg)) paste0("package_name <- ", deparse(pkg)) else "package_name <- NULL"
     link_line <- if (nzchar(link)) deparse(link) else "NULL"
-    
+
     # ---- NULL management block ---------------------------------------------
     # FIX (bug 3): one line per argument, each comma-terminated, so commenting
     # a line out never breaks the c(...) call (a trailing comma is valid R).
@@ -440,7 +498,7 @@ server <- function(input, output, session) {
             collapse = "\n"),
       "\n    )\n"
     )
-    
+
     # ---- "no default value" block (conditional) -----------------------------
     # Emitted ONLY if at least one argument has no default value.
     # paste0() drops zero-length arguments (including NULL), so when
@@ -475,7 +533,7 @@ server <- function(input, output, session) {
     } else {
       NULL
     }
-    
+
     # ---- tempo_arg block of the "empty non NULL" management section ----
     # Same convention as the NULL block:
     #   ACTIVE line    -> argument must NOT be an empty non NULL object (checked)
@@ -502,7 +560,7 @@ server <- function(input, output, session) {
             collapse = "\n"),
       "\n    )\n"
     )
-    
+
     paste0(
       aa, comma,
       "\n    lib_path = NULL, \n    safer_check = TRUE, \n    error_text = \"\" \n){\n",
@@ -512,7 +570,7 @@ server <- function(input, output, session) {
       " # link where to post an issue indicated in an internal error message. Write NULL if no link to propose, or no internal error message\n",
       "    #### end internal error report link\n",
       "\n",
-      
+
       "    #### function name\n",
       "    tempo_settings <- base::as.list(x = base::match.call(definition = base::sys.function(which = base::sys.parent(n = 0)), call = base::sys.call(which = base::sys.parent(n = 0)), expand.dots = FALSE, envir = base::parent.frame(n = 2L))) # warning: I have written n = 0 to avoid error when a safer function is inside another functions. In addition, arguments values retrieved are not evaluated base::match.call, but this is solved with get() below\n",
       "    function_name <- base::paste0(tempo_settings[[1]], \"()\", collapse = NULL, recycle0 = FALSE) \n",
@@ -522,7 +580,7 @@ server <- function(input, output, session) {
       "    }\n",
       "    #### end function name\n",
       "\n",
-      
+
       "    #### arguments settings\n",
       "    arg_user_setting <- tempo_settings[-1] # list of the argument settings (excluding default values not provided by the user). Always a list, even if 1 argument. So ok for lapply() usage (management of NA section)\n",
       "    arg_user_setting_names <- base::names(x = arg_user_setting)\n",
@@ -542,8 +600,9 @@ server <- function(input, output, session) {
       "    arg_names <- base::names(x = base::formals(fun = base::sys.function(which = base::sys.parent(n = 2)), envir = base::parent.frame(n = 1))) # names of all the arguments\n",
       "    #### end arguments settings\n",
       "\n",
+
       "    #### error_text initiation\n",
-      
+
       "    ######## basic error text start\n",
       "    error_text <- base::paste0(base::unlist(x = error_text, recursive = TRUE, use.names = TRUE), collapse = \"\", recycle0 = FALSE) # convert everything to string. if error_text is a string, changes nothing. If NULL or empty (even list) -> \"\" so no need to check for management of NULL or empty value\n",
       "    package_function_name <- base::paste0(\n",
@@ -561,7 +620,7 @@ server <- function(input, output, session) {
       "        recycle0 = FALSE\n",
       "    )\n",
       "    ######## end basic error text start\n",
-      
+
       "    ######## internal error text\n",
       "    intern_error_text_start <- base::paste0(\n",
       "        package_function_name, \n",
@@ -572,17 +631,17 @@ server <- function(input, output, session) {
       "    )\n",
       "    intern_error_text_end <- base::ifelse(test = base::is.null(x = internal_error_report_link), yes = \"\", no = base::paste0(\"\\n\\nPLEASE, REPORT THIS ERROR HERE: \", internal_error_report_link, \".\", collapse = NULL, recycle0 = FALSE))\n",
       "    ######## end internal error text\n",
-      
+
       "    ######## error text when embedding\n",
       "    # use this in the error_text of safer functions if present in your main code \n",
       "    embed_error_text  <- base::sub(pattern = \"^ERROR IN \", replacement = \" INSIDE \", x = error_text_start, ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)\n",
       "    embed_error_text  <- base::sub(pattern = \"\\n*$\", replacement = \"\", x = embed_error_text, ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE) # remove all the trailing \\n, because added later\n",
       "    ######## end error text when embedding\n",
       "    #### end error_text initiation\n",
-      
+
       "    #### argument primary checking\n",
       "\n",
-      
+
       "    ######## arg ... forbidden\n",
       "    # nocov start\n",
       "    # codecov inactivated because it is an internal control of code writing, impossible to cover with argument values.\n",
@@ -599,7 +658,7 @@ server <- function(input, output, session) {
       "    # nocov end\n",
       "    ######## end arg ... forbidden\n",
       "\n",
-      
+
       "    ######## mandatory arg of safer-r functions\n",
       "    mandat_args <- base::c(\"lib_path\", \"safer_check\", \"error_text\")\n",
       "    tempo_log <- ! mandat_args %in% arg_names\n",
@@ -618,11 +677,11 @@ server <- function(input, output, session) {
       "    }\n",
       "    ######## end mandatory arg of safer-r functions\n",
       "\n",
-      
+
       no_def_block,
       "    ######## management of NULL arguments\n",
       "    # before NA checking because is.na(NULL) return logical(0) and all(logical(0)) is TRUE (but secured with & base::length(x = x) > 0)\n",
-      tempo_arg_block, 
+      tempo_arg_block,
       "    tempo_log <- base::sapply(X = base::lapply(X = tempo_arg, FUN = function(x){base::get(x = x, pos = -1L, envir = base::parent.frame(n = 2), mode = \"any\", inherits = FALSE)}), FUN = function(x){base::is.null(x = x)}, simplify = TRUE, USE.NAMES = TRUE) # parent.frame(n = 2) because sapply(lapply())\n",
       "    if(base::any(tempo_log, na.rm = TRUE)){ # normally no NA with base::is.null()\n",
       "        tempo_cat <- base::paste0(\n",
@@ -636,7 +695,7 @@ server <- function(input, output, session) {
       "        base::stop(base::paste0(\"\\n\\n================\\n\\n\", tempo_cat, \"\\n\\n================\\n\\n\", collapse = NULL, recycle0 = FALSE), call. = FALSE, domain = NULL)\n",
       "    }\n",
       "    ######## end management of NULL arguments\n",
-      
+
       # ---- block inserted after "end management of NULL arguments" ----
       "\n",
       "    ######## management of empty non NULL arguments\n",
@@ -669,7 +728,7 @@ server <- function(input, output, session) {
       "    }\n",
       "    ######## end management of empty non NULL arguments\n",
       "\n",
-      
+
       "    ######## management of NA arguments\n",
       "    # Mandataory section : argument of safer-r functions cannot have NA as only value, to prevent all(, na.rm = TRUE) or any(, na.rm = TRUE) to return a logical value\n",
       "    if(base::length(x = arg_user_setting_eval) != 0){\n",
@@ -707,7 +766,7 @@ server <- function(input, output, session) {
       "\n",
       "    #### environment checking\n",
       "\n",
-      
+
       "    ######## safer_check argument checking\n",
       "    if( ! (base::all(base::typeof(x = safer_check) == \"logical\", na.rm = TRUE) & base::length(x = safer_check) == 1)){ # no need to test NA because NA only already managed above and base::length(x = safer_check) == 1)\n",
       "        if(base::all(base::mode(x = safer_check) == \"function\", na.rm = TRUE)){\n",
@@ -724,7 +783,7 @@ server <- function(input, output, session) {
       "    }\n",
       "    ######## end safer_check argument checking\n",
       "\n",
-      
+
       "    ######## check of lib_path\n",
       "    # must be before any :: or ::: non basic package calling\n",
       "    if(safer_check == TRUE){ # this line must be inactivated if you want to use lib_path in the main code (other than in safer functions present in the main code) \n",
@@ -769,7 +828,7 @@ server <- function(input, output, session) {
       "    }  # this line must be inactivated if you want to use lib_path in the main code (other than in safer functions present in the main code) \n",
       "    ######## end check of lib_path\n",
       "\n",
-      
+
       "    ######## check of the required functions from the required packages\n",
       "    if(safer_check == TRUE){\n",
       "        .pack_and_function_check <- utils::getFromNamespace(x = \".pack_and_function_check\", ns = \"saferDev\", pos = , envir = )\n",
@@ -788,7 +847,7 @@ server <- function(input, output, session) {
       "    }\n",
       "    ######## end check of the required functions from the required packages\n",
       "\n",
-      
+
       "    ######## escaping CRAN submission NOTE for internal functions\n",
       "\n",
       "    .base_op_check <- utils::getFromNamespace(x = \".base_op_check\", ns = \"saferDev\", pos = , envir = )\n",
@@ -797,7 +856,7 @@ server <- function(input, output, session) {
       "\n",
       "    ######## end escaping CRAN submission NOTE for internal functions\n",
       "\n",
-      
+
       "    ######## critical operator checking\n",
       "    if(safer_check == TRUE){\n",
       "        .base_op_check(\n",
@@ -807,21 +866,22 @@ server <- function(input, output, session) {
       "    ######## end critical operator checking\n",
       "\n",
       "    #### end environment checking\n",
-      
+
       # ---- argument secondary checking (arg_check() blocks) ------------
       "\n",
       build_arg_check_section(fun_args = fun_args, arg_check_settings = arg_check_settings),
-      
+
       "\n    #### main code\n",
       body,
       "\n    #### end main code\n",
       "}\n"
     )
   }
-  
+
   # ---- Shared UI fragments (used on input and error screens) --------------
   intro <- function() {
     list(
+      js_download_handler(),   # NEW: register the programmatic download trigger
       h4(id = "intro", "Introduction"),
       tags$div(
         tags$ol(class = "input-instruction-list",
@@ -838,7 +898,7 @@ server <- function(input, output, session) {
       hr()
     )
   }
-  
+
   code_instructions <- function() {
     tags$div(
       tags$ol(class = "input-instruction-list",
@@ -848,17 +908,17 @@ server <- function(input, output, session) {
       )
     )
   }
-  
+
   wrap_panel <- function(...) {
     fluidRow(column(width = 12,
                     wellPanel(style = "background-color: #fcfcfc; border: none; padding: 0; margin: 0;", ...)))
   }
-  
+
   back_btn <- function(id) {
     div(style = "text-align: right;",
         actionButton(inputId = id, label = "Back", icon = icon("arrow-left")))
   }
-  
+
   # ---- RUN logic -------------------------------------------------------------
   run_clicked <- function() {
     code <- isolate(input$user_ini_fun)
@@ -867,22 +927,18 @@ server <- function(input, output, session) {
     rv$error_msg     <- NULL
     rv$error_display <- NULL
     rv$fun_name      <- NULL
-    rv$fun_args      <- NULL
     rv$fun_body      <- NULL
     rv$aa            <- NULL
-    rv$null_args     <- character(0)
-    rv$non_null_args <- character(0)
-    rv$empty_args    <- character(0)
-    rv$non_empty_args <- character(0)
-    rv$no_default_args <- character(0)
-    rv$arg_check_settings <- list()
-    rv$arg_check_test <- list()      # NEW
-    
+    # FIX (new behaviour): the checkbox states and arg_check() settings are NOT
+    # wiped anymore here. They are kept when the same function is re-run, so the
+    # Back button can restore the settings page with all the user values. They
+    # are reset only if the pasted function (name or arguments) changed.
+
     if (!nzchar(trimws(code))) {
       set_error("The field is empty.", "The field is empty: there is no code to run.")
       return(invisible())
     }
-    
+
     env <- new.env(parent = globalenv())
     err <- NULL
     res <- tryCatch(
@@ -893,7 +949,7 @@ server <- function(input, output, session) {
       user_code_error(err)
       return(invisible())
     }
-    
+
     fnames <- Filter(function(n) is.function(get(n, envir = env)), ls(envir = env))
     f <- NULL
     if (length(fnames) == 1L) {
@@ -915,10 +971,10 @@ server <- function(input, output, session) {
                 "The pasted code does not define any function. Please paste the code of a function.")
       return(invisible())
     }
-    
+
     args <- names(formals(f))
     rv$fun_args <- if (is.null(args)) character(0) else args
-    rv$no_default_args <- args_without_default(f)    
+    rv$no_default_args <- args_without_default(f)
     parts <- extract_aa_body(code)
     if (is.null(parts)) {
       internal_error("extract_aa_body() could not locate the signature/body.")
@@ -926,7 +982,37 @@ server <- function(input, output, session) {
     }
     rv$aa        <- parts$aa
     rv$fun_body  <- parts$body
-    
+
+    # NEW: keep or reset the user settings depending on whether the same
+    # function (same name and same arguments) is re-run.
+    same_fun <- identical(rv$fun_name, rv$prev_fun_name) &&
+                identical(as.character(rv$fun_args), as.character(rv$prev_fun_args))
+    if (!same_fun) {
+      rv$null_args         <- character(0)
+      rv$non_null_args     <- character(0)
+      rv$empty_args        <- character(0)
+      rv$non_empty_args    <- character(0)
+      rv$arg_check_settings <- list()
+      rv$arg_check_test    <- list()
+    } else {
+      # keep only the settings/tests matching the current arguments
+      keep <- intersect(names(rv$arg_check_settings),
+                        vapply(rv$fun_args, arg_id, character(1L)))
+      rv$arg_check_settings <- rv$arg_check_settings[keep]
+      keep_test <- intersect(names(rv$arg_check_test),
+                             vapply(rv$fun_args, arg_id, character(1L)))
+      rv$arg_check_test <- rv$arg_check_test[keep_test]
+      # sanitize the checkbox vectors against the current argument list
+      rv$null_args      <- intersect(rv$null_args,      rv$fun_args)
+      rv$non_null_args  <- setdiff(rv$fun_args, rv$null_args)
+      rv$empty_args     <- intersect(rv$empty_args,     rv$fun_args)
+      rv$non_empty_args <- setdiff(rv$fun_args, rv$empty_args)
+    }
+    rv$prev_fun_name <- rv$fun_name
+    rv$prev_fun_args <- rv$fun_args
+    rv$check_failed  <- character(0)   # NEW: reset the failing list on a new run
+    rv$scroll_to     <- NULL           # NEW
+
     collide <- intersect(rv$fun_args, SAFER_ARGS)
     if (length(collide) > 0L) {
       set_error(
@@ -941,7 +1027,7 @@ server <- function(input, output, session) {
       )
       return(invisible())
     }
-    
+
     # FIX (bug 1): pass ALL arguments (named) and log the real parse error
     ok <- tryCatch({
       parse(text = build_rebuilt(aa = rv$aa, body = rv$fun_body, pkg = "", link = "",
@@ -961,10 +1047,10 @@ server <- function(input, output, session) {
       internal_error("The rebuilt function does not parse - check build_rebuilt()/server.R.")
       return(invisible())
     }
-    
+
     rv$screen <- "result"
   }
-  
+
   observeEvent(input$run_button, {
     tryCatch(
       run_clicked(),
@@ -974,39 +1060,56 @@ server <- function(input, output, session) {
       }
     )
   })
-  
+
+  # ---- NEW: CHECK + SAVE logic -----------------------------------------------
+  # The "Run" button of the result screen runs the arg_check() tests. The
+  # download (pop-up to save the modified function) is triggered ONLY if no
+  # arg_check() line failed. Otherwise, a summary error is displayed at the top
+  # of the result screen and the window scrolls to it.
+  observeEvent(input$check_and_save, {
+    tryCatch({
+      snapshot_result_inputs()
+      rv$arg_check_test <- run_arg_check_tests(rv$fun_args, rv$arg_check_settings)
+      failed <- rv$fun_args[vapply(rv$fun_args, function(nm) {
+        !isTRUE(rv$arg_check_test[[arg_id(nm)]]$ok)
+      }, logical(1L))]
+      if (length(failed) == 0L) {
+        rv$check_failed <- character(0)
+        rv$scroll_to    <- NULL
+        # trigger the (hidden) downloadButton programmatically -> save pop-up
+        session$sendCustomMessage("safer_trigger_download", "download_safer")
+      } else {
+        rv$check_failed <- failed
+        rv$scroll_to    <- "arg_check_error_summary"
+      }
+    }, error = function(e) {
+      internal_error(paste0("Unexpected error in the server code: ",
+                            conditionMessage(e)))
+    })
+  })
+
   # ---- BACK buttons (checkbox states are preserved like pkg/link) ----------
   observeEvent(input$back_from_result, {
-    pkg  <- input$pkg_name
-    rv$pkg_name <- if (is.null(pkg)) "" else pkg
-    link <- input$link_name
-    rv$link_name <- if (is.null(link)) "" else link
-    if (length(rv$fun_args) > 0L) {
-      checked <- vapply(rv$fun_args, function(nm) {
-        isTRUE(input[[null_cb_id(nm)]])
-      }, logical(1L))
-      rv$null_args     <- rv$fun_args[checked]
-      rv$non_null_args <- rv$fun_args[!checked]
-      checked_empty <- vapply(rv$fun_args, function(nm) {
-        isTRUE(input[[empty_cb_id(nm)]])
-      }, logical(1L))
-      rv$empty_args     <- rv$fun_args[checked_empty]
-      rv$non_empty_args <- rv$fun_args[!checked_empty]
-    }
-    rv$arg_check_settings <- get_arg_check_settings()
+    # NEW: centralized snapshot (pkg, link, checkboxes, arg_check() settings)
+    snapshot_result_inputs()
     rv$screen <- "input"
   })
-  observeEvent(input$back_from_error, { rv$screen <- "input" })
-  
+  # NEW: the error-screen Back button returns to the screen the error came from
+  # (input OR result), with all the user values restored from rv.
+  observeEvent(input$back_from_error, {
+    rv$screen <- if (!is.null(rv$prev_screen)) rv$prev_screen else "input"
+  })
+
   # ---- DOWNLOAD: the modified (safer) function -------------------------------
   output$download_safer <- downloadHandler(
     filename = function() {
       paste0(rv$fun_name, "_safer.R")
     },
     content = function(file) {
-      pkg  <- if (is.null(input$pkg_name)) "" else trimws(input$pkg_name)
-      link <- if (is.null(input$link_name)) "" else trimws(input$link_name)
-      
+      # NEW: fallback to rv values if the inputs are not currently rendered
+      pkg  <- if (is.null(input$pkg_name)) rv$pkg_name else trimws(input$pkg_name)
+      link <- if (is.null(input$link_name)) rv$link_name else trimws(input$link_name)
+
       if (length(rv$fun_args) > 0L) {
         checked <- vapply(rv$fun_args, function(nm) {
           isTRUE(input[[null_cb_id(nm)]])
@@ -1025,17 +1128,17 @@ server <- function(input, output, session) {
         non_empty_argument <- character(0)
       }
       rv$null_args      <- null_argument      # kept in sync for "Back"
-      rv$non_null_args  <- non_null_argument  # available for your part 4
+      rv$non_null_args  <- non_null_argument
       rv$empty_args     <- empty_argument
       rv$non_empty_args <- non_empty_argument
-      
+
       arg_check_settings <- get_arg_check_settings()
       rv$arg_check_settings <- arg_check_settings       # kept in sync for "Back"
-      
-      # NEW: evaluate each arg_check() line with a test value built from the
-      # settings, and keep the results for display in the argument sections
-      rv$arg_check_test <- run_arg_check_tests(rv$fun_args, arg_check_settings)
-      
+
+      # NEW: the arg_check() tests are NOT run here anymore. They are run by the
+      # check_and_save observer BEFORE the download is triggered, so that the
+      # save pop-up appears only when no arg_check() line failed.
+
       # FIX (bug 2): pass the LOCAL vectors
       code <- build_rebuilt(aa = rv$aa, body = rv$fun_body, pkg = pkg, link = link,
                             null_args = null_argument,
@@ -1046,7 +1149,7 @@ server <- function(input, output, session) {
                             fun_args = rv$fun_args,
                             arg_check_settings = arg_check_settings)
       rv$rebuilt <- code
-      
+
       # Guard: never write a file that does not parse
       if (!tryCatch({ parse(text = code); TRUE },
                     error = function(e) {
@@ -1059,11 +1162,15 @@ server <- function(input, output, session) {
       writeLines(code, file)
     }
   )
-  
+
   # ---- Sidebar: Table of Contents (depends on the current screen) -----------
   output$toc <- renderUI({
     entries <- if (identical(rv$screen, "result")) {
       c(
+        if (length(rv$check_failed) > 0L) {
+          list(tags$li(tags$a(href = "#arg_check_error_summary",
+                              "arg_check() check errors")))
+        } else list(),
         list(tags$li(tags$a(href = "#pkg_section", "Package name"))),
         list(tags$li(tags$a(href = "#link_section", "Error report link"))),
         if (length(rv$fun_args) == 0L) {
@@ -1073,6 +1180,11 @@ server <- function(input, output, session) {
             tags$li(tags$a(href = paste0("#", arg_id(nm)), paste0("Argument: ", nm)))
           })
         }
+      )
+    } else if (identical(rv$screen, "error")) {
+      list(
+        tags$li(tags$a(href = "#intro", "Introduction")),
+        tags$li(tags$a(href = "#error_alert_top", "Error message"))
       )
     } else {
       list(
@@ -1084,12 +1196,12 @@ server <- function(input, output, session) {
         p(class = "caption", "Table of Contents"),
         tags$ul(entries))
   })
-  
+
   # ---- The three screens -----------------------------------------------------
   output$screen <- renderUI({
     wrap_panel(
       switch(rv$screen,
-             
+
              input = tagList(
                intro(),
                h4(id = "sec_code", "Code of your function"),
@@ -1102,18 +1214,20 @@ server <- function(input, output, session) {
                div(style = "text-align: right;",
                    actionButton(inputId = "run_button", label = "Run", class = "btn-primary"))
              ),
-             
+
              error = tagList(
                intro(),
                h4(id = "sec_code", "Code of your function"),
                code_instructions(),
-               div(class = "alert alert-danger", role = "alert",
+               div(id = "error_alert_top",              # NEW: scroll target
+                   class = "alert alert-danger", role = "alert",
                    style = "margin-top: 10px; white-space: pre-line;",
                    if (is.null(rv$error_display)) ERROR_TEXT else rv$error_display),
                hr(),
-               back_btn("back_from_error")
+               back_btn("back_from_error"),
+               scroll_to_js(rv$scroll_to)               # NEW: slide to the top error message
              ),
-             
+
              result = {
                args_txt <- if (length(rv$fun_args) == 0L) {
                  "none"
@@ -1125,7 +1239,7 @@ server <- function(input, output, session) {
                } else {
                  paste(rv$no_default_args, collapse = ", ")
                }
-               
+
                detected_block <- tags$div(
                  tags$ol(class = "input-instruction-list",
                          tags$li(paste0("Function detected: ", rv$fun_name)),
@@ -1133,7 +1247,7 @@ server <- function(input, output, session) {
                          tags$li(paste0("Arguments with no default value: ", no_def_txt))
                  )
                )
-               
+
                pkg_section <- tagList(
                  h4(id = "pkg_section", "Package name"),
                  tags$div(
@@ -1147,7 +1261,7 @@ server <- function(input, output, session) {
                            placeholder = "Package name",
                            width = "100%")
                )
-               
+
                link_section <- tagList(
                  h4(id = "link_section", "Error report link"),
                  tags$div(
@@ -1161,30 +1275,58 @@ server <- function(input, output, session) {
                            placeholder = "Error report link",
                            width = "100%")
                )
-               
+
+               # NEW: summary of the failed arg_check() tests, displayed at the
+               # top of the settings page (scroll target when a check fails).
+               check_summary <- if (length(rv$check_failed) > 0L) {
+                 div(id = "arg_check_error_summary",
+                     class = "alert alert-danger", role = "alert",
+                     style = "margin-top: 10px; white-space: pre-line;",
+                     paste0(
+                       "The saferDev::arg_check() check failed for the following argument",
+                       ifelse(test = length(rv$check_failed) > 1, yes = "s", no = ""),
+                       " (see the red messages in the argument sections below):\n",
+                       paste(rv$check_failed, collapse = "\n"),
+                       "\n\nPlease fix the settings below and run again."
+                     ))
+               } else {
+                 NULL
+               }
+
+               # NEW: the visible "Run" button runs the arg_check() tests; the
+               # real downloadButton is hidden and clicked programmatically by
+               # the server ONLY when no arg_check() line failed (save pop-up).
                result_footer <- div(
                  style = "text-align: right;",
+                 actionButton(inputId = "check_and_save",
+                              label = "Run", class = "btn-primary"),
                  downloadButton(outputId = "download_safer",
-                                label = "Run", class = "btn-primary"),
+                                label = "",
+                                style = "position: absolute; visibility: hidden;"),
                  actionButton(inputId = "back_from_result",
                               label = "Back", icon = icon("arrow-left"))
                )
-               
+
                if (length(rv$fun_args) == 0L) {
                  tagList(
+                   js_download_handler(),     # NEW: register the download trigger
                    detected_block,
                    hr(),
+                   check_summary,             # NEW (NULL when no failure)
                    pkg_section,
                    hr(),
                    link_section,
                    hr(),
-                   result_footer
+                   result_footer,
+                   scroll_to_js(rv$scroll_to) # NEW: slide to the top error message
                  )
                } else {
                  n <- length(rv$fun_args)
                  tagList(
+                   js_download_handler(),     # NEW: register the download trigger
                    detected_block,
                    hr(),
+                   check_summary,             # NEW (NULL when no failure)
                    pkg_section,
                    hr(),
                    link_section,
@@ -1199,7 +1341,7 @@ server <- function(input, output, session) {
                      st  <- rv$arg_check_settings[[aid]]
                      if (is.null(st)) st <- ARG_CHECK_DEFAULTS
                      ids <- arg_check_field_ids(aid)
-                     test_res <- rv$arg_check_test[[aid]]    # NEW
+                     test_res <- rv$arg_check_test[[aid]]
                      # Show blank in the field when the stored value is the default
                      class_disp  <- if (identical(st$class, "NULL")) "" else st$class
                      typeof_disp <- if (identical(st$typeof, "NULL")) "" else st$typeof
@@ -1265,7 +1407,7 @@ server <- function(input, output, session) {
                                      label = "inf_values (tick means TRUE)",
                                      value = isTRUE(st$inf_values),
                                      width = "100%"),
-                       # NEW: result of the arg_check() line test evaluation
+                       # result of the arg_check() line test evaluation
                        if (!is.null(test_res)) {
                          list(
                            tags$p(style = "margin-top: 8px;",
@@ -1287,7 +1429,8 @@ server <- function(input, output, session) {
                      sec
                    }),
                    hr(),
-                   result_footer
+                   result_footer,
+                   scroll_to_js(rv$scroll_to) # NEW: slide to the top error message
                  )
                }
              }
