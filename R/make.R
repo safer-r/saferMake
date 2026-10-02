@@ -6,6 +6,7 @@
 #' @author \href{mailto:gael.millot@pasteur.fr}{Gael Millot} 
 #' @export
 #' @importFrom shiny runApp
+#' @importFrom bslib bs_theme
 
 make <- function(){
     # Locate the shiny app files inside the installed package

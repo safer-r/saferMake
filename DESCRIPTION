@@ -13,8 +13,10 @@ URL: <https://github.com/safer-r/saferDev>, <https://safer-r.github.io/saferDev/
 License: GPL-3
 Config/roxygen2/version: 8.0.0
 Imports: 
-    shiny
+    shiny,
+    bslib
 Suggests: 
+    saferDev,
     knitr,
     rmarkdown,
     testthat (>= 3.0.0)
