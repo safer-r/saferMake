@@ -2,11 +2,12 @@
 # Pure functions with no dependency on shiny inputs/reactives, extracted
 # from inst/app/server.R so they can be unit tested in tests/testthat/.
 # Not exported: the app accesses them through saferMake::: .
+# All internal function names start with a dot; files start with intern_.
 
 # The three additional safer-r arguments
-SAFER_ARGS <- c("lib_path", "safer_check", "error_text")
+.safer_args <- c("lib_path", "safer_check", "error_text")
 
-ARG_CHECK_DEFAULTS <- list(
+.arg_check_defaults <- list(
   class                     = "NULL",  # blank field -> "NULL" = no constraint
   typeof                    = "NULL",  # blank field -> "NULL" = no constraint
   mode                      = "NULL",  # blank field -> "NULL" = no constraint
@@ -21,12 +22,12 @@ ARG_CHECK_DEFAULTS <- list(
 )
 
 # Build a valid HTML id from an argument name
-arg_id <- function(nm) paste0("arg_", gsub("[^[:alnum:]_]", "_", nm))
+.arg_id <- function(nm) paste0("arg_", gsub("[^[:alnum:]_]", "_", nm))
 # Checkbox id for a given argument name
-null_cb_id <- function(nm) paste0("null_", arg_id(nm))
-empty_cb_id <- function(nm) paste0("empty_", arg_id(nm))
+.null_cb_id <- function(nm) paste0("null_", .arg_id(nm))
+.empty_cb_id <- function(nm) paste0("empty_", .arg_id(nm))
 
-arg_check_field_ids <- function(id) {
+.arg_check_field_ids <- function(id) {
   list(
     class                     = paste0("ac_class_",   id),
     typeof                    = paste0("ac_typeof_",  id),
@@ -43,10 +44,10 @@ arg_check_field_ids <- function(id) {
 }
 
 # TRUE if the field is NULL (not yet rendered) or blank/whitespace only
-field_blank <- function(v) is.null(v) || !nzchar(trimws(v))
+.field_blank <- function(v) is.null(v) || !nzchar(trimws(v))
 
 # "a, b 2 c" -> c("a", "b", "2", "c"); numeric if ALL parts parse as numbers
-arg_check_parse_options <- function(txt) {
+.arg_check_parse_options <- function(txt) {
   parts <- trimws(unlist(strsplit(txt, "[,;[:space:]]+")))
   parts <- parts[nzchar(parts)]
   if (length(parts) == 0L) return(NULL)
@@ -54,7 +55,7 @@ arg_check_parse_options <- function(txt) {
   if (!anyNA(num)) num else parts
 }
 
-arg_check_parse_length <- function(txt) {
+.arg_check_parse_length <- function(txt) {
   t <- trimws(txt)
   if (grepl("^[0-9]+$", t)) as.integer(t) else NULL
 }

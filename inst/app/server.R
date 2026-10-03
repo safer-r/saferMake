@@ -3,23 +3,24 @@ library(shiny)
 server <- function(input, output, session) {
 
   # ---- Internal logic (package namespace, aliased for local use) ----------
-  # The pure code-generation logic lives in R/ (app_helpers.R, arg_check.R,
-  # rebuild.R) so that it can be unit tested in tests/testthat/. The aliases
-  # below keep the call sites in this file unchanged. Consequently, running
-  # the app from source requires devtools::load_all() (or an installed
-  # package) so that the saferMake namespace is available.
+  # The pure code-generation logic lives in R/ (intern_.app_helpers.R,
+  # intern_.arg_check_lines.R, intern_.rebuild.R) so that it can be unit tested
+  # in tests/testthat/. The aliases below keep the call sites in this file
+  # unchanged. Consequently, running the app from source requires
+  # devtools::load_all() (or an installed package) so that the saferMake
+  # namespace is available.
 
-  SAFER_ARGS           <- saferMake:::SAFER_ARGS
-  ARG_CHECK_DEFAULTS   <- saferMake:::ARG_CHECK_DEFAULTS
-  arg_id               <- saferMake:::arg_id
-  null_cb_id           <- saferMake:::null_cb_id
-  empty_cb_id          <- saferMake:::empty_cb_id
-  arg_check_field_ids  <- saferMake:::arg_check_field_ids
-  field_blank          <- saferMake:::field_blank
-  run_arg_check_tests  <- saferMake:::run_arg_check_tests
-  args_without_default <- saferMake:::args_without_default
-  extract_aa_body      <- saferMake:::extract_aa_body
-  build_rebuilt        <- saferMake:::build_rebuilt
+  .safer_args           <- saferMake:::.safer_args
+  .arg_check_defaults   <- saferMake:::.arg_check_defaults
+  .arg_id               <- saferMake:::.arg_id
+  .null_cb_id           <- saferMake:::.null_cb_id
+  .empty_cb_id          <- saferMake:::.empty_cb_id
+  .arg_check_field_ids  <- saferMake:::.arg_check_field_ids
+  .field_blank          <- saferMake:::.field_blank
+  .run_arg_check_tests  <- saferMake:::.run_arg_check_tests
+  .args_without_default <- saferMake:::.args_without_default
+  .extract_aa_body      <- saferMake:::.extract_aa_body
+  .build_rebuilt        <- saferMake:::.build_rebuilt
 
   # ---- Constants ------------------------------------------------------------
   # ERROR_TEXT / INTERNAL_ERROR_TEXT: user-facing texts of the two error channels
@@ -48,7 +49,7 @@ server <- function(input, output, session) {
     fun_body        = NULL,      # verbatim body text (everything between '{' and '}')
     aa              = NULL,      # verbatim: beginning of pasted code up to the last argument
     rebuilt         = NULL,      # not strictly needed; kept for future preview use
-    arg_check_settings = list(), # per-argument arg_check() settings (key = arg_id(nm))
+    arg_check_settings = list(), # per-argument arg_check() settings (key = .arg_id(nm))
     arg_check_test   = list(),   # per-argument test result (ok, message, value_code)
     # NEW: state needed for the requested behaviours
     prev_fun_name    = NULL,     # function name of the previous successful run
@@ -84,24 +85,24 @@ server <- function(input, output, session) {
   get_arg_check_settings <- function() {
     if (length(rv$fun_args) == 0L) return(list())
     out <- lapply(rv$fun_args, function(nm) {
-      ids <- arg_check_field_ids(arg_id(nm))
+      ids <- .arg_check_field_ids(.arg_id(nm))
       list(
         # Blank text field = default value (class/typeof: "NULL" = no constraint,
         # mode: "numeric", length/options: "" = no constraint)
-        class                     = if (field_blank(input[[ids$class]])) "NULL" else trimws(input[[ids$class]]),
-        typeof                    = if (field_blank(input[[ids$typeof]])) "NULL" else trimws(input[[ids$typeof]]),
-        mode                      = if (field_blank(input[[ids$mode]])) "NULL" else trimws(input[[ids$mode]]),
-        length                    = if (field_blank(input[[ids$length]])) "NULL" else trimws(input[[ids$length]]),
+        class                     = if (.field_blank(input[[ids$class]])) "NULL" else trimws(input[[ids$class]]),
+        typeof                    = if (.field_blank(input[[ids$typeof]])) "NULL" else trimws(input[[ids$typeof]]),
+        mode                      = if (.field_blank(input[[ids$mode]])) "NULL" else trimws(input[[ids$mode]]),
+        length                    = if (.field_blank(input[[ids$length]])) "NULL" else trimws(input[[ids$length]]),
         prop                      = isTRUE(input[[ids$prop]]),
         double_as_integer_allowed = isTRUE(input[[ids$double_as_integer_allowed]]),
-        options                   = if (field_blank(input[[ids$options]])) "NULL" else trimws(input[[ids$options]]),
+        options                   = if (.field_blank(input[[ids$options]])) "NULL" else trimws(input[[ids$options]]),
         all_options_in_data       = isTRUE(input[[ids$all_options_in_data]]),
         na_contain                = isTRUE(input[[ids$na_contain]]),
         neg_values                = isTRUE(input[[ids$neg_values]]),
         inf_values                = isTRUE(input[[ids$inf_values]])
       )
     })
-    names(out) <- vapply(rv$fun_args, arg_id, character(1L), USE.NAMES = FALSE)
+    names(out) <- vapply(rv$fun_args, .arg_id, character(1L), USE.NAMES = FALSE)
     out
   }
 
@@ -115,12 +116,12 @@ server <- function(input, output, session) {
     rv$link_name <- if (is.null(lnk)) rv$link_name else trimws(lnk)
     if (length(rv$fun_args) > 0L) {
       checked <- vapply(rv$fun_args, function(nm) {
-        isTRUE(input[[null_cb_id(nm)]])
+        isTRUE(input[[.null_cb_id(nm)]])
       }, logical(1L))
       rv$null_args     <- rv$fun_args[checked]
       rv$non_null_args <- rv$fun_args[!checked]
       checked_empty <- vapply(rv$fun_args, function(nm) {
-        isTRUE(input[[empty_cb_id(nm)]])
+        isTRUE(input[[.empty_cb_id(nm)]])
       }, logical(1L))
       rv$empty_args     <- rv$fun_args[checked_empty]
       rv$non_empty_args <- rv$fun_args[!checked_empty]
@@ -239,10 +240,10 @@ server <- function(input, output, session) {
 
     args <- names(formals(f))
     rv$fun_args <- if (is.null(args)) character(0) else args
-    rv$no_default_args <- args_without_default(f)
-    parts <- extract_aa_body(code)
+    rv$no_default_args <- .args_without_default(f)
+    parts <- .extract_aa_body(code)
     if (is.null(parts)) {
-      internal_error("extract_aa_body() could not locate the signature/body.")
+      internal_error(".extract_aa_body() could not locate the signature/body.")
       return(invisible())
     }
     rv$aa        <- parts$aa
@@ -262,10 +263,10 @@ server <- function(input, output, session) {
     } else {
       # keep only the settings/tests matching the current arguments
       keep <- intersect(names(rv$arg_check_settings),
-                        vapply(rv$fun_args, arg_id, character(1L)))
+                        vapply(rv$fun_args, .arg_id, character(1L)))
       rv$arg_check_settings <- rv$arg_check_settings[keep]
       keep_test <- intersect(names(rv$arg_check_test),
-                             vapply(rv$fun_args, arg_id, character(1L)))
+                             vapply(rv$fun_args, .arg_id, character(1L)))
       rv$arg_check_test <- rv$arg_check_test[keep_test]
       # sanitize the checkbox vectors against the current argument list
       rv$null_args      <- intersect(rv$null_args,      rv$fun_args)
@@ -278,7 +279,7 @@ server <- function(input, output, session) {
     rv$check_failed  <- character(0)   # NEW: reset the failing list on a new run
     rv$scroll_to     <- NULL           # NEW
 
-    collide <- intersect(rv$fun_args, SAFER_ARGS)
+    collide <- intersect(rv$fun_args, .safer_args)
     if (length(collide) > 0L) {
       set_error(
         paste0("Argument name collision with safer-r arguments: ",
@@ -295,7 +296,7 @@ server <- function(input, output, session) {
 
     # FIX (bug 1): pass ALL arguments (named) and log the real parse error
     ok <- tryCatch({
-      parse(text = build_rebuilt(aa = rv$aa, body = rv$fun_body, pkg = "", link = "",
+      parse(text = .build_rebuilt(aa = rv$aa, body = rv$fun_body, pkg = "", link = "",
                                  null_args = character(0),
                                  non_null_args = character(0),
                                  empty_args = character(0),
@@ -309,7 +310,7 @@ server <- function(input, output, session) {
       FALSE
     })
     if (!ok) {
-      internal_error("The rebuilt function does not parse - check build_rebuilt()/server.R.")
+      internal_error("The rebuilt function does not parse - check .build_rebuilt() (R/intern_.rebuild.R).")
       return(invisible())
     }
 
@@ -334,9 +335,9 @@ server <- function(input, output, session) {
   observeEvent(input$check_and_save, {
     tryCatch({
       snapshot_result_inputs()
-      rv$arg_check_test <- run_arg_check_tests(rv$fun_args, rv$arg_check_settings)
+      rv$arg_check_test <- .run_arg_check_tests(rv$fun_args, rv$arg_check_settings)
       failed <- rv$fun_args[vapply(rv$fun_args, function(nm) {
-        !isTRUE(rv$arg_check_test[[arg_id(nm)]]$ok)
+        !isTRUE(rv$arg_check_test[[.arg_id(nm)]]$ok)
       }, logical(1L))]
       if (length(failed) == 0L) {
         rv$check_failed <- character(0)
@@ -377,12 +378,12 @@ server <- function(input, output, session) {
 
       if (length(rv$fun_args) > 0L) {
         checked <- vapply(rv$fun_args, function(nm) {
-          isTRUE(input[[null_cb_id(nm)]])
+          isTRUE(input[[.null_cb_id(nm)]])
         }, logical(1L))
         null_argument     <- rv$fun_args[checked]
         non_null_argument <- rv$fun_args[!checked]
         checked_empty <- vapply(rv$fun_args, function(nm) {
-          isTRUE(input[[empty_cb_id(nm)]])
+          isTRUE(input[[.empty_cb_id(nm)]])
         }, logical(1L))
         empty_argument     <- rv$fun_args[checked_empty]
         non_empty_argument <- rv$fun_args[!checked_empty]
@@ -405,7 +406,7 @@ server <- function(input, output, session) {
       # save pop-up appears only when no arg_check() line failed.
 
       # FIX (bug 2): pass the LOCAL vectors
-      code <- build_rebuilt(aa = rv$aa, body = rv$fun_body, pkg = pkg, link = link,
+      code <- .build_rebuilt(aa = rv$aa, body = rv$fun_body, pkg = pkg, link = link,
                             null_args = null_argument,
                             non_null_args = non_null_argument,
                             empty_args = empty_argument,
@@ -442,7 +443,7 @@ server <- function(input, output, session) {
           list(tags$li("No arguments"))
         } else {
           lapply(rv$fun_args, function(nm) {
-            tags$li(tags$a(href = paste0("#", arg_id(nm)), paste0("Argument: ", nm)))
+            tags$li(tags$a(href = paste0("#", .arg_id(nm)), paste0("Argument: ", nm)))
           })
         }
       )
@@ -602,10 +603,10 @@ server <- function(input, output, session) {
                    # stacked vertically, then the test result.
                    lapply(seq_len(n), function(i) {
                      nm <- rv$fun_args[i]
-                     aid <- arg_id(nm)
+                     aid <- .arg_id(nm)
                      st  <- rv$arg_check_settings[[aid]]
-                     if (is.null(st)) st <- ARG_CHECK_DEFAULTS
-                     ids <- arg_check_field_ids(aid)
+                     if (is.null(st)) st <- .arg_check_defaults
+                     ids <- .arg_check_field_ids(aid)
                      test_res <- rv$arg_check_test[[aid]]
                      # Show blank in the field when the stored value is the default
                      class_disp  <- if (identical(st$class, "NULL")) "" else st$class
@@ -613,11 +614,11 @@ server <- function(input, output, session) {
                      mode_disp   <- if (identical(st$mode, "numeric")) "" else st$mode
                      sec <- tagList(
                        h4(id = aid, paste0("Argument: ", nm)),
-                       checkboxInput(inputId = null_cb_id(nm),
+                       checkboxInput(inputId = .null_cb_id(nm),
                                      label = "Accepts the NULL value",
                                      value = nm %in% rv$null_args,
                                      width = "100%"),
-                       checkboxInput(inputId = empty_cb_id(nm),
+                       checkboxInput(inputId = .empty_cb_id(nm),
                                      label = HTML("Can be an empty argument (e.g., <code>character()</code>)"),
                                      value = nm %in% rv$empty_args,
                                      width = "100%"),

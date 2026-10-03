@@ -1,11 +1,11 @@
 # Verbatim capture of the pasted function and rebuild of the safer-r version.
-# Extracted from inst/app/server.R; see header of R/app_helpers.R.
+# Extracted from inst/app/server.R; see header of R/intern_.app_helpers.R.
 
 # names of the arguments of f that have NO default value.
 # In formals(), a default-less argument holds the 'missing' object,
 # which is identical to quote(expr = ). An explicit default of NULL
 # (e.g. function(x = NULL)) is NOT 'no default': it has a default (NULL).
-args_without_default <- function(f) {
+.args_without_default <- function(f) {
   fm <- formals(f)
   if (is.null(fm)) return(character(0))
   fm <- as.list(fm) # pairlist -> plain list, so vapply is safe
@@ -14,7 +14,7 @@ args_without_default <- function(f) {
   names(fm)[no_def]
 }
 
-match_close <- function(txt, open, close_ch) {
+.match_close <- function(txt, open, close_ch) {
   open_ch  <- substring(txt, open, open)
   chars    <- strsplit(txt, "")[[1]]
   depth    <- 0L
@@ -29,11 +29,11 @@ match_close <- function(txt, open, close_ch) {
   -1L
 }
 
-extract_aa_body <- function(code) {
+.extract_aa_body <- function(code) {
   m <- regexpr("function[[:space:]]*\\(", code)
   if (m == -1) return(NULL)
   p_open  <- m + attr(m, "match.length") - 1L
-  p_close <- match_close(code, p_open, ")")
+  p_close <- .match_close(code, p_open, ")")
   if (p_close == -1) return(NULL)
   aa <- substring(code, 1, p_close - 1L)
 
@@ -43,7 +43,7 @@ extract_aa_body <- function(code) {
   p_body <- p_close + m2
 
   if (substring(code, p_body, p_body) == "{") {
-    p_end <- match_close(code, p_body, "}")
+    p_end <- .match_close(code, p_body, "}")
     if (p_end == -1) return(NULL)
     body <- substring(code, p_body + 1L, p_end - 1L)
     list(aa = aa, body = body)
@@ -59,8 +59,8 @@ extract_aa_body <- function(code) {
 # non_empty_args  : argument names that must NOT be empty -> active there
 # no_default_args : argument names with NO default value -> conditional section
 # fun_args        : all argument names (to emit the arg_check() blocks)
-# arg_check_settings : named list (key = arg_id(nm)) of arg_check() settings
-build_rebuilt <- function(aa, body, pkg, link,
+# arg_check_settings : named list (key = .arg_id(nm)) of arg_check() settings
+.build_rebuilt <- function(aa, body, pkg, link,
                           null_args = character(0),
                           non_null_args = character(0),
                           empty_args = character(0),
@@ -469,7 +469,7 @@ build_rebuilt <- function(aa, body, pkg, link,
 
     # ---- argument secondary checking (arg_check() blocks) ------------
     "\n",
-    build_arg_check_section(fun_args = fun_args, arg_check_settings = arg_check_settings),
+    .build_arg_check_section(fun_args = fun_args, arg_check_settings = arg_check_settings),
 
     "\n    #### main code\n",
     body,

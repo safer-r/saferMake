@@ -1,18 +1,18 @@
 # Generation and interactive testing of the saferDev::arg_check() lines.
-# Extracted from inst/app/server.R; see header of R/app_helpers.R.
+# Extracted from inst/app/server.R; see header of R/intern_.app_helpers.R.
 
 # Shared builder of the saferDev::arg_check(...) call text (no leading spaces,
 # no "; base::eval(...)" suffix). Used both by the code generator and by the
 # interactive test runner, so the tested line is identical to the generated one.
-arg_check_call_core <- function(data_txt, st,
+.arg_check_call_core <- function(data_txt, st,
                                 lib_path_txt = "lib_path",
                                 error_text_txt = "embed_error_text") {
   class_val   <- if (identical(st$class, "NULL"))  "NULL" else deparse(st$class)
   typeof_val  <- if (identical(st$typeof, "NULL")) "NULL" else deparse(st$typeof)
   mode_val    <- if (identical(st$mode, "NULL"))   "NULL" else deparse(st$mode)
-  len_val     <- arg_check_parse_length(st$length)
+  len_val     <- .arg_check_parse_length(st$length)
   length_val  <- if (is.null(len_val)) "NULL" else paste0(len_val, "L")
-  opts        <- arg_check_parse_options(st$options)
+  opts        <- .arg_check_parse_options(st$options)
   options_val <- if (is.null(opts)) "NULL" else
                  if (identical(opts, "NULL")) "NULL" else deparse(opts)
   paste0(
@@ -41,7 +41,7 @@ arg_check_call_core <- function(data_txt, st,
 # Build the R code (as text) of a test value consistent with the settings:
 # kind from class, else typeof, else mode (default "numeric");
 # length from the length field (default 1); options used when provided.
-ac_test_value_code <- function(st) {
+.ac_test_value_code <- function(st) {
   kind <- if (!identical(st$class, "NULL")) {
     st$class
   } else if (!identical(st$typeof, "NULL")) {
@@ -51,9 +51,9 @@ ac_test_value_code <- function(st) {
   } else {
     "numeric"
   }
-  n <- arg_check_parse_length(st$length)
+  n <- .arg_check_parse_length(st$length)
   if (is.null(n) || n < 1L) n <- 1L
-  opts <- arg_check_parse_options(st$options)
+  opts <- .arg_check_parse_options(st$options)
 
   vals <- if (n <= 26L) letters[seq_len(n)] else paste0("x", seq_len(n))
   char_code <- if (n == 1L) paste0("\"", vals, "\"") else
@@ -116,19 +116,19 @@ ac_test_value_code <- function(st) {
 }
 
 # Evaluate each generated arg_check() line with the test value (instead of the
-# real argument) and collect ok / message / tested value, keyed by arg_id(nm).
-run_arg_check_tests <- function(fun_args, arg_check_settings) {
+# real argument) and collect ok / message / tested value, keyed by .arg_id(nm).
+.run_arg_check_tests <- function(fun_args, arg_check_settings) {
   out <- list()
   if (length(fun_args) == 0L) return(out)
   safer_ok <- requireNamespace("saferDev", quietly = TRUE)
   for (nm in fun_args) {
-    aid <- arg_id(nm)
+    aid <- .arg_id(nm)
     st  <- arg_check_settings[[aid]]
-    if (is.null(st)) st <- ARG_CHECK_DEFAULTS
-    val_code <- ac_test_value_code(st)
+    if (is.null(st)) st <- .arg_check_defaults
+    val_code <- .ac_test_value_code(st)
     line_txt <- paste0(
       "tempo <- ",
-      arg_check_call_core(data_txt = val_code, st = st,
+      .arg_check_call_core(data_txt = val_code, st = st,
                           lib_path_txt = "NULL", error_text_txt = "\"\""),
       " ; base::eval(expr = ee, envir = base::environment(fun = NULL), enclos = base::environment(fun = NULL))"
     )
@@ -175,12 +175,12 @@ run_arg_check_tests <- function(fun_args, arg_check_settings) {
 # Builds the whole "#### argument secondary checking" section.
 # Each argument produces EXACTLY one line:
 #     tempo <- saferDev::arg_check(data = <arg>, ...) ; base::eval(expr = ee, envir = base::environment(fun = NULL), enclos = base::environment(fun = NULL))
-build_arg_check_section <- function(fun_args, arg_check_settings) {
+.build_arg_check_section <- function(fun_args, arg_check_settings) {
   calls <- vapply(fun_args, function(nm) {
-    st <- arg_check_settings[[arg_id(nm)]]
-    if (is.null(st)) st <- ARG_CHECK_DEFAULTS
+    st <- arg_check_settings[[.arg_id(nm)]]
+    if (is.null(st)) st <- .arg_check_defaults
     paste0(
-      "    tempo <- ", arg_check_call_core(nm, st),
+      "    tempo <- ", .arg_check_call_core(nm, st),
       " ; base::eval(expr = ee, envir = base::environment(fun = NULL), enclos = base::environment(fun = NULL))\n"
     )
   }, character(1L), USE.NAMES = FALSE)
