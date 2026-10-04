@@ -5,9 +5,9 @@
 # All internal function names start with a dot; files start with intern_.
 
 # The three additional safer-r arguments
-.safer_args <- c("lib_path", "safer_check", "error_text")
+.safer_args <- base::c("lib_path", "safer_check", "error_text")
 
-.arg_check_defaults <- list(
+.arg_check_defaults <- base::list(
   class                     = "NULL",  # blank field -> "NULL" = no constraint
   typeof                    = "NULL",  # blank field -> "NULL" = no constraint
   mode                      = "NULL",  # blank field -> "NULL" = no constraint
@@ -22,40 +22,71 @@
 )
 
 # Build a valid HTML id from an argument name
-.arg_id <- function(nm) paste0("arg_", gsub("[^[:alnum:]_]", "_", nm))
+.arg_id <- function(nm) {
+  base::paste0(
+    "arg_",
+    base::gsub(pattern = "[^[:alnum:]_]", replacement = "_", x = nm,
+               ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE),
+    collapse = NULL,
+    recycle0 = FALSE
+  )
+}
 # Checkbox id for a given argument name
-.null_cb_id <- function(nm) paste0("null_", .arg_id(nm))
-.empty_cb_id <- function(nm) paste0("empty_", .arg_id(nm))
+.null_cb_id <- function(nm) {
+  base::paste0("null_", .arg_id(nm = nm), collapse = NULL, recycle0 = FALSE)
+}
+.empty_cb_id <- function(nm) {
+  base::paste0("empty_", .arg_id(nm = nm), collapse = NULL, recycle0 = FALSE)
+}
 
 .arg_check_field_ids <- function(id) {
-  list(
-    class                     = paste0("ac_class_",   id),
-    typeof                    = paste0("ac_typeof_",  id),
-    mode                      = paste0("ac_mode_",    id),
-    length                    = paste0("ac_length_",  id),
-    prop                      = paste0("ac_prop_",    id),
-    double_as_integer_allowed = paste0("ac_dbl_int_", id),
-    options                   = paste0("ac_options_", id),
-    all_options_in_data       = paste0("ac_all_opt_", id),
-    na_contain                = paste0("ac_na_",      id),
-    neg_values                = paste0("ac_neg_",     id),
-    inf_values                = paste0("ac_inf_",     id)
+  base::list(
+    class                     = base::paste0("ac_class_",    id, collapse = NULL, recycle0 = FALSE),
+    typeof                    = base::paste0("ac_typeof_",   id, collapse = NULL, recycle0 = FALSE),
+    mode                      = base::paste0("ac_mode_",     id, collapse = NULL, recycle0 = FALSE),
+    length                    = base::paste0("ac_length_",   id, collapse = NULL, recycle0 = FALSE),
+    prop                      = base::paste0("ac_prop_",     id, collapse = NULL, recycle0 = FALSE),
+    double_as_integer_allowed = base::paste0("ac_dbl_int_",  id, collapse = NULL, recycle0 = FALSE),
+    options                   = base::paste0("ac_options_",   id, collapse = NULL, recycle0 = FALSE),
+    all_options_in_data       = base::paste0("ac_all_opt_",  id, collapse = NULL, recycle0 = FALSE),
+    na_contain                = base::paste0("ac_na_",       id, collapse = NULL, recycle0 = FALSE),
+    neg_values                = base::paste0("ac_neg_",      id, collapse = NULL, recycle0 = FALSE),
+    inf_values                = base::paste0("ac_inf_",      id, collapse = NULL, recycle0 = FALSE)
   )
 }
 
 # TRUE if the field is NULL (not yet rendered) or blank/whitespace only
-.field_blank <- function(v) is.null(v) || !nzchar(trimws(v))
+.field_blank <- function(v) {
+  base::is.null(x = v) ||
+    ! base::nzchar(x = base::trimws(x = v, which = "both", whitespace = "[ \t\r\n]"),
+                   keepNA = FALSE)
+}
 
 # "a, b 2 c" -> c("a", "b", "2", "c"); numeric if ALL parts parse as numbers
 .arg_check_parse_options <- function(txt) {
-  parts <- trimws(unlist(strsplit(txt, "[,;[:space:]]+")))
-  parts <- parts[nzchar(parts)]
-  if (length(parts) == 0L) return(NULL)
-  num <- suppressWarnings(as.numeric(parts))
-  if (!anyNA(num)) num else parts
+  parts <- base::trimws(
+    x = base::unlist(
+      x = base::strsplit(x = txt, split = "[,;[:space:]]+",
+                         fixed = FALSE, perl = FALSE, useBytes = FALSE),
+      recursive = TRUE,
+      use.names = TRUE
+    ),
+    which = "both",
+    whitespace = "[ \t\r\n]"
+  )
+  parts <- parts[base::nzchar(x = parts)]
+  if (base::length(x = parts) == 0L) base::return(NULL)
+  num <- base::suppressWarnings(expr = base::as.numeric(x = parts), classes = "warning")
+  if (! base::anyNA(x = num, recursive = FALSE)) num else parts
 }
 
+# "3" -> 3L ; anything else (blank, "2.5", "abc") -> NULL
 .arg_check_parse_length <- function(txt) {
-  t <- trimws(txt)
-  if (grepl("^[0-9]+$", t)) as.integer(t) else NULL
+  t <- base::trimws(x = txt, which = "both", whitespace = "[ \t\r\n]")
+  if (base::grepl(pattern = "^[0-9]+$", x = t,
+                  ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)) {
+    base::as.integer(x = t)
+  } else {
+    NULL
+  }
 }

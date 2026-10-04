@@ -6,49 +6,60 @@
 # which is identical to quote(expr = ). An explicit default of NULL
 # (e.g. function(x = NULL)) is NOT 'no default': it has a default (NULL).
 .args_without_default <- function(f) {
-  fm <- formals(f)
-  if (is.null(fm)) return(character(0))
-  fm <- as.list(fm) # pairlist -> plain list, so vapply is safe
-  if (length(fm) == 0L) return(character(0))
-  no_def <- vapply(fm, function(v) identical(v, quote(expr = )), logical(1L))
-  names(fm)[no_def]
+  fm <- base::formals(fun = f, envir = base::parent.frame(n = 1))
+  if (base::is.null(x = fm)) base::return(base::character(length = 0L))
+  fm <- base::as.list(x = fm) # pairlist -> plain list, so vapply is safe
+  if (base::length(x = fm) == 0L) base::return(base::character(length = 0L))
+  no_def <- base::vapply(
+    X = fm,
+    FUN = function(v) base::identical(x = v, y = base::quote(expr = ),
+                                      num.eq = TRUE, single.NA = TRUE,
+                                      attrib.as.set = TRUE, ignore.bytecode = TRUE,
+                                      ignore.environment = FALSE, ignore.srcref = TRUE,
+                                      extptr.as.ref = FALSE),
+    FUN.VALUE = base::logical(length = 1L),
+    USE.NAMES = TRUE
+  )
+  base::names(x = fm)[no_def]
 }
 
 .match_close <- function(txt, open, close_ch) {
-  open_ch  <- substring(txt, open, open)
-  chars    <- strsplit(txt, "")[[1]]
-  depth    <- 0L
-  for (i in open:nchar(txt)) {
+  open_ch <- base::substring(text = txt, first = open, last = open)
+  chars   <- base::strsplit(x = txt, split = "", fixed = FALSE, perl = FALSE, useBytes = FALSE)[[1]]
+  depth   <- 0L
+  for (i in open:base::nchar(x = txt, type = "chars", allowNA = FALSE, keepNA = NA)) {
     if (chars[i] == open_ch) {
       depth <- depth + 1L
     } else if (chars[i] == close_ch) {
       depth <- depth - 1L
-      if (depth == 0L) return(i)
+      if (depth == 0L) base::return(i)
     }
   }
   -1L
 }
 
 .extract_aa_body <- function(code) {
-  m <- regexpr("function[[:space:]]*\\(", code)
-  if (m == -1) return(NULL)
-  p_open  <- m + attr(m, "match.length") - 1L
-  p_close <- .match_close(code, p_open, ")")
-  if (p_close == -1) return(NULL)
-  aa <- substring(code, 1, p_close - 1L)
+  m <- base::regexpr(pattern = "function[[:space:]]*\\(", text = code,
+                     ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)
+  if (m == -1) base::return(NULL)
+  p_open  <- m + base::attr(x = m, which = "match.length", exact = FALSE) - 1L
+  p_close <- .match_close(txt = code, open = p_open, close_ch = ")")
+  if (p_close == -1) base::return(NULL)
+  aa <- base::substring(text = code, first = 1L, last = p_close - 1L)
 
-  rest    <- substring(code, p_close + 1L)
-  m2      <- regexpr("\\S", rest)
-  if (m2 == -1) return(list(aa = aa, body = ""))
+  rest <- base::substring(text = code, first = p_close + 1L, last = NULL)
+  m2   <- base::regexpr(pattern = "\\S", text = rest,
+                        ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)
+  if (m2 == -1) base::return(base::list(aa = aa, body = ""))
   p_body <- p_close + m2
 
-  if (substring(code, p_body, p_body) == "{") {
-    p_end <- .match_close(code, p_body, "}")
-    if (p_end == -1) return(NULL)
-    body <- substring(code, p_body + 1L, p_end - 1L)
-    list(aa = aa, body = body)
+  if (base::substring(text = code, first = p_body, last = p_body) == "{") {
+    p_end <- .match_close(txt = code, open = p_body, close_ch = "}")
+    if (p_end == -1) base::return(NULL)
+    body <- base::substring(text = code, first = p_body + 1L, last = p_end - 1L)
+    base::list(aa = aa, body = body)
   } else {
-    list(aa = aa, body = trimws(rest))
+    base::list(aa = aa, body = base::trimws(x = rest, which = "both", whitespace = "[ \t\r\n]"))
   }
 }
 
@@ -61,62 +72,107 @@
 # fun_args        : all argument names (to emit the arg_check() blocks)
 # arg_check_settings : named list (key = .arg_id(nm)) of arg_check() settings
 .build_rebuilt <- function(aa, body, pkg, link,
-                          null_args = character(0),
-                          non_null_args = character(0),
-                          empty_args = character(0),
-                          non_empty_args = character(0),
-                          no_default_args = character(0),
-                          fun_args = character(0),
-                          arg_check_settings = list()) {
-  aa   <- sub("[[:space:]]+$", "", aa)
-  body <- sub("[[:space:]]+$", "", sub("^[[:space:]]*\n", "", body))
+                           null_args = base::character(length = 0L),
+                           non_null_args = base::character(length = 0L),
+                           empty_args = base::character(length = 0L),
+                           non_empty_args = base::character(length = 0L),
+                           no_default_args = base::character(length = 0L),
+                           fun_args = base::character(length = 0L),
+                           arg_check_settings = base::list()) {
+  aa   <- base::sub(pattern = "[[:space:]]+$", replacement = "", x = aa,
+                    ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)
+  body <- base::sub(pattern = "[[:space:]]+$", replacement = "",
+                    x = base::sub(pattern = "^[[:space:]]*\n", replacement = "", x = body,
+                                  ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE),
+                    ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)
 
-  comma <- if (grepl("\\($", aa) || grepl(",$", aa)) "" else ","
+  comma <- if (base::grepl(pattern = "\\($", x = aa,
+                           ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE) ||
+               base::grepl(pattern = ",$", x = aa,
+                           ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)) "" else ","
 
-  pkg_line  <- if (nzchar(pkg)) paste0("package_name <- ", deparse(pkg)) else "package_name <- NULL"
-  link_line <- if (nzchar(link)) deparse(link) else "NULL"
+  pkg_line <- if (base::nzchar(x = pkg, keepNA = FALSE)) {
+    base::paste0("package_name <- ",
+                 base::deparse(expr = pkg, width.cutoff = 60L, backtick = FALSE,
+                               control = base::c("keepNA", "keepInteger", "niceNames", "showAttributes"),
+                               nlines = -1L),
+                 collapse = NULL, recycle0 = FALSE)
+  } else {
+    "package_name <- NULL"
+  }
+  link_line <- if (base::nzchar(x = link, keepNA = FALSE)) {
+    base::deparse(expr = link, width.cutoff = 60L, backtick = FALSE,
+                  control = base::c("keepNA", "keepInteger", "niceNames", "showAttributes"),
+                  nlines = -1L)
+  } else {
+    "NULL"
+  }
 
   # ---- NULL management block ---------------------------------------------
   # FIX (bug 3): one line per argument, each comma-terminated, so commenting
   # a line out never breaks the c(...) call (a trailing comma is valid R).
   # ACTIVE line    -> argument must NOT be NULL (checked by tempo_log)
   # COMMENTED line -> argument accepts NULL (excluded from the check)
-  non_null_lines <- vapply(
-    non_null_args,
-    function(nm) paste0("        ", deparse(nm, width.cutoff = 500L), ", "),
-    character(1L)
+  non_null_lines <- base::vapply(
+    X = non_null_args,
+    FUN = function(nm) base::paste0(
+      "        ",
+      base::deparse(expr = nm, width.cutoff = 500L, backtick = FALSE,
+                    control = base::c("keepNA", "keepInteger", "niceNames", "showAttributes"),
+                    nlines = -1L),
+      ", ",
+      collapse = NULL, recycle0 = FALSE
+    ),
+    FUN.VALUE = base::character(length = 1L),
+    USE.NAMES = TRUE
   )
-  null_lines <- vapply(
-    null_args,
-    function(nm) paste0("        # ", deparse(nm, width.cutoff = 500L),
-                        ", # inactivated because can be NULL"),
-    character(1L)
+  null_lines <- base::vapply(
+    X = null_args,
+    FUN = function(nm) base::paste0(
+      "        # ",
+      base::deparse(expr = nm, width.cutoff = 500L, backtick = FALSE,
+                    control = base::c("keepNA", "keepInteger", "niceNames", "showAttributes"),
+                    nlines = -1L),
+      ", # inactivated because can be NULL",
+      collapse = NULL, recycle0 = FALSE
+    ),
+    FUN.VALUE = base::character(length = 1L),
+    USE.NAMES = TRUE
   )
-  tempo_arg_block <- paste0(
+  tempo_arg_block <- base::paste0(
     "    tempo_arg <- base::c(\n",
-    paste(c(non_null_lines, null_lines,
-            "        \"safer_check\" ",
-            "        # \"lib_path\", # inactivated because can be NULL",
-            "        # \"error_text\" # inactivated because NULL converted to \"\" above"),
-          collapse = "\n"),
-    "\n    )\n"
+    base::paste(base::c(non_null_lines, null_lines,
+                        "        \"safer_check\" ",
+                        "        # \"lib_path\", # inactivated because can be NULL",
+                        "        # \"error_text\" # inactivated because NULL converted to \"\" above"),
+                sep = " ", collapse = "\n", recycle0 = FALSE),
+    "\n    )\n",
+    collapse = NULL,
+    recycle0 = FALSE
   )
 
   # ---- "no default value" block (conditional) -----------------------------
   # Emitted ONLY if at least one argument has no default value.
   # paste0() drops zero-length arguments (including NULL), so when
   # no_default_args is empty, no_def_block is NULL and the section is absent.
-  no_def_block <- if (length(no_default_args) > 0L) {
-    no_def_lines <- vapply(
-      no_default_args,
-      function(nm) paste0("        ", deparse(nm, width.cutoff = 500L)),
-      character(1L)
+  no_def_block <- if (base::length(x = no_default_args) > 0L) {
+    no_def_lines <- base::vapply(
+      X = no_default_args,
+      FUN = function(nm) base::paste0(
+        "        ",
+        base::deparse(expr = nm, width.cutoff = 500L, backtick = FALSE,
+                      control = base::c("keepNA", "keepInteger", "niceNames", "showAttributes"),
+                      nlines = -1L),
+        collapse = NULL, recycle0 = FALSE
+      ),
+      FUN.VALUE = base::character(length = 1L),
+      USE.NAMES = TRUE
     )
-    paste0(
+    base::paste0(
       "    ######## arg with no default values\n",
       "    # optional section: remove the code if none of your arguments has no default value\n",
       "    no_def_args <- base::c(\n",
-      paste(no_def_lines, collapse = ",\n"), "\n    )\n",
+      base::paste(no_def_lines, sep = " ", collapse = ",\n", recycle0 = FALSE), "\n    )\n",
       "    tempo <- base::eval(expr = base::parse(text = base::paste0(\"base::c(base::missing(\", base::paste0(no_def_args, collapse = \"),base::missing(\", recycle0 = FALSE), \"))\", collapse = NULL, recycle0 = FALSE), file = \"\", n = NULL, prompt = \"?\", keep.source = base::getOption(x = \"keep.source\", default = NULL), srcfile = NULL, encoding = \"unknown\"), envir = base::environment(fun = NULL), enclos = base::environment(fun = NULL))\n",
       "    if(base::any(tempo, na.rm = TRUE)){\n",
       "        tempo_cat <- base::paste0(\n",
@@ -131,7 +187,9 @@
       "        base::stop(base::paste0(\"\\n\\n================\\n\\n\", tempo_cat, \"\\n\\n================\\n\\n\", collapse = NULL, recycle0 = FALSE), call. = FALSE, domain = NULL)\n",
       "    }\n",
       "    ######## end arg with no default values\n",
-      "\n"
+      "\n",
+      collapse = NULL,
+      recycle0 = FALSE
     )
   } else {
     NULL
@@ -143,28 +201,45 @@
   #   COMMENTED line -> argument accepts empty non NULL objects (excluded)
   # Per your request, the empty-accepting (commented) names are placed
   # just after "tempo_arg <-base::c(", before the active names.
-  non_empty_lines <- vapply(
-    non_empty_args,
-    function(nm) paste0("        ", deparse(nm, width.cutoff = 500L), ", "),
-    character(1L)
+  non_empty_lines <- base::vapply(
+    X = non_empty_args,
+    FUN = function(nm) base::paste0(
+      "        ",
+      base::deparse(expr = nm, width.cutoff = 500L, backtick = FALSE,
+                    control = base::c("keepNA", "keepInteger", "niceNames", "showAttributes"),
+                    nlines = -1L),
+      ", ",
+      collapse = NULL, recycle0 = FALSE
+    ),
+    FUN.VALUE = base::character(length = 1L),
+    USE.NAMES = TRUE
   )
-  can_empty_lines <- vapply(
-    empty_args,
-    function(nm) paste0("        # ", deparse(nm, width.cutoff = 500L),
-                        ", # inactivated because can be an empty non NULL object"),
-    character(1L)
+  can_empty_lines <- base::vapply(
+    X = empty_args,
+    FUN = function(nm) base::paste0(
+      "        # ",
+      base::deparse(expr = nm, width.cutoff = 500L, backtick = FALSE,
+                    control = base::c("keepNA", "keepInteger", "niceNames", "showAttributes"),
+                    nlines = -1L),
+      ", # inactivated because can be an empty non NULL object",
+      collapse = NULL, recycle0 = FALSE
+    ),
+    FUN.VALUE = base::character(length = 1L),
+    USE.NAMES = TRUE
   )
-  empty_arg_block <- paste0(
+  empty_arg_block <- base::paste0(
     "    tempo_arg <-base::c(\n",
-    paste(c(can_empty_lines, non_empty_lines,
-            "        \"safer_check\", ",
-            "        \"lib_path\"",
-            "        # \"error_text\" # inactivated because empty value converted to \"\" above"),
-          collapse = "\n"),
-    "\n    )\n"
+    base::paste(base::c(can_empty_lines, non_empty_lines,
+                        "        \"safer_check\", ",
+                        "        \"lib_path\"",
+                        "        # \"error_text\" # inactivated because empty value converted to \"\" above"),
+                sep = " ", collapse = "\n", recycle0 = FALSE),
+    "\n    )\n",
+    collapse = NULL,
+    recycle0 = FALSE
   )
 
-  paste0(
+  base::paste0(
     aa, comma,
     "\n    lib_path = NULL, \n    safer_check = TRUE, \n    error_text = \"\" \n){\n",
     "\n    #### package name\n    ", pkg_line, "\n    #### end package name\n",
@@ -203,8 +278,9 @@
     "    arg_names <- base::names(x = base::formals(fun = base::sys.function(which = base::sys.parent(n = 2)), envir = base::parent.frame(n = 1))) # names of all the arguments\n",
     "    #### end arguments settings\n",
     "\n",
+
     "    #### error_text initiation\n",
-"\n",
+    "\n",
     "    ######## basic error text start\n",
     "    error_text <- base::paste0(base::unlist(x = error_text, recursive = TRUE, use.names = TRUE), collapse = \"\", recycle0 = FALSE) # convert everything to string. if error_text is a string, changes nothing. If NULL or empty (even list) -> \"\" so no need to check for management of NULL or empty value\n",
     "    package_function_name <- base::paste0(\n",
@@ -222,7 +298,7 @@
     "        recycle0 = FALSE\n",
     "    )\n",
     "    ######## end basic error text start\n",
-"\n",
+    "\n",
     "    ######## internal error text\n",
     "    intern_error_text_start <- base::paste0(\n",
     "        package_function_name, \n",
@@ -233,7 +309,7 @@
     "    )\n",
     "    intern_error_text_end <- base::ifelse(test = base::is.null(x = internal_error_report_link), yes = \"\", no = base::paste0(\"\\n\\nPLEASE, REPORT THIS ERROR HERE: \", internal_error_report_link, \".\", collapse = NULL, recycle0 = FALSE))\n",
     "    ######## end internal error text\n",
-"\n",
+    "\n",
     "    ######## error text when embedding\n",
     "    # use this in the error_text of safer functions if present in your main code \n",
     "    embed_error_text  <- base::sub(pattern = \"^ERROR IN \", replacement = \" INSIDE \", x = error_text_start, ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)\n",
@@ -241,8 +317,10 @@
     "    ######## end error text when embedding\n",
     "    #### end error_text initiation\n",
     "\n",
+
     "    #### argument primary checking\n",
     "\n",
+
     "    ######## arg ... forbidden\n",
     "    # nocov start\n",
     "    # codecov inactivated because it is an internal control of code writing, impossible to cover with argument values.\n",
@@ -259,6 +337,7 @@
     "    # nocov end\n",
     "    ######## end arg ... forbidden\n",
     "\n",
+
     "    ######## mandatory arg of safer-r functions\n",
     "    mandat_args <- base::c(\"lib_path\", \"safer_check\", \"error_text\")\n",
     "    tempo_log <- ! mandat_args %in% arg_names\n",
@@ -362,8 +441,10 @@
     "    }\n",
     "    ######## end management of NA arguments\n",
     "\n",
+
     "    #### end argument primary checking\n",
     "\n",
+
     "    #### environment checking\n",
     "\n",
 
@@ -474,6 +555,8 @@
     "\n    #### main code\n",
     body,
     "\n    #### end main code\n",
-    "}\n"
+    "}\n",
+    collapse = NULL,
+    recycle0 = FALSE
   )
 }
