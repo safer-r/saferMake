@@ -77,8 +77,9 @@ saferMake::make()
 Running the local folder (development mode):
 
 ```r
-devtools::load_all() # required: the app uses the internal helpers of the package
-shiny::runApp("C:/Users/gmillot/Documents/Git_projects/safer-r/saferMake/inst/app/")
+setwd("C:/Users/gmillot/Documents/Git_projects/safer-r/saferMake")
+devtools::load_all()          # loads the saferMake namespace from sources
+shiny::runApp("inst/app/")
 ```
 
 ## Docker image
