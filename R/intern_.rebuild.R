@@ -47,7 +47,10 @@
   if (p_close == -1) base::return(NULL)
   aa <- base::substring(text = code, first = 1L, last = p_close - 1L)
 
-  rest <- base::substring(text = code, first = p_close + 1L, last = NULL)
+  # NOTE: last = (empty argument, the lazy default) is required for
+  # portability: substring()'s default for last is NULL only on R >= 4.6;
+  # on R <= 4.5 an explicit last = NULL is an error. Do not "fix" this.
+  rest <- base::substring(text = code, first = p_close + 1L, last = )
   m2   <- base::regexpr(pattern = "\\S", text = rest,
                         ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)
   if (m2 == -1) base::return(base::list(aa = aa, body = ""))

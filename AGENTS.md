@@ -14,7 +14,7 @@ Naming conventions of this package: every internal function name starts with a d
 
 - Run the app in development: `devtools::load_all()` then `shiny::runApp("inst/app/")` — `load_all()` is now REQUIRED: the server resolves helpers through `saferMake:::`, so running the app without the package loaded fails at session start.
 - `saferMake::make()` works on the *installed* package only (it uses `system.file("app", ...)`), so reinstall before testing it end-to-end.
-- Tests: `devtools::test()` (75 tests; two run the generated function in a subprocess because the safer-r backbone reads `formals()` through `sys.parent(n = 2)`, which breaks inside testthat closures — see comments in the test file).
+- Tests: `devtools::test()` (78 tests; two run the generated function in a subprocess because the safer-r backbone reads `formals()` through `sys.parent(n = 2)`, which breaks inside testthat closures — see comments in the test file).
 - After editing roxygen comments in `R/make.R`: `devtools::document()` (roxygen2 8.0.0 per DESCRIPTION). `NAMESPACE` and `man/` are generated — do not hand-edit.
 - No CI workflows exist in the repo (the README rworkflows badge points to a workflow file that is not present).
 
@@ -27,4 +27,4 @@ Naming conventions of this package: every internal function name starts with a d
 - **Save flow**: on the result screen, the visible "Run" button runs the `saferDev::arg_check()` tests; the download button is hidden and triggered programmatically via a Shiny custom message only if all tests pass.
 - **Error channels**: user-code errors and internal errors show different user-facing texts; real error details go to the console via `message()` and are never shown in the UI. Keep that separation.
 - **Generated code style**: emitted functions use fully qualified namespaces (`base::paste0(...)`, `saferDev::arg_check`), explicit argument names, and `# nocov` markers — the output must stay CRAN-ready safer-r code. Preserve the exact emitted style in `.build_rebuilt()`.
-- `dev/` is scratch space, excluded from the R build via `.Rbuildignore` — not package code.
+- `dev/` is the "development" scratch space. It IS tracked repo content: commit its changes like any other file. It is excluded from the R build only, via `.Rbuildignore` (`^dev$`) — not package code.
