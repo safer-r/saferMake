@@ -95,6 +95,20 @@ ui <- fluidPage(
       h4 { color: #2980B9 !important; font-family: 'Lato', sans-serif; font-weight: bold; margin-top: 10px; }
       hr { border-top: 1px solid #e1e4e6; margin: 24px 0; }
       footer { margin-top: 40px; color: #999; font-size: 12px; }
+
+      /* NEW: markdown-style inline code (monospace with a grey background pill).
+         Overrides the white box of theme.css; the sidebar ToC keeps its own
+         background:inherit rule (higher specificity), as in real RTD docs. */
+      .rst-content code, .rst-content tt {
+        background-color: #eff1f3;
+        border: none;
+        border-radius: 6px;
+        padding: 0.2em 0.4em;
+        font-size: 85%;
+        font-family: SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', Courier, monospace;
+        color: inherit;
+        white-space: normal;
+      }
     "))
   ),
   
