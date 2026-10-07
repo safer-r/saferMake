@@ -145,6 +145,34 @@ server <- function(input, output, session) {
   internal_error  <- function(detail) set_error(detail, INTERNAL_ERROR_TEXT)
 
   # ---- Shared UI fragments (used on input and error screens) --------------
+  # NEW: render a character string containing markdown-style `code` spans as a
+  # tag list, where each backtick-quoted span becomes a <code> element. Used
+  # for labels/headings so that `class()` etc. display with the code style.
+  md_code <- function(txt) {
+    nbt <- nchar(txt) - nchar(gsub(pattern = "`", replacement = "", x = txt,
+                                   fixed = TRUE, useBytes = FALSE))
+    parts <- unlist(strsplit(x = txt, split = "`", fixed = TRUE),
+                    recursive = TRUE, use.names = FALSE)
+    # strsplit() drops a trailing empty field: "a`b`" -> c("a", "b").
+    # Re-append the dropped empty part when the backticks are paired so that
+    # the last real segment keeps an even (code) index.
+    if (nbt %% 2L == 0L) parts <- c(parts, "")
+    do.call(tagList,
+            lapply(seq_along(parts), function(i) {
+              # odd indices are plain text, even indices are inside `...`;
+              # with an odd number of backticks, the last segment is literal
+              if (i %% 2L == 1L) {
+                parts[i]
+              } else if (i == length(parts) && nbt %% 2L == 1L) {
+                paste0("`", parts[i])
+              } else if (!nzchar(parts[i])) {
+                character(0)   # dropped empty trailing part: render nothing
+              } else {
+                tags$code(parts[i])
+              }
+            }))
+  }
+
   intro <- function() {
     list(
       js_download_handler(),   # NEW: register the programmatic download trigger
@@ -443,7 +471,7 @@ server <- function(input, output, session) {
           list(tags$li("No arguments"))
         } else {
           lapply(rv$fun_args, function(nm) {
-            tags$li(tags$a(href = paste0("#", .arg_id(nm)), paste0("Values of argument `", nm, "`")))
+            tags$li(tags$a(href = paste0("#", .arg_id(nm)), md_code(paste0("Values of argument `", nm, "`"))))
           })
         }
       )
@@ -613,7 +641,7 @@ server <- function(input, output, session) {
                      typeof_disp <- if (identical(st$typeof, "NULL")) "" else st$typeof
                      mode_disp   <- if (identical(st$mode, "numeric")) "" else st$mode
                      sec <- tagList(
-                       h4(id = aid, paste0("Value of argument `", nm, "`")),
+                       h4(id = aid, md_code(paste0("Value of argument `", nm, "`"))),
                        checkboxInput(inputId = .null_cb_id(nm),
                                      label = "Accepts the NULL value",
                                      value = nm %in% rv$null_args,
@@ -624,22 +652,22 @@ server <- function(input, output, session) {
                                      width = "100%"),
                        hr(),
                        textInput(inputId = ids$class,
-                                 label = "Class of the argument values. Left blank means not evaluated by `class()`",
+                                 label = md_code("Class of the argument values. Left blank means not evaluated by `class()`"),
                                  value = class_disp,
                                  placeholder = "NULL",
                                  width = "100%"),
                        textInput(inputId = ids$typeof,
-                                 label = "Type of the argument values. Left blank means not evaluated by `typeof()`.",
+                                 label = md_code("Type of the argument values. Left blank means not evaluated by `typeof()`."),
                                  value = typeof_disp,
                                  placeholder = "NULL",
                                  width = "100%"),
                        textInput(inputId = ids$mode,
-                                 label = "Mode of the argument values. Left blank means not evaluated by `mode()`.",
+                                 label = md_code("Mode of the argument values. Left blank means not evaluated by `mode()`."),
                                  value = mode_disp,
                                  placeholder = "NULL",
                                  width = "100%"),
                        textInput(inputId = ids$length,
-                                 label = "Length of the argument values. Left blank means not evaluated by `length()`.",
+                                 label = md_code("Length of the argument values. Left blank means not evaluated by `length()`."),
                                  value = st$length,
                                  placeholder = "e.g., 3",
                                  width = "100%"),
@@ -654,11 +682,11 @@ server <- function(input, output, session) {
                                      value = isTRUE(st$prop),
                                      width = "100%"),
                        checkboxInput(inputId = ids$double_as_integer_allowed,
-                                     label = "Authorize the type `double` for integers if the numeric values have no digits. Example `c(1,2)` authorized while `typeof(c(1,2))` returns `double`, not `integer`.",
+                                     label = md_code("Authorize the type `double` for integers if the numeric values have no digits. Example `c(1,2)` authorized even if `typeof(c(1,2))` returns `double`, not `integer`."),
                                      value = isTRUE(st$double_as_integer_allowed),
                                      width = "100%"),
                        checkboxInput(inputId = ids$all_options_in_data,
-                                     label = "If the `options` field above is not blank, the argument values must always be all the options, not some of them.",
+                                     label = md_code("If the `options` field above is not blank, the argument values must always be all the options, not some of them."),
                                      value = isTRUE(st$all_options_in_data),
                                      width = "100%"),
                        checkboxInput(inputId = ids$na_contain,
