@@ -181,6 +181,22 @@ server <- function(input, output, session) {
             }))
   }
 
+  # NEW: build the value list displayed below a Detection item: one value per
+  # line ("\n" separated), each wrapped in a <code> span like the rest of the
+  # page. Built as ONE HTML string so that the newlines come only from the
+  # intended "\n" separators (Shiny also inserts newline characters between
+  # children of a tagList, which white-space:pre-line would render as extra
+  # blank lines). Empty list -> the literal text "none".
+  md_value_lines <- function(items) {
+    if (length(items) == 0L) {
+      return(HTML("none"))
+    }
+    HTML(paste(
+      vapply(items, function(x) as.character(tags$code(x)), character(1L)),
+      collapse = "\n"
+    ))
+  }
+
   intro <- function() {
     list(
       js_download_handler(),   # NEW: register the programmatic download trigger
@@ -581,27 +597,30 @@ server <- function(input, output, session) {
              ),
 
              result = {
-               args_txt <- if (length(rv$fun_args) == 0L) {
-                 "none"
-               } else {
-                 paste(rv$fun_args, collapse = ", ")
-               }
-               no_def_txt <- if (length(rv$no_default_args) == 0L) {
-                 "none"
-               } else {
-                 paste(rv$no_default_args, collapse = ", ")
-               }
-
-               detection_section <- tagList(
-                 h4(id = "detection_section", "Detection"),
-                 tags$div(
-                   tags$ol(class = "input-instruction-list",
-                           tags$li(paste0("Function name: ", rv$fun_name)),
-                           tags$li(paste0("Arguments: ", args_txt)),
-                           tags$li(paste0("Arguments with no default value: ", no_def_txt))
-                   )
-                 )
-               )
+                detection_section <- tagList(
+                  h4(id = "detection_section", "Detection"),
+                  tags$p(
+                    style = "margin-bottom: 4px;",
+                    HTML("Function name: "),
+                    if (is.null(rv$fun_name)) "none" else tags$code(rv$fun_name)
+                  ),
+                  tags$p(
+                    style = "margin-bottom: 4px; white-space: pre-line;",
+                    HTML(paste0(
+                      "Arguments",
+                      if (length(rv$fun_args) == 0L) ": none" else ":"
+                    )),
+                    md_value_lines(rv$fun_args)
+                  ),
+                  tags$p(
+                    style = "margin-bottom: 4px; white-space: pre-line;",
+                    HTML(paste0(
+                      "Arguments with no default value",
+                      if (length(rv$no_default_args) == 0L) ": none" else ":"
+                    )),
+                    md_value_lines(rv$no_default_args)
+                  )
+                )
 
                pkg_section <- tagList(
                  h4(id = "pkg_section", "Package name"),
