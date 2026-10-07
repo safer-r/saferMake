@@ -18,7 +18,8 @@
   all_options_in_data       = FALSE,
   na_contain                = TRUE,
   neg_values                = TRUE,
-  inf_values                = TRUE
+  inf_values                = TRUE,
+  no_empty_string           = FALSE  # ticked -> argument cannot contain "" (empty-string section)
 )
 
 # Build a valid HTML id from an argument name
@@ -38,6 +39,12 @@
 .empty_cb_id <- function(nm) {
   base::paste0("empty_", .arg_id(nm = nm), collapse = NULL, recycle0 = FALSE)
 }
+# Checkbox id of the "cannot contain \"\"" setting: the checkbox is rendered
+# with inputId = .arg_check_field_ids(...)$no_empty_string ("ac_noempty_<id>"),
+# so read the state through that same id everywhere.
+.no_empty_cb_id <- function(nm) {
+  .arg_check_field_ids(id = .arg_id(nm = nm))$no_empty_string
+}
 
 .arg_check_field_ids <- function(id) {
   base::list(
@@ -51,7 +58,8 @@
     all_options_in_data       = base::paste0("ac_all_opt_",  id, collapse = NULL, recycle0 = FALSE),
     na_contain                = base::paste0("ac_na_",       id, collapse = NULL, recycle0 = FALSE),
     neg_values                = base::paste0("ac_neg_",      id, collapse = NULL, recycle0 = FALSE),
-    inf_values                = base::paste0("ac_inf_",      id, collapse = NULL, recycle0 = FALSE)
+    inf_values                = base::paste0("ac_inf_",      id, collapse = NULL, recycle0 = FALSE),
+    no_empty_string           = base::paste0("ac_noempty_",  id, collapse = NULL, recycle0 = FALSE)
   )
 }
 

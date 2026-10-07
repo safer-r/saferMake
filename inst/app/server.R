@@ -16,6 +16,7 @@ server <- function(input, output, session) {
   .null_cb_id           <- saferMake:::.null_cb_id
   .empty_cb_id          <- saferMake:::.empty_cb_id
   .arg_check_field_ids  <- saferMake:::.arg_check_field_ids
+  .no_empty_cb_id       <- saferMake:::.no_empty_cb_id
   .field_blank          <- saferMake:::.field_blank
   .run_arg_check_tests  <- saferMake:::.run_arg_check_tests
   .args_without_default <- saferMake:::.args_without_default
@@ -56,6 +57,7 @@ server <- function(input, output, session) {
     prev_fun_args    = NULL,     # argument names of the previous successful run
     prev_screen      = NULL,     # screen to return to from the error screen
     check_failed     = character(0), # arguments whose arg_check() test failed
+    no_empty_string_args = character(0), # arguments ticked as unable to contain ""
     scroll_to        = NULL      # html id of the block to scroll to (or NULL)
   )
 
@@ -99,7 +101,8 @@ server <- function(input, output, session) {
         all_options_in_data       = isTRUE(input[[ids$all_options_in_data]]),
         na_contain                = isTRUE(input[[ids$na_contain]]),
         neg_values                = isTRUE(input[[ids$neg_values]]),
-        inf_values                = isTRUE(input[[ids$inf_values]])
+        inf_values                = isTRUE(input[[ids$inf_values]]),
+        no_empty_string           = isTRUE(input[[ids$no_empty_string]])
       )
     })
     names(out) <- vapply(rv$fun_args, .arg_id, character(1L), USE.NAMES = FALSE)
@@ -127,6 +130,9 @@ server <- function(input, output, session) {
       rv$non_empty_args <- rv$fun_args[!checked_empty]
       s <- get_arg_check_settings()
       if (length(s) > 0L) rv$arg_check_settings <- s
+      rv$no_empty_string_args <- rv$fun_args[vapply(rv$fun_args, function(nm) {
+        isTRUE(input[[.no_empty_cb_id(nm)]])
+      }, logical(1L))]
     }
   }
 
@@ -286,6 +292,7 @@ server <- function(input, output, session) {
       rv$non_null_args     <- character(0)
       rv$empty_args        <- character(0)
       rv$non_empty_args    <- character(0)
+      rv$no_empty_string_args <- character(0)
       rv$arg_check_settings <- list()
       rv$arg_check_test    <- list()
     } else {
@@ -301,6 +308,7 @@ server <- function(input, output, session) {
       rv$non_null_args  <- setdiff(rv$fun_args, rv$null_args)
       rv$empty_args     <- intersect(rv$empty_args,     rv$fun_args)
       rv$non_empty_args <- setdiff(rv$fun_args, rv$empty_args)
+      rv$no_empty_string_args <- intersect(rv$no_empty_string_args, rv$fun_args)
     }
     rv$prev_fun_name <- rv$fun_name
     rv$prev_fun_args <- rv$fun_args
@@ -415,16 +423,22 @@ server <- function(input, output, session) {
         }, logical(1L))
         empty_argument     <- rv$fun_args[checked_empty]
         non_empty_argument <- rv$fun_args[!checked_empty]
+        checked_noempty <- vapply(rv$fun_args, function(nm) {
+          isTRUE(input[[.no_empty_cb_id(nm)]])
+        }, logical(1L))
+        no_empty_argument <- rv$fun_args[checked_noempty]
       } else {
         null_argument      <- character(0)
         non_null_argument  <- character(0)
         empty_argument     <- character(0)
         non_empty_argument <- character(0)
+        no_empty_argument  <- character(0)
       }
       rv$null_args      <- null_argument      # kept in sync for "Back"
       rv$non_null_args  <- non_null_argument
       rv$empty_args     <- empty_argument
       rv$non_empty_args <- non_empty_argument
+      rv$no_empty_string_args <- no_empty_argument
 
       arg_check_settings <- get_arg_check_settings()
       rv$arg_check_settings <- arg_check_settings       # kept in sync for "Back"
@@ -441,7 +455,8 @@ server <- function(input, output, session) {
                             non_empty_args = non_empty_argument,
                             no_default_args = rv$no_default_args,
                             fun_args = rv$fun_args,
-                            arg_check_settings = arg_check_settings)
+                            arg_check_settings = arg_check_settings,
+                            no_empty_string_args = no_empty_argument)
       rv$rebuilt <- code
 
       # Guard: never write a file that does not parse
@@ -465,6 +480,7 @@ server <- function(input, output, session) {
           list(tags$li(tags$a(href = "#arg_check_error_summary",
                               "arg_check() check errors")))
         } else list(),
+        list(tags$li(tags$a(href = "#detection_section", "Detection"))),
         list(tags$li(tags$a(href = "#pkg_section", "Package name"))),
         list(tags$li(tags$a(href = "#link_section", "Error report link"))),
         if (length(rv$fun_args) == 0L) {
@@ -534,23 +550,21 @@ server <- function(input, output, session) {
                  paste(rv$no_default_args, collapse = ", ")
                }
 
-               detected_block <- tags$div(
-                 tags$ol(class = "input-instruction-list",
-                         tags$li(paste0("Function detected: ", rv$fun_name)),
-                         tags$li(paste0("Arguments detected: ", args_txt)),
-                         tags$li(paste0("Arguments with no default value: ", no_def_txt))
+               detection_section <- tagList(
+                 h4(id = "detection_section", "Detection"),
+                 tags$div(
+                   tags$ol(class = "input-instruction-list",
+                           tags$li(paste0("Function name: ", rv$fun_name)),
+                           tags$li(paste0("Arguments: ", args_txt)),
+                           tags$li(paste0("Arguments with no default value: ", no_def_txt))
+                   )
                  )
                )
 
                pkg_section <- tagList(
                  h4(id = "pkg_section", "Package name"),
-                 tags$div(
-                   tags$ol(class = "input-instruction-list",
-                           tags$li("Does this function belong to a package? If yes, indicate its name. Otherwise, leave blanck.")
-                   )
-                 ),
                  textInput(inputId = "pkg_name",
-                           label = NULL,
+                           label = "Does this function belong to a package? If yes, indicate its name. Otherwise, leave blanck.",
                            value = rv$pkg_name,
                            placeholder = "Package name",
                            width = "100%")
@@ -558,13 +572,8 @@ server <- function(input, output, session) {
 
                link_section <- tagList(
                  h4(id = "link_section", "Error report link"),
-                 tags$div(
-                   tags$ol(class = "input-instruction-list",
-                           tags$li("Do you have a link for users of your function to report any internal errors? If yes, indicate the full link. Otherwise, leave blanck.")
-                   )
-                 ),
                  textInput(inputId = "link_name",
-                           label = NULL,
+                           label = "Do you have a link for users of your function to report any internal errors? If yes, indicate the full link. Otherwise, leave blanck.",
                            value = rv$link_name,
                            placeholder = "Error report link",
                            width = "100%")
@@ -604,7 +613,7 @@ server <- function(input, output, session) {
                if (length(rv$fun_args) == 0L) {
                  tagList(
                    js_download_handler(),     # NEW: register the download trigger
-                   detected_block,
+                   detection_section,
                    hr(),
                    check_summary,             # NEW (NULL when no failure)
                    pkg_section,
@@ -618,7 +627,7 @@ server <- function(input, output, session) {
                  n <- length(rv$fun_args)
                  tagList(
                    js_download_handler(),     # NEW: register the download trigger
-                   detected_block,
+                   detection_section,
                    hr(),
                    check_summary,             # NEW (NULL when no failure)
                    pkg_section,
@@ -700,6 +709,10 @@ server <- function(input, output, session) {
                        checkboxInput(inputId = ids$inf_values,
                                      label = "Values can be Inf or -Inf if they are numeric.",
                                      value = isTRUE(st$inf_values),
+                                     width = "100%"),
+                       checkboxInput(inputId = ids$no_empty_string,
+                                     label = md_code("If values are strings, they cannot contain empty strings `\"\"`."),
+                                     value = isTRUE(st$no_empty_string),
                                      width = "100%"),
                        # result of the arg_check() line test evaluation
                        if (!is.null(test_res)) {

@@ -58,13 +58,13 @@ testthat::test_that(desc = ".arg_id() builds valid HTML ids and the checkbox ids
   testthat::expect_identical(object = saferMake:::.empty_cb_id(nm = "x"), expected = "empty_arg_x")
 })
 
-testthat::test_that(desc = ".arg_check_field_ids() covers all 11 arg_check() settings", code = {
+testthat::test_that(desc = ".arg_check_field_ids() covers all 12 arg_check() settings", code = {
   ids <- saferMake:::.arg_check_field_ids(id = "arg_x")
   testthat::expect_setequal(
     object = base::names(x = ids),
     expected = base::c("class", "typeof", "mode", "length", "prop",
                        "double_as_integer_allowed", "options", "all_options_in_data",
-                       "na_contain", "neg_values", "inf_values")
+                       "na_contain", "neg_values", "inf_values", "no_empty_string")
   )
   testthat::expect_true(object = base::all(base::grepl(pattern = "^ac_.+_arg_x$", x = ids,
                                                       ignore.case = FALSE, perl = FALSE,
@@ -187,6 +187,50 @@ testthat::test_that(desc = ".build_rebuilt() marks empty-accepting args as inact
                          regexp = '# "x", # inactivated because can be an empty non NULL object',
                          fixed = TRUE)
 })
+
+testthat::test_that(desc = ".build_rebuilt() emits the \"\" section only when a box is ticked", code = {
+  # no ticked box -> no section
+  out0 <- rebuild(code = code_1)
+  testthat::expect_no_match(object = out0, regexp = '######## management of "" in arguments of mode character')
+  # one ticked box -> section present, with the name ACTIVE in tempo_arg
+  out <- rebuild(code = code_1, no_empty_string_args = "x")
+  testthat::expect_match(object = out,
+                         regexp = '######## management of "" in arguments of mode character',
+                         fixed = TRUE)
+  testthat::expect_match(object = out, regexp = '"x", ', fixed = TRUE)
+  # the two safer-r args stay commented in the new section
+  testthat::expect_match(object = out,
+                         regexp = '# "lib_path" # inactivated because already checked above',
+                         fixed = TRUE)
+  testthat::expect_match(object = out,
+                         regexp = '# "error_text" # inactivated because can be ""',
+                         fixed = TRUE)
+  # the section is placed after the arg_check() closing marker and before
+  # "end argument secondary checking"
+  pos_start <- base::regexpr(pattern = '######## end argument checking with arg_check()',
+                             text = out, ignore.case = FALSE, perl = FALSE,
+                             fixed = TRUE, useBytes = FALSE)
+  pos_sec  <- base::regexpr(pattern = '######## management of "" in arguments of mode character',
+                            text = out, ignore.case = FALSE, perl = FALSE,
+                            fixed = TRUE, useBytes = FALSE)
+  pos_end  <- base::regexpr(pattern = '#### end argument secondary checking',
+                            text = out, ignore.case = FALSE, perl = FALSE,
+                            fixed = TRUE, useBytes = FALSE)
+  testthat::expect_gt(object = pos_sec, expected = pos_start)
+  testthat::expect_lt(object = pos_sec, expected = pos_end)
+})
+
+testthat::test_that(desc = ".build_rebuilt() writes the improved internal error text with types", code = {
+  out <- rebuild(code = code_1, no_empty_string_args = "x")
+  testthat::expect_match(object = out,
+                         regexp = "PLEASE RESTART WITH YOUR MAIN CODE AND SELECT PROPER CLASS, TYPE AND/OR MODE",
+                         fixed = TRUE)
+  testthat::expect_match(object = out, regexp = ".HERE, ARGUMENTS ARE TYPE:", fixed = TRUE)
+  testthat::expect_match(object = out,
+                         regexp = "base::sapply(X = tempo_arg, FUN = function(x){base::paste0(x, ': \"', base::typeof(",
+                         fixed = TRUE)
+})
+
 
 testthat::test_that(desc = ".build_rebuilt() emits one arg_check() line per argument", code = {
   out <- rebuild(code = code_1)

@@ -274,7 +274,12 @@
 # Builds the whole "#### argument secondary checking" section.
 # Each argument produces EXACTLY one line:
 #     tempo <- saferDev::arg_check(data = <arg>, ...) ; base::eval(expr = ee, envir = base::environment(fun = NULL), enclos = base::environment(fun = NULL))
-.build_arg_check_section <- function(fun_args, arg_check_settings) {
+# extra_section: optional text block (character string) inserted after
+#     "######## end argument checking with arg_check()" and before
+#     "#### end argument secondary checking" (used for the "" management
+#     section, which is emitted only when at least one box is ticked).
+.build_arg_check_section <- function(fun_args, arg_check_settings,
+                                     extra_section = NULL) {
   calls <- base::vapply(
     X = fun_args,
     FUN = function(nm) {
@@ -319,6 +324,7 @@
     "    # end check with r_debugging_tools\n",
     "    ######## end argument checking with arg_check()\n",
     "\n",
+    if (base::is.null(x = extra_section)) character(0) else extra_section,
     "    #### end argument secondary checking\n",
     "\n",
     collapse = NULL,

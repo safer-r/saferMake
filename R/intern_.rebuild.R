@@ -74,6 +74,10 @@
 # no_default_args : argument names with NO default value -> conditional section
 # fun_args        : all argument names (to emit the arg_check() blocks)
 # arg_check_settings : named list (key = .arg_id(nm)) of arg_check() settings
+# no_empty_string_args : argument names checked as unable to contain "" (ticked
+#                   boxes) -> the "management of \"\"" section is emitted only
+#                   when this vector is not empty, and these names are ACTIVE
+#                   in its tempo_arg.
 .build_rebuilt <- function(aa, body, pkg, link,
                            null_args = base::character(length = 0L),
                            non_null_args = base::character(length = 0L),
@@ -81,7 +85,8 @@
                            non_empty_args = base::character(length = 0L),
                            no_default_args = base::character(length = 0L),
                            fun_args = base::character(length = 0L),
-                           arg_check_settings = base::list()) {
+                           arg_check_settings = base::list(),
+                           no_empty_string_args = base::character(length = 0L)) {
   aa   <- base::sub(pattern = "[[:space:]]+$", replacement = "", x = aa,
                     ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)
   body <- base::sub(pattern = "[[:space:]]+$", replacement = "",
@@ -241,6 +246,79 @@
     collapse = NULL,
     recycle0 = FALSE
   )
+
+  # ---- tempo_arg block of the "" management section ----
+  # Emitted only when at least one argument is ticked ("cannot contain \"\"").
+  # Ticked names are ACTIVE (checked); the two safer-r args are pre-commented:
+  #   "lib_path"   already checked above (its own section)
+  #   "error_text" can legitimately be ""
+  # The user's own arguments are placed before these two lines.
+  no_empty_lines <- base::vapply(
+    X = no_empty_string_args,
+    FUN = function(nm) base::paste0(
+      "        ",
+      base::deparse(expr = nm, width.cutoff = 500L, backtick = FALSE,
+                    control = base::c("keepNA", "keepInteger", "niceNames", "showAttributes"),
+                    nlines = -1L),
+      ", ",
+      collapse = NULL, recycle0 = FALSE
+    ),
+    FUN.VALUE = base::character(length = 1L),
+    USE.NAMES = TRUE
+  )
+  # section body: emitted only if at least one box ticked
+  no_empty_block <- if (base::length(x = no_empty_string_args) > 0L) {
+    base::paste0(
+      "    ######## management of \"\" in arguments of mode character\n",
+      "    # optional section: remove the code if you do not want to check if arguments of mode character of your own function cannot contain \"\"\n",
+      "    tempo_arg <- base::c(\n",
+      base::paste(base::c(no_empty_lines,
+                          "        # \"lib_path\" # inactivated because already checked above",
+                          "        # \"error_text\" # inactivated because can be \"\""),
+                  sep = " ", collapse = "\n", recycle0 = FALSE),
+      "\n    )\n",
+      "    # nocov start\n",
+      "    # codecov inactivated because it is an internal control of code writing, impossible to cover with argument values.\n",
+      "    tempo_log <- ! base::sapply(X = base::lapply(X = tempo_arg, FUN = function(x){base::get(x = x, pos = -1L, envir = base::parent.frame(n = 2), mode = \"any\", inherits = FALSE)}), FUN = function(x){if(base::is.null(x = x)){base::return(TRUE)}else{base::all(base::mode(x = x) == \"character\", na.rm = TRUE)}}, simplify = TRUE, USE.NAMES = TRUE) # parent.frame(n = 2) because sapply(lapply())  #  need to test is.null() here\n",
+      "    if(base::any(tempo_log, na.rm = TRUE)){\n",
+      "        # This check is here in case the developer has not correctly fill tempo_arg\n",
+      "        tempo_cat <- base::paste0(\n",
+      "            \"INTERNAL ERROR IN THE BACKBONE PART OF \", \n",
+      "            intern_error_text_start, \n",
+      "            \"IN THE SECTION \\\"management of \\\"\\\" in arguments of mode character\\\"\\n\", \n",
+      "            base::ifelse(test = base::sum(tempo_log, na.rm = TRUE) > 1, yes = \"THESE ARGUMENTS ARE\", no = \"THIS ARGUMENT IS\"), \n",
+      "            \" NOT CLASS \\\"character\\\":\\n\", \n",
+      "            base::paste0(tempo_arg[tempo_log], collapse = \"\\n\", recycle0 = FALSE), \n",
+      "            \"\\nIf saferMake::saferMake() HAS BEEN USED TO MODIFY YOUR FUNCTION, PLEASE RESTART WITH YOUR MAIN CODE AND SELECT PROPER CLASS, TYPE AND/OR MODE FOR YOUR ARGUMENTS\\n.HERE, ARGUMENTS ARE TYPE:\\n\", \n",
+      "            base::paste0(base::sapply(X = tempo_arg, FUN = function(x){base::paste0(x, ': \"', base::typeof(x = base::get(x = x, pos = -1L, envir = base::parent.frame(n = 2), mode = \"any\", inherits = FALSE)), '\"', collapse = NULL, recycle0 = FALSE)}), collapse = \"\\n\", recycle0 = FALSE), \n",
+      "            intern_error_text_end, \n",
+      "            collapse = NULL, \n",
+      "            recycle0 = FALSE\n",
+      "        )\n",
+      "        base::stop(base::paste0(\"\\n\\n================\\n\\n\", tempo_cat, \"\\n\\n================\\n\\n\", collapse = NULL, recycle0 = FALSE), call. = FALSE, domain = NULL)\n",
+      "        # nocov end\n",
+      "    }else{\n",
+      "        tempo_log <- base::sapply(X = base::lapply(X = tempo_arg, FUN = function(x){base::get(x = x, pos = -1L, envir = base::parent.frame(n = 2), mode = \"any\", inherits = FALSE)}), FUN = function(x){base::any(x == \"\", na.rm = TRUE)}, simplify = TRUE, USE.NAMES = TRUE) # parent.frame(n = 2) because sapply(lapply()).  # for character argument that can also be NULL, if NULL -> returns FALSE. Thus no need to test is.null()\n",
+      "        if(base::any(tempo_log, na.rm = TRUE)){\n",
+      "            tempo_cat <- base::paste0(\n",
+      "                error_text_start, \n",
+      "                base::ifelse(test = base::sum(tempo_log, na.rm = TRUE) > 1, yes = \"THESE ARGUMENTS\\n\", no = \"THIS ARGUMENT\\n\"), \n",
+      "                base::paste0(tempo_arg[tempo_log], collapse = \"\\n\", recycle0 = FALSE),\n",
+      "                \"\\nCANNOT CONTAIN EMPTY STRING \\\"\\\".\", \n",
+      "                collapse = NULL, \n",
+      "                recycle0 = FALSE\n",
+      "            )\n",
+      "            base::stop(base::paste0(\"\\n\\n================\\n\\n\", tempo_cat, \"\\n\\n================\\n\\n\", collapse = NULL, recycle0 = FALSE), call. = FALSE, domain = NULL) \n",
+      "        }\n",
+      "    }\n",
+      "    ######## end management of \"\" in arguments of mode character\n",
+      "\n",
+      collapse = NULL,
+      recycle0 = FALSE
+    )
+  } else {
+    NULL
+  }
 
   base::paste0(
     aa, comma,
@@ -554,7 +632,8 @@
 
     # ---- argument secondary checking (arg_check() blocks) ------------
     "\n",
-    .build_arg_check_section(fun_args = fun_args, arg_check_settings = arg_check_settings),
+    .build_arg_check_section(fun_args = fun_args, arg_check_settings = arg_check_settings,
+                             extra_section = no_empty_block),
 
     "\n    #### main code\n",
     body,
