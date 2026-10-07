@@ -197,7 +197,9 @@ testthat::test_that(desc = ".build_rebuilt() emits the \"\" section only when a 
   testthat::expect_match(object = out,
                          regexp = '######## management of "" in arguments of mode character',
                          fixed = TRUE)
-  testthat::expect_match(object = out, regexp = '"x", ', fixed = TRUE)
+  # single active name: NO trailing comma (would be a syntax error before ")")
+  testthat::expect_match(object = out, regexp = '"x"\n', fixed = TRUE)
+  testthat::expect_no_match(object = out, regexp = '"x", \n        # "lib_path"', fixed = TRUE)
   # the two safer-r args stay commented in the new section
   testthat::expect_match(object = out,
                          regexp = '# "lib_path" # inactivated because already checked above',
@@ -229,6 +231,18 @@ testthat::test_that(desc = ".build_rebuilt() writes the improved internal error 
   testthat::expect_match(object = out,
                          regexp = "base::sapply(X = tempo_arg, FUN = function(x){base::paste0(x, ': \"', base::typeof(",
                          fixed = TRUE)
+})
+
+testthat::test_that(desc = ".build_rebuilt() separates several active names by comma without a trailing one", code = {
+  out <- rebuild(code = code_1, no_empty_string_args = base::c("x", "y"))
+  # first name followed by a comma, last name without
+  testthat::expect_match(object = out, regexp = '"x",\n        "y"\n', fixed = TRUE)
+  # and the generated function still parses
+  testthat::expect_error(object = base::parse(file = "", n = NULL, text = out,
+                                              prompt = "?",
+                                              keep.source = base::getOption(x = "keep.source", default = NULL),
+                                              srcfile = NULL, encoding = "unknown"),
+                         regexp = NA)
 })
 
 

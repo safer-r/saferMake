@@ -252,7 +252,8 @@
   # Ticked names are ACTIVE (checked); the two safer-r args are pre-commented:
   #   "lib_path"   already checked above (its own section)
   #   "error_text" can legitimately be ""
-  # The user's own arguments are placed before these two lines.
+  # The active names are comma-SEPARATED but the LAST one carries no trailing
+  # comma (a trailing comma before ")" would be a syntax error in R).
   no_empty_lines <- base::vapply(
     X = no_empty_string_args,
     FUN = function(nm) base::paste0(
@@ -260,7 +261,6 @@
       base::deparse(expr = nm, width.cutoff = 500L, backtick = FALSE,
                     control = base::c("keepNA", "keepInteger", "niceNames", "showAttributes"),
                     nlines = -1L),
-      ", ",
       collapse = NULL, recycle0 = FALSE
     ),
     FUN.VALUE = base::character(length = 1L),
@@ -272,11 +272,11 @@
       "    ######## management of \"\" in arguments of mode character\n",
       "    # optional section: remove the code if you do not want to check if arguments of mode character of your own function cannot contain \"\"\n",
       "    tempo_arg <- base::c(\n",
-      base::paste(base::c(no_empty_lines,
-                          "        # \"lib_path\" # inactivated because already checked above",
-                          "        # \"error_text\" # inactivated because can be \"\""),
-                  sep = " ", collapse = "\n", recycle0 = FALSE),
-      "\n    )\n",
+      base::paste(no_empty_lines, sep = " ", collapse = ",\n", recycle0 = FALSE),
+      "\n",
+      "        # \"lib_path\" # inactivated because already checked above\n",
+      "        # \"error_text\" # inactivated because can be \"\"\n",
+      "    )\n",
       "    # nocov start\n",
       "    # codecov inactivated because it is an internal control of code writing, impossible to cover with argument values.\n",
       "    tempo_log <- ! base::sapply(X = base::lapply(X = tempo_arg, FUN = function(x){base::get(x = x, pos = -1L, envir = base::parent.frame(n = 2), mode = \"any\", inherits = FALSE)}), FUN = function(x){if(base::is.null(x = x)){base::return(TRUE)}else{base::all(base::mode(x = x) == \"character\", na.rm = TRUE)}}, simplify = TRUE, USE.NAMES = TRUE) # parent.frame(n = 2) because sapply(lapply())  #  need to test is.null() here\n",
