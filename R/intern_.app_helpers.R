@@ -70,6 +70,69 @@
                    keepNA = FALSE)
 }
 
+# Consistency errors of the arg_check() settings, detected BEFORE the
+# saferDev::arg_check() lines are tested (rendered in red in the argument
+# sections of the settings page, exactly like the test result messages):
+# - the "If values are strings, they cannot contain empty strings \"\"" box is
+#   ticked but no character value has been used in any of the Class, typeof or
+#   mode fields;
+# - the "Values can be negative if they are numeric" box is unticked but no
+#   numeric/double value has been used in any of the Class, typeof or mode
+#   fields (same for the "Values can be Inf or -Inf if they are numeric" box);
+# - blank Class/typeof/mode fields are stored as "NULL" (no constraint), so
+#   they never count as a used value.
+# Returns a named list (key = .arg_id(nm)) of character vectors: zero-length
+# when the settings of the argument are consistent, otherwise the error
+# messages to display.
+.arg_check_settings_errors <- function(fun_args, arg_check_settings) {
+  msg_char <- base::paste0(
+    "The \"If values are strings, they cannot contain empty strings \\\"\\\"\" box is ticked ",
+    "but character value has not been used in any of the Class, typeof or mode field.",
+    collapse = NULL,
+    recycle0 = FALSE
+  )
+  msg_neg <- base::paste0(
+    "The \"Values can be negative if they are numeric\" box is unticked ",
+    "but class \"numeric\", mode \"numeric\", typeof \"double\" has not been used ",
+    "in any of the Class, typeof or mode field.",
+    collapse = NULL,
+    recycle0 = FALSE
+  )
+  msg_inf <- base::paste0(
+    "The \"Values can be Inf or -Inf if they are numeric\" box is unticked ",
+    "but class \"numeric\", mode \"numeric\", typeof \"double\" has not been used ",
+    "in any of the Class, typeof or mode field.",
+    collapse = NULL,
+    recycle0 = FALSE
+  )
+  out <- base::list()
+  for (nm in fun_args) {
+    aid <- .arg_id(nm = nm)
+    st  <- arg_check_settings[[aid]]
+    if (base::is.null(x = st)) st <- .arg_check_defaults
+    kinds <- base::unlist(
+      x = base::list(st$class, st$typeof, st$mode),
+      recursive = TRUE,
+      use.names = FALSE
+    )
+    kinds <- kinds[! base::is.na(x = kinds)]
+    char_used <- base::any(x = kinds == "character", na.rm = TRUE)
+    num_used  <- base::any(x = kinds == "numeric" | kinds == "double", na.rm = TRUE)
+    errs <- base::character(length = 0L)
+    if (base::isTRUE(x = st$no_empty_string) && ! char_used) {
+      errs <- base::c(errs, msg_char)
+    }
+    if (! base::isTRUE(x = st$neg_values) && ! num_used) {
+      errs <- base::c(errs, msg_neg)
+    }
+    if (! base::isTRUE(x = st$inf_values) && ! num_used) {
+      errs <- base::c(errs, msg_inf)
+    }
+    out[[aid]] <- errs
+  }
+  out
+}
+
 # "a, b 2 c" -> c("a", "b", "2", "c"); numeric if ALL parts parse as numbers
 .arg_check_parse_options <- function(txt) {
   parts <- base::trimws(

@@ -18,6 +18,7 @@ server <- function(input, output, session) {
   .arg_check_field_ids  <- saferMake:::.arg_check_field_ids
   .no_empty_cb_id       <- saferMake:::.no_empty_cb_id
   .field_blank          <- saferMake:::.field_blank
+  .arg_check_settings_errors <- saferMake:::.arg_check_settings_errors
   .run_arg_check_tests  <- saferMake:::.run_arg_check_tests
   .args_without_default <- saferMake:::.args_without_default
   .extract_aa_body      <- saferMake:::.extract_aa_body
@@ -52,6 +53,7 @@ server <- function(input, output, session) {
     rebuilt         = NULL,      # not strictly needed; kept for future preview use
     arg_check_settings = list(), # per-argument arg_check() settings (key = .arg_id(nm))
     arg_check_test   = list(),   # per-argument test result (ok, message, value_code)
+    arg_check_errors = list(),   # per-argument settings consistency errors (key = .arg_id(nm), zero-length = ok)
     # NEW: state needed for the requested behaviours
     prev_fun_name    = NULL,     # function name of the previous successful run
     prev_fun_args    = NULL,     # argument names of the previous successful run
@@ -89,8 +91,8 @@ server <- function(input, output, session) {
     out <- lapply(rv$fun_args, function(nm) {
       ids <- .arg_check_field_ids(.arg_id(nm))
       list(
-        # Blank text field = default value (class/typeof: "NULL" = no constraint,
-        # mode: "numeric", length/options: "" = no constraint)
+        # Blank text field = default value ("NULL" = no constraint for ALL the
+        # five text fields: class/typeof/mode/length/options)
         class                     = if (.field_blank(input[[ids$class]])) "NULL" else trimws(input[[ids$class]]),
         typeof                    = if (.field_blank(input[[ids$typeof]])) "NULL" else trimws(input[[ids$typeof]]),
         mode                      = if (.field_blank(input[[ids$mode]])) "NULL" else trimws(input[[ids$mode]]),
@@ -295,6 +297,7 @@ server <- function(input, output, session) {
       rv$no_empty_string_args <- character(0)
       rv$arg_check_settings <- list()
       rv$arg_check_test    <- list()
+      rv$arg_check_errors  <- list()
     } else {
       # keep only the settings/tests matching the current arguments
       keep <- intersect(names(rv$arg_check_settings),
@@ -303,6 +306,9 @@ server <- function(input, output, session) {
       keep_test <- intersect(names(rv$arg_check_test),
                              vapply(rv$fun_args, .arg_id, character(1L)))
       rv$arg_check_test <- rv$arg_check_test[keep_test]
+      keep_err <- intersect(names(rv$arg_check_errors),
+                            vapply(rv$fun_args, .arg_id, character(1L)))
+      rv$arg_check_errors <- rv$arg_check_errors[keep_err]
       # sanitize the checkbox vectors against the current argument list
       rv$null_args      <- intersect(rv$null_args,      rv$fun_args)
       rv$non_null_args  <- setdiff(rv$fun_args, rv$null_args)
@@ -371,6 +377,20 @@ server <- function(input, output, session) {
   observeEvent(input$check_and_save, {
     tryCatch({
       snapshot_result_inputs()
+      # NEW: consistency errors of the settings themselves (independent of
+      # saferDev): detected BEFORE the arg_check() lines are tested. When
+      # present, the arg_check() tests are not run and the download is blocked,
+      # exactly like a failed arg_check() test.
+      rv$arg_check_errors <- .arg_check_settings_errors(rv$fun_args, rv$arg_check_settings)
+      settings_bad <- rv$fun_args[vapply(rv$fun_args, function(nm) {
+        length(rv$arg_check_errors[[.arg_id(nm)]]) > 0L
+      }, logical(1L))]
+      if (length(settings_bad) > 0L) {
+        rv$check_failed <- character(0)
+        rv$arg_check_test <- list()
+        rv$scroll_to    <- "arg_check_error_summary"
+        return(invisible())
+      }
       rv$arg_check_test <- .run_arg_check_tests(rv$fun_args, rv$arg_check_settings)
       failed <- rv$fun_args[vapply(rv$fun_args, function(nm) {
         !isTRUE(rv$arg_check_test[[.arg_id(nm)]]$ok)
@@ -389,6 +409,25 @@ server <- function(input, output, session) {
                             conditionMessage(e)))
     })
   })
+
+  # NEW: Build the summary of the arg_check() settings consistency errors
+  # (red alert at the top of the settings page, same style as the test one).
+  settings_error_summary <- function() {
+    bad <- rv$fun_args[vapply(rv$fun_args, function(nm) {
+      length(rv$arg_check_errors[[.arg_id(nm)]]) > 0L
+    }, logical(1L))]
+    if (length(bad) == 0L) return(NULL)
+    div(id = "arg_check_error_summary",
+        class = "alert alert-danger", role = "alert",
+        style = "margin-top: 10px; white-space: pre-line;",
+        paste0(
+          "The arg_check() settings are inconsistent for the following argument",
+          ifelse(test = length(bad) > 1, yes = "s", no = ""),
+          " (see the red messages in the argument sections below):\n",
+          paste(bad, collapse = "\n"),
+          "\n\nPlease fix the settings below and run again."
+        ))
+  }
 
   # ---- BACK buttons (checkbox states are preserved like pkg/link) ----------
   observeEvent(input$back_from_result, {
@@ -476,7 +515,10 @@ server <- function(input, output, session) {
   output$toc <- renderUI({
     entries <- if (identical(rv$screen, "result")) {
       c(
-        if (length(rv$check_failed) > 0L) {
+        if (length(rv$check_failed) > 0L ||
+            any(vapply(rv$fun_args, function(nm) {
+              length(rv$arg_check_errors[[.arg_id(nm)]]) > 0L
+            }, logical(1L)))) {
           list(tags$li(tags$a(href = "#arg_check_error_summary",
                               "arg_check() check errors")))
         } else list(),
@@ -595,6 +637,11 @@ server <- function(input, output, session) {
                } else {
                  NULL
                }
+               # NEW: summary of the settings consistency errors (same style).
+               # Only one of the two summaries is present at a time: the
+               # consistency errors are checked BEFORE the arg_check() tests
+               # are run, so check_failed is empty when settings_summary is set.
+               settings_summary <- settings_error_summary()
 
                # NEW: the visible "Run" button runs the arg_check() tests; the
                # real downloadButton is hidden and clicked programmatically by
@@ -616,6 +663,7 @@ server <- function(input, output, session) {
                    detection_section,
                    hr(),
                    check_summary,             # NEW (NULL when no failure)
+                    settings_summary,          # NEW (NULL when no settings error)
                    pkg_section,
                    hr(),
                    link_section,
@@ -630,6 +678,7 @@ server <- function(input, output, session) {
                    detection_section,
                    hr(),
                    check_summary,             # NEW (NULL when no failure)
+                    settings_summary,          # NEW (NULL when no settings error)
                    pkg_section,
                    hr(),
                    link_section,
@@ -645,10 +694,20 @@ server <- function(input, output, session) {
                      if (is.null(st)) st <- .arg_check_defaults
                      ids <- .arg_check_field_ids(aid)
                      test_res <- rv$arg_check_test[[aid]]
+                     # NEW: settings consistency errors for this argument
+                     # (red alert, same style as the arg_check() test result)
+                     st_err <- rv$arg_check_errors[[aid]]
+                     st_err_block <- if (length(st_err) > 0L) {
+                       div(class = "alert alert-danger", role = "alert",
+                           style = "margin-top: 5px; margin-bottom: 5px; white-space: pre-line;",
+                           paste(st_err, collapse = "\n"))
+                     } else {
+                       NULL
+                     }
                      # Show blank in the field when the stored value is the default
                      class_disp  <- if (identical(st$class, "NULL")) "" else st$class
                      typeof_disp <- if (identical(st$typeof, "NULL")) "" else st$typeof
-                     mode_disp   <- if (identical(st$mode, "numeric")) "" else st$mode
+                     mode_disp   <- if (identical(st$mode, "NULL")) "" else st$mode
                      sec <- tagList(
                        h4(id = aid, md_code(paste0("Value of argument `", nm, "`"))),
                        checkboxInput(inputId = .null_cb_id(nm),
@@ -663,26 +722,26 @@ server <- function(input, output, session) {
                        textInput(inputId = ids$class,
                                  label = md_code("Class of the argument values. Left blank means not evaluated by `class()`"),
                                  value = class_disp,
-                                 placeholder = "NULL",
+                                 placeholder = "e.g., matrix, data.frame",
                                  width = "100%"),
                        textInput(inputId = ids$typeof,
                                  label = md_code("Type of the argument values. Left blank means not evaluated by `typeof()`."),
                                  value = typeof_disp,
-                                 placeholder = "NULL",
+                                 placeholder = "e.g., double, character, list",
                                  width = "100%"),
                        textInput(inputId = ids$mode,
                                  label = md_code("Mode of the argument values. Left blank means not evaluated by `mode()`."),
                                  value = mode_disp,
-                                 placeholder = "NULL",
+                                 placeholder = "e.g., numeric, character, list",
                                  width = "100%"),
                        textInput(inputId = ids$length,
                                  label = md_code("Length of the argument values. Left blank means not evaluated by `length()`."),
-                                 value = st$length,
+                                 value = if (identical(st$length, "NULL")) "" else st$length,
                                  placeholder = "e.g., 3",
                                  width = "100%"),
                        textInput(inputId = ids$options,
-                                 label = "Argument values can only be these restricted values (separated by commas or spaces). Left blank means not evaluated.",
-                                 value = st$options,
+                                 label = "Argument values can only be these restricted string or integer values (separated by commas or spaces). Left blank means not evaluated.",
+                                 value = if (identical(st$options, "NULL")) "" else st$options,
                                  placeholder = "e.g., option1, option2",
                                  width = "100%"),
                        hr(),
@@ -714,6 +773,9 @@ server <- function(input, output, session) {
                                      label = md_code("If values are strings, they cannot contain empty strings `\"\"`."),
                                      value = isTRUE(st$no_empty_string),
                                      width = "100%"),
+                       # NEW: settings consistency error(s) of this argument,
+                       # displayed in red exactly like the test result below
+                       st_err_block,
                        # result of the arg_check() line test evaluation
                        if (!is.null(test_res)) {
                          list(

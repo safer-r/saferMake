@@ -79,6 +79,126 @@ testthat::test_that(desc = ".field_blank() detects NULL and whitespace-only valu
   testthat::expect_false(object = saferMake:::.field_blank(v = "numeric"))
 })
 
+# --- .arg_check_settings_errors() ---------------------------------------------
+
+testthat::test_that(desc = ".arg_check_settings_errors() is silent for the default settings", code = {
+  res <- saferMake:::.arg_check_settings_errors(
+    fun_args = base::c("x", "y"),
+    arg_check_settings = base::list(arg_x = saferMake:::.arg_check_defaults,
+                                    arg_y = saferMake:::.arg_check_defaults)
+  )
+  testthat::expect_identical(object = res$arg_x, expected = base::character(length = 0L))
+  testthat::expect_identical(object = res$arg_y, expected = base::character(length = 0L))
+})
+
+testthat::test_that(desc = ".arg_check_settings_errors() accepts character in class, typeof or mode", code = {
+  st_cls <- utils::modifyList(x = saferMake:::.arg_check_defaults,
+                              val = base::list(no_empty_string = TRUE, class = "character"), keep.null = FALSE)
+  st_typ <- utils::modifyList(x = saferMake:::.arg_check_defaults,
+                              val = base::list(no_empty_string = TRUE, typeof = "character"), keep.null = FALSE)
+  st_mod <- utils::modifyList(x = saferMake:::.arg_check_defaults,
+                              val = base::list(no_empty_string = TRUE, mode = "character"), keep.null = FALSE)
+  testthat::expect_identical(
+    object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_cls))$arg_x,
+    expected = base::character(length = 0L))
+  testthat::expect_identical(
+    object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_typ))$arg_x,
+    expected = base::character(length = 0L))
+  testthat::expect_identical(
+    object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_mod))$arg_x,
+    expected = base::character(length = 0L))
+})
+
+testthat::test_that(desc = ".arg_check_settings_errors() reports the missing character error", code = {
+  st <- utils::modifyList(x = saferMake:::.arg_check_defaults,
+                          val = base::list(no_empty_string = TRUE), keep.null = FALSE)
+  res <- saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st))
+  testthat::expect_length(object = res$arg_x, n = 1L)
+  testthat::expect_match(object = res$arg_x, regexp = "empty strings", fixed = TRUE)
+  testthat::expect_match(object = res$arg_x,
+                         regexp = "character value has not been used in any of the Class, typeof or mode field",
+                         fixed = TRUE)
+})
+
+testthat::test_that(desc = ".arg_check_settings_errors() accepts numeric/double in class, typeof or mode", code = {
+  st_cls <- utils::modifyList(x = saferMake:::.arg_check_defaults,
+                              val = base::list(neg_values = FALSE, inf_values = FALSE, class = "numeric"), keep.null = FALSE)
+  st_typ <- utils::modifyList(x = saferMake:::.arg_check_defaults,
+                              val = base::list(neg_values = FALSE, inf_values = FALSE, typeof = "double"), keep.null = FALSE)
+  st_mod <- utils::modifyList(x = saferMake:::.arg_check_defaults,
+                              val = base::list(neg_values = FALSE, inf_values = FALSE, mode = "numeric"), keep.null = FALSE)
+  testthat::expect_identical(
+    object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_cls))$arg_x,
+    expected = base::character(length = 0L))
+  testthat::expect_identical(
+    object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_typ))$arg_x,
+    expected = base::character(length = 0L))
+  testthat::expect_identical(
+    object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_mod))$arg_x,
+    expected = base::character(length = 0L))
+})
+
+testthat::test_that(desc = ".arg_check_settings_errors() reports the missing numeric errors for both boxes", code = {
+  st <- utils::modifyList(x = saferMake:::.arg_check_defaults,
+                          val = base::list(neg_values = FALSE, inf_values = FALSE), keep.null = FALSE)
+  res <- saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st))
+  testthat::expect_length(object = res$arg_x, n = 2L)
+  testthat::expect_match(object = res$arg_x[1],
+                         regexp = "Values can be negative if they are numeric", fixed = TRUE)
+  testthat::expect_match(object = res$arg_x[2],
+                         regexp = "Values can be Inf or -Inf if they are numeric", fixed = TRUE)
+})
+
+testthat::test_that(desc = ".arg_check_settings_errors() is silent when the numeric boxes are ticked (default)", code = {
+  # defaults: neg_values = TRUE and inf_values = TRUE -> no error, even with
+  # blank Class/typeof/mode fields
+  res <- saferMake:::.arg_check_settings_errors("x", base::list(arg_x = saferMake:::.arg_check_defaults))
+  testthat::expect_identical(object = res$arg_x, expected = base::character(length = 0L))
+})
+
+testthat::test_that(desc = ".arg_check_settings_errors() uses the default settings when an argument has none", code = {
+  res <- saferMake:::.arg_check_settings_errors("x", arg_check_settings = base::list())
+  testthat::expect_identical(object = res$arg_x, expected = base::character(length = 0L))
+})
+
+testthat::test_that(desc = ".arg_check_settings_errors() handles empty fun_args", code = {
+  res <- saferMake:::.arg_check_settings_errors(base::character(length = 0L), base::list())
+  testthat::expect_identical(object = res, expected = base::list())
+})
+
+testthat::test_that(desc = ".arg_check_settings_errors() reports a single neg_values error", code = {
+  st <- utils::modifyList(x = saferMake:::.arg_check_defaults,
+                          val = base::list(neg_values = FALSE), keep.null = FALSE)
+  res <- saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st))
+  testthat::expect_length(object = res$arg_x, n = 1L)
+  testthat::expect_match(object = res$arg_x[1],
+                         regexp = "Values can be negative if they are numeric", fixed = TRUE)
+  testthat::expect_no_match(object = res$arg_x[1],
+                            regexp = "Values can be Inf or -Inf if they are numeric", fixed = TRUE)
+})
+
+testthat::test_that(desc = ".arg_check_settings_errors() checks the two boxes independently", code = {
+  # no_empty_string ticked AND neg_values unticked, but class = "character":
+  # the character check passes while the numeric check still fires
+  st <- utils::modifyList(x = saferMake:::.arg_check_defaults,
+                          val = base::list(no_empty_string = TRUE, neg_values = FALSE,
+                                           class = "character"),
+                          keep.null = FALSE)
+  res <- saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st))
+  testthat::expect_length(object = res$arg_x, n = 1L)
+  testthat::expect_match(object = res$arg_x[1],
+                         regexp = "Values can be negative if they are numeric", fixed = TRUE)
+})
+
+testthat::test_that(desc = ".arg_check_settings_errors() drops NA kind values", code = {
+  # a NA (or NULL) element in the kind fields must not count as a used value
+  st <- utils::modifyList(x = saferMake:::.arg_check_defaults,
+                          val = base::list(neg_values = FALSE, class = NA_character_),
+                          keep.null = FALSE)
+  res <- saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st))
+  testthat::expect_length(object = res$arg_x, n = 1L)
+})
+
 testthat::test_that(desc = ".arg_check_parse_options() splits and detects numeric sets", code = {
   testthat::expect_null(object = saferMake:::.arg_check_parse_options(txt = ""))
   testthat::expect_identical(object = saferMake:::.arg_check_parse_options(txt = "a, b 2 c"),
