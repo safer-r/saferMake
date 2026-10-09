@@ -60,6 +60,10 @@ server <- function(input, output, session) {
     prev_screen      = NULL,     # screen to return to from the error screen
     check_failed     = character(0), # arguments whose arg_check() test failed
     no_empty_string_args = character(0), # arguments ticked as unable to contain ""
+    seed_arg         = "",        # "seed argument" box value ("" = blank)
+    seed_arg_ok      = TRUE,      # FALSE when the seed name is not a function argument
+    seed_arg_error_msg = base::character(length = 0L), # seed validation message(s)
+    graphic_dev      = FALSE,     # "Graphic device management" tick box state
     scroll_to        = NULL      # html id of the block to scroll to (or NULL)
   )
 
@@ -119,6 +123,11 @@ server <- function(input, output, session) {
     rv$pkg_name <- if (is.null(pkg)) rv$pkg_name else trimws(pkg)
     lnk <- input$link_name
     rv$link_name <- if (is.null(lnk)) rv$link_name else trimws(lnk)
+    # NEW: seed argument + graphic device tick box (kept on Back)
+    sd <- input$seed_arg_name
+    rv$seed_arg_name <- if (is.null(sd)) rv$seed_arg_name else trimws(sd)
+    gd <- input$graphic_dev
+    rv$graphic_dev <- if (is.null(gd)) rv$graphic_dev else isTRUE(gd)
     if (length(rv$fun_args) > 0L) {
       checked <- vapply(rv$fun_args, function(nm) {
         isTRUE(input[[.null_cb_id(nm)]])
@@ -335,6 +344,8 @@ server <- function(input, output, session) {
     rv$prev_fun_name <- rv$fun_name
     rv$prev_fun_args <- rv$fun_args
     rv$check_failed  <- character(0)   # NEW: reset the failing list on a new run
+    rv$seed_arg_ok   <- TRUE           # NEW: reset the seed field error state
+    rv$seed_arg_error_msg <- base::character(length = 0L) # NEW
     rv$scroll_to     <- NULL           # NEW
 
     collide <- intersect(rv$fun_args, .safer_args)
@@ -393,6 +404,19 @@ server <- function(input, output, session) {
   observeEvent(input$check_and_save, {
     tryCatch({
       snapshot_result_inputs()
+      # NEW: "seed argument" field validation (must name one of the function
+      # arguments). Blocks the download exactly like a failed arg_check().
+      seed_err <- seed_arg_check(input$seed_arg_name)
+      if (length(seed_err) > 0L) {
+        rv$seed_arg_ok <- FALSE
+        rv$seed_arg_error_msg <- seed_err
+        rv$check_failed <- character(0)
+        rv$arg_check_test <- list()
+        rv$scroll_to    <- "seed_section"
+        return(invisible())
+      }
+      rv$seed_arg_ok <- TRUE
+      rv$seed_arg_error_msg <- base::character(length = 0L)
       # NEW: consistency errors of the settings themselves (independent of
       # saferDev): detected BEFORE the arg_check() lines are tested. When
       # present, the arg_check() tests are not run and the download is blocked,
@@ -445,6 +469,39 @@ server <- function(input, output, session) {
         ))
   }
 
+  # NEW: validation of the "seed argument" field: the name must be one of the
+  # function argument names ("" = blank is allowed: only the section
+  # delimiters are emitted in the rebuilt function). Reads the snapshot in rv
+  # (NOT input) so that renderUI does not re-run on each keystroke of the
+  # field; the message is stored in rv$seed_arg_error_msg by the Run observer.
+  seed_arg_error <- function() {
+    if (!rv$seed_arg_ok) rv$seed_arg_error_msg else base::character(length = 0L)
+  }
+  # Computes the seed validation message from a given value (used by the Run
+  # observer before updating rv$seed_arg_ok / rv$seed_arg_error_msg).
+  seed_arg_check <- function(val) {
+    val <- base::trimws(x = val, which = "both", whitespace = "[ \t\r\n]")
+    if (base::is.null(x = val) || base::length(x = val) == 0L) val <- ""
+    if (base::any(base::is.na(x = val))) val <- ""   # robustness: NA -> blank
+    if (base::length(x = rv$fun_args) == 0L) {
+      # zero-argument function: no name can be a set.seed() argument value
+      if (base::nzchar(x = val)) {
+        base::c(base::paste0(
+          "\"", val, "\" cannot be a set.seed() argument value: your function has no argument."
+        ))
+      } else {
+        base::character(length = 0L)
+      }
+    } else if (! base::nzchar(x = val) || val %in% rv$fun_args) {
+      base::character(length = 0L)
+    } else {
+      base::c(base::paste0(
+        "\"", val, "\" is not one of the argument names of your function ",
+        "(expected one of: ", base::paste0(rv$fun_args, collapse = ", "), ")."
+      ))
+    }
+  }
+
   # ---- BACK buttons (checkbox states are preserved like pkg/link) ----------
   observeEvent(input$back_from_result, {
     # NEW: centralized snapshot (pkg, link, checkboxes, arg_check() settings)
@@ -466,6 +523,15 @@ server <- function(input, output, session) {
       # NEW: fallback to rv values if the inputs are not currently rendered
       pkg  <- if (is.null(input$pkg_name)) rv$pkg_name else trimws(input$pkg_name)
       link <- if (is.null(input$link_name)) rv$link_name else trimws(input$link_name)
+      # NEW: seed argument + graphic device tick box (with rv fallback)
+      sd  <- if (is.null(input$seed_arg_name)) rv$seed_arg_name else trimws(input$seed_arg_name)
+      sd  <- if (is.null(sd)) "" else sd
+      gd  <- if (is.null(input$graphic_dev)) rv$graphic_dev else isTRUE(input$graphic_dev)
+      rv$seed_arg_name <- sd                     # kept in sync for "Back"
+      rv$graphic_dev   <- gd                     # kept in sync for "Back"
+      # seed_arg for .build_rebuilt(): NULL = no section, NA = blank field
+      # (only the delimiters), otherwise the argument name.
+      seed_arg <- if (!base::nzchar(x = sd)) NA_character_ else sd
 
       if (length(rv$fun_args) > 0L) {
         checked <- vapply(rv$fun_args, function(nm) {
@@ -511,7 +577,9 @@ server <- function(input, output, session) {
                             no_default_args = rv$no_default_args,
                             fun_args = rv$fun_args,
                             arg_check_settings = arg_check_settings,
-                            no_empty_string_args = no_empty_argument)
+                            no_empty_string_args = no_empty_argument,
+                            seed_arg = seed_arg,
+                            graphic_dev = gd)
       rv$rebuilt <- code
 
       # Guard: never write a file that does not parse
@@ -541,6 +609,8 @@ server <- function(input, output, session) {
         list(tags$li(tags$a(href = "#detection_section", "Detection"))),
         list(tags$li(tags$a(href = "#pkg_section", "Package name"))),
         list(tags$li(tags$a(href = "#link_section", "Error report link"))),
+        list(tags$li(tags$a(href = "#seed_section", "Seed argument"))),
+        list(tags$li(tags$a(href = "#graphic_section", "Graphic device management"))),
         if (length(rv$fun_args) == 0L) {
           list(tags$li("No arguments"))
         } else {
@@ -640,6 +710,38 @@ server <- function(input, output, session) {
                            width = "100%")
                )
 
+               # NEW: "seed argument" section: name of the argument whose value
+               # is used by set.seed() in the user's function (blank = only the
+               # section delimiters are emitted in the rebuilt function).
+               # Red alert under the field when the name is not one of the
+               # function argument names (set by the Run button check).
+               seed_section <- tagList(
+                 h4(id = "seed_section", "Seed argument"),
+                 md_code("If one of the argument is a value for `set.seed()`, please indicate the name."),
+                 textInput(inputId = "seed_arg_name",
+                           label = "Seed argument name. Otherwise, leave blanck.",
+                           value = rv$seed_arg_name,
+                           placeholder = "Seed argument name",
+                           width = "100%"),
+                 if (!isTRUE(rv$seed_arg_ok)) {
+                   div(id = "seed_arg_error",
+                       class = "alert alert-danger", role = "alert",
+                       style = "margin-top: 5px; margin-bottom: 5px; white-space: pre-line;",
+                       seed_arg_error())
+                 }
+               )
+
+               # NEW: "Graphic device management" section: tick box deciding
+               # whether the full graphic device checking section is emitted
+               # in the rebuilt function (unticked = only the delimiters).
+               graphic_section <- tagList(
+                 h4(id = "graphic_section", "Graphic device management"),
+                 checkboxInput(inputId = "graphic_dev",
+                               label = md_code("Graphic devices are used/returned by the function."),
+                               value = isTRUE(rv$graphic_dev),
+                               width = "100%")
+               )
+
                # NEW: summary of the failed arg_check() tests, displayed at the
                # top of the settings page (scroll target when a check fails).
                check_summary <- if (length(rv$check_failed) > 0L) {
@@ -687,6 +789,10 @@ server <- function(input, output, session) {
                    hr(),
                    link_section,
                    hr(),
+                   seed_section,
+                   hr(),
+                   graphic_section,
+                   hr(),
                    result_footer,
                    scroll_to_js(rv$scroll_to) # NEW: slide to the top error message
                  )
@@ -701,6 +807,10 @@ server <- function(input, output, session) {
                    pkg_section,
                    hr(),
                    link_section,
+                   hr(),
+                   seed_section,
+                   hr(),
+                   graphic_section,
                    hr(),
                    # One section per argument: NULL/empty checkboxes, then the five
                    # arg_check() text fields stacked vertically (free text, no

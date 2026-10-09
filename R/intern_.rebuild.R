@@ -78,6 +78,12 @@
 #                   boxes) -> the "management of \"\"" section is emitted only
 #                   when this vector is not empty, and these names are ACTIVE
 #                   in its tempo_arg.
+# seed_arg         : NULL (section not inserted), NA (blank "seed argument"
+#                   field: only the section delimiters are emitted) or a
+#                   character string (the user's argument name used as the
+#                   seed value of set.seed(): full section emitted).
+# graphic_dev      : TRUE (full graphic device checking section emitted),
+#                   FALSE (only the section delimiters emitted).
 .build_rebuilt <- function(aa, body, pkg, link,
                            null_args = base::character(length = 0L),
                            non_null_args = base::character(length = 0L),
@@ -86,7 +92,9 @@
                            no_default_args = base::character(length = 0L),
                            fun_args = base::character(length = 0L),
                            arg_check_settings = base::list(),
-                           no_empty_string_args = base::character(length = 0L)) {
+                           no_empty_string_args = base::character(length = 0L),
+                           seed_arg = NULL,
+                           graphic_dev = FALSE) {
   aa   <- base::sub(pattern = "[[:space:]]+$", replacement = "", x = aa,
                     ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)
   body <- base::sub(pattern = "[[:space:]]+$", replacement = "",
@@ -318,6 +326,115 @@
     )
   } else {
     NULL
+  }
+
+  # ---- "code that protects set.seed()" section -----------------------------
+  # Emitted according to the "seed argument" web page field:
+  #   NULL       -> not emitted at all (field not applicable)
+  #   NA         -> blank field: only the section delimiters are emitted
+  #   "name"     -> full section, with `seed` replaced by the argument name
+  # The argument name is emitted using deparse() with backticks, so names like
+  # `a b` or `if` remain valid R after rebuilding.
+  # "" is normalized to NA first (same behaviour: blank field).
+  if (! base::is.null(x = seed_arg) &&
+      base::length(x = seed_arg) == 1L &&
+      ! base::nzchar(x = seed_arg, keepNA = FALSE)) {
+    seed_arg <- NA_character_
+  }
+  seed_block <- if (base::is.null(x = seed_arg)) {
+    NULL
+  } else if (base::is.na(x = seed_arg)) {
+    base::paste0(
+      "    ######## code that protects set.seed() in the global environment\n",
+      "    ######## end code that protects set.seed() in the global environment\n",
+      "\n",
+      collapse = NULL,
+      recycle0 = FALSE
+    )
+  } else {
+    seed_nm <- base::deparse(expr = base::as.name(x = seed_arg),
+                             width.cutoff = 500L, backtick = TRUE,
+                             control = base::c("keepNA", "keepInteger", "niceNames", "showAttributes"),
+                             nlines = -1L)
+    base::paste0(
+      "    ######## code that protects set.seed() in the global environment\n",
+      "    # optional section: remove the code if your own function has no seed argument\n",
+      "    # Warning: seeding is always at the .GlobalEnv level, whenever the seeding is applied inside a function, another envir, etc.\n",
+      "    if (base::exists(x = \".Random.seed\", where = -1, envir = .GlobalEnv, frame = , mode = \"any\", inherits = TRUE)) {\n",
+      "        # if .Random.seed does not exists, it means that no random operation has been performed yet in any R environment\n",
+      "        tempo.random.seed <- .Random.seed\n",
+      "        base::on.exit(expr = base::assign(x = \".Random.seed\", value = tempo.random.seed, pos = -1, envir = .GlobalEnv, inherits = FALSE, immediate = TRUE), add = TRUE, after = TRUE)\n",
+      "    }else{\n",
+      "        base::on.exit(expr = base::set.seed(seed = NULL, kind = NULL, normal.kind = NULL, sample.kind = NULL), add = TRUE, after = TRUE) # inactivate seeding -> return to complete randomness\n",
+      "    }\n",
+      "    base::set.seed(seed = ", seed_nm, ", kind = NULL, normal.kind = NULL, sample.kind = NULL) # seed value is the seed argument of the function\n",
+      "    ######## end code that protects set.seed() in the global environment\n",
+      "\n",
+      collapse = NULL,
+      recycle0 = FALSE
+    )
+  }
+
+  # ---- "graphic device checking" section ------------------------------------
+  # Emitted according to the "Graphic device management" tick box:
+  #   TRUE  -> full section (device count check on exit + par() restoration)
+  #   FALSE -> only the section delimiters are emitted
+  graphic_block <- if (base::isTRUE(x = graphic_dev)) {
+    base::paste0(
+      "    ######## graphic device checking\n",
+      "    # optional section: remove the code if no graphics used in your functions\n",
+      "    # check the number of graphic devices on exit\n",
+      "    dev_list <- grDevices::dev.list() \n",
+      "    # This check is here in case the developer has not correctly fill tempo_arg\n",
+      "    # nocov start\n",
+      "    # codecov inactivated because it is an internal control of code writing, impossible to cover with argument values.\n",
+      "    base::on.exit(\n",
+      "        expr = if(base::length(x = dev_list) != base::length(x = grDevices::dev.list())){\n",
+      "            tempo_cat <- base::paste0(\n",
+      "                \"INTERNAL ERROR IN THE BACKBONE PART OF \", \n",
+      "                intern_error_text_start, \n",
+      "                \"SOME GRAPHIC DEVICES WERE OPENED BY \", \n",
+      "                function_name, \n",
+      "                \" BUT NOT CLOSED BEFORE END OF EXECUTION.\\n\\nIF IT IS EXPECTED, JUST REMOVE THE CODE DISPLAYING THIS MESSAGE INSIDE \", \n",
+      "                function_name, \n",
+      "                \".\\n\\nOTHERWISE, THE PROBLEM COMES FROM OPENED GRAPHIC DEVICES BEFORE RUNNING \", \n",
+      "                function_name, \n",
+      "                \" (n = \", \n",
+      "                base::length(x = dev_list), \n",
+      "                \") AND AFTER (n = \", \n",
+      "                base::length(x = grDevices::dev.list()), \n",
+      "                \").\", \n",
+      "                intern_error_text_end, \n",
+      "                collapse = NULL, \n",
+      "                recycle0 = FALSE\n",
+      "            )\n",
+      "            base::stop(base::paste0(\"\\n\\n================\\n\\n\", tempo_cat, \"\\n\\n================\\n\\n\", collapse = NULL, recycle0 = FALSE), call. = FALSE, domain = NULL)\n",
+      "\n",
+      "        }, \n",
+      "        add = TRUE, \n",
+      "        after = TRUE\n",
+      "    )\n",
+      "    # nocov end\n",
+      "    # end check the number of graphic devices on exit\n",
+      "    # restore the graphic parameters on exit\n",
+      "    if(base::length(x = grDevices::dev.list()) > 0){\n",
+      "        par_ini <- base::suppressWarnings(expr = graphics::par(no.readonly = TRUE), classes = \"warning\") # to recover the present graphical parameters\n",
+      "        base::on.exit(expr = base::suppressWarnings(expr = graphics::par(par_ini, no.readonly = TRUE), classes = \"warning\"), add = TRUE, after = TRUE)\n",
+      "    }\n",
+      "    # end restore the graphic parameters on exit\n",
+      "    ######## end graphic device checking\n",
+      "\n",
+      collapse = NULL,
+      recycle0 = FALSE
+    )
+  } else {
+    base::paste0(
+      "    ######## graphic device checking\n",
+      "    ######## end graphic device checking\n",
+      "\n",
+      collapse = NULL,
+      recycle0 = FALSE
+    )
   }
 
   base::paste0(
@@ -634,6 +751,15 @@
     "\n",
     .build_arg_check_section(fun_args = fun_args, arg_check_settings = arg_check_settings,
                              extra_section = no_empty_block),
+
+    # ---- "second round of checking and data preparation" section -------
+    # (seed protection + graphic device checking, both user-controlled)
+    "    #### second round of checking and data preparation\n",
+    "\n",
+    seed_block,
+    graphic_block,
+    "    #### end second round of checking and data preparation\n",
+    "\n",
 
     "\n    #### main code\n",
     body,

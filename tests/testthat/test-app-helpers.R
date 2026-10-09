@@ -365,6 +365,120 @@ testthat::test_that(desc = ".build_rebuilt() separates several active names by c
                          regexp = NA)
 })
 
+testthat::test_that(desc = ".build_rebuilt() emits no seed section when seed_arg is NULL", code = {
+  out <- rebuild(code = code_1)  # seed_arg defaults to NULL
+  testthat::expect_no_match(object = out,
+                            regexp = "######## code that protects set.seed() in the global environment",
+                            fixed = TRUE)
+})
+
+testthat::test_that(desc = ".build_rebuilt() treats an empty seed_arg name like NA (delimiters only)", code = {
+  out <- rebuild(code = code_1, seed_arg = "")
+  testthat::expect_match(object = out,
+                         regexp = "######## code that protects set.seed() in the global environment",
+                         fixed = TRUE)
+  testthat::expect_match(object = out,
+                         regexp = "######## end code that protects set.seed() in the global environment",
+                         fixed = TRUE)
+  # no set.seed() call inside the delimiters
+  testthat::expect_no_match(object = out, regexp = "base::set.seed(", fixed = TRUE)
+  # and the generated function still parses
+  testthat::expect_error(object = base::parse(file = "", n = NULL, text = out,
+                                              prompt = "?",
+                                              keep.source = base::getOption(x = "keep.source", default = NULL),
+                                              srcfile = NULL, encoding = "unknown"),
+                         regexp = NA)
+})
+
+testthat::test_that(desc = ".build_rebuilt() emits only the seed section delimiters when seed_arg is NA", code = {
+  out <- rebuild(code = code_1, seed_arg = NA_character_)
+  testthat::expect_match(object = out, regexp = "######## code that protects set.seed() in the global environment", fixed = TRUE)
+  testthat::expect_match(object = out, regexp = "######## end code that protects set.seed() in the global environment", fixed = TRUE)
+  # no set.seed() call inside the delimiters
+  testthat::expect_no_match(object = out, regexp = "base::set.seed(", fixed = TRUE)
+  # and the generated function still parses
+  testthat::expect_error(object = base::parse(file = "", n = NULL, text = out,
+                                              prompt = "?",
+                                              keep.source = base::getOption(x = "keep.source", default = NULL),
+                                              srcfile = NULL, encoding = "unknown"),
+                         regexp = NA)
+})
+
+testthat::test_that(desc = ".build_rebuilt() emits the full seed section when seed_arg is a name", code = {
+  out <- rebuild(code = code_1, seed_arg = "y")
+  testthat::expect_match(object = out,
+                         regexp = "base::set.seed(seed = y, kind = NULL, normal.kind = NULL, sample.kind = NULL) # seed value is the seed argument of the function",
+                         fixed = TRUE)
+  testthat::expect_match(object = out, regexp = "tempo.random.seed <- .Random.seed", fixed = TRUE)
+  testthat::expect_match(object = out, regexp = "base::on.exit(expr = base::set.seed(seed = NULL", fixed = TRUE)
+  # and the generated function still parses
+  testthat::expect_error(object = base::parse(file = "", n = NULL, text = out,
+                                              prompt = "?",
+                                              keep.source = base::getOption(x = "keep.source", default = NULL),
+                                              srcfile = NULL, encoding = "unknown"),
+                         regexp = NA)
+})
+
+testthat::test_that(desc = ".build_rebuilt() emits only the graphic device delimiters when graphic_dev is FALSE", code = {
+  out <- rebuild(code = code_1)  # graphic_dev defaults to FALSE
+  testthat::expect_match(object = out, regexp = "######## graphic device checking", fixed = TRUE)
+  testthat::expect_match(object = out, regexp = "######## end graphic device checking", fixed = TRUE)
+  testthat::expect_no_match(object = out, regexp = "grDevices::dev.list()", fixed = TRUE)
+  testthat::expect_no_match(object = out, regexp = "graphics::par(", fixed = TRUE)
+})
+
+testthat::test_that(desc = ".build_rebuilt() emits the full graphic device section when graphic_dev is TRUE", code = {
+  out <- rebuild(code = code_1, graphic_dev = TRUE)
+  testthat::expect_match(object = out, regexp = "dev_list <- grDevices::dev.list()", fixed = TRUE)
+  testthat::expect_match(object = out, regexp = "SOME GRAPHIC DEVICES WERE OPENED BY", fixed = TRUE)
+  testthat::expect_match(object = out, regexp = "par_ini <- base::suppressWarnings(expr = graphics::par(no.readonly = TRUE), classes = \"warning\")", fixed = TRUE)
+  testthat::expect_match(object = out, regexp = "base::suppressWarnings(expr = graphics::par(par_ini, no.readonly = TRUE), classes = \"warning\")", fixed = TRUE)
+  # the section is placed after the secondary-checking end marker and before
+  # the main code
+  pos_sec <- base::regexpr(pattern = "#### end argument secondary checking",
+                           text = out, ignore.case = FALSE, perl = FALSE,
+                           fixed = TRUE, useBytes = FALSE)
+  pos_sec2 <- base::regexpr(pattern = "#### second round of checking and data preparation",
+                            text = out, ignore.case = FALSE, perl = FALSE,
+                            fixed = TRUE, useBytes = FALSE)
+  pos_dev <- base::regexpr(pattern = "######## graphic device checking",
+                           text = out, ignore.case = FALSE, perl = FALSE,
+                           fixed = TRUE, useBytes = FALSE)
+  pos_end  <- base::regexpr(pattern = "#### end second round of checking and data preparation",
+                            text = out, ignore.case = FALSE, perl = FALSE,
+                            fixed = TRUE, useBytes = FALSE)
+  testthat::expect_gt(object = pos_dev, expected = pos_sec2)
+  testthat::expect_lt(object = pos_dev, expected = pos_end)
+  # and the generated function still parses
+  testthat::expect_error(object = base::parse(file = "", n = NULL, text = out,
+                                              prompt = "?",
+                                              keep.source = base::getOption(x = "keep.source", default = NULL),
+                                              srcfile = NULL, encoding = "unknown"),
+                         regexp = NA)
+})
+
+testthat::test_that(desc = ".build_rebuilt() places the seed section between the secondary-checking end marker and the main code", code = {
+  out <- rebuild(code = code_1, seed_arg = "y", graphic_dev = TRUE)
+  pos_sec  <- base::regexpr(pattern = "#### end argument secondary checking",
+                            text = out, ignore.case = FALSE, perl = FALSE,
+                            fixed = TRUE, useBytes = FALSE)
+  pos_sec2 <- base::regexpr(pattern = "#### second round of checking and data preparation",
+                            text = out, ignore.case = FALSE, perl = FALSE,
+                            fixed = TRUE, useBytes = FALSE)
+  pos_seed <- base::regexpr(pattern = "######## code that protects set.seed() in the global environment",
+                            text = out, ignore.case = FALSE, perl = FALSE,
+                            fixed = TRUE, useBytes = FALSE)
+  pos_dev  <- base::regexpr(pattern = "######## graphic device checking",
+                            text = out, ignore.case = FALSE, perl = FALSE,
+                            fixed = TRUE, useBytes = FALSE)
+  pos_end  <- base::regexpr(pattern = "#### end second round of checking and data preparation",
+                            text = out, ignore.case = FALSE, perl = FALSE,
+                            fixed = TRUE, useBytes = FALSE)
+  testthat::expect_gt(object = pos_sec2, expected = pos_sec)
+  testthat::expect_gt(object = pos_seed, expected = pos_sec2)
+  testthat::expect_gt(object = pos_dev, expected = pos_seed)
+  testthat::expect_lt(object = pos_dev, expected = pos_end)
+})
 
 testthat::test_that(desc = ".build_rebuilt() emits one arg_check() line per argument", code = {
   out <- rebuild(code = code_1)
