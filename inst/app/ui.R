@@ -121,7 +121,7 @@ ui <- fluidPage(
                   a(href = "#", HTML("Function -> <i>safer-r</i> Function<br>Converter")),
                   div(class = "version", 
                       a(href = "https://github.com/safer-r/.github/blob/main/profile/backbone.R", 
-                        "Backbone v19.6", target = "_blank"))
+                        "Backbone v19.7", target = "_blank"))
               ),
               # Table of Contents: dynamique, adaptée à l'écran courant
               uiOutput("toc")
