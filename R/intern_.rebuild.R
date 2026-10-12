@@ -748,9 +748,13 @@
     "    #### end environment checking\n",
 
     # ---- argument secondary checking (arg_check() blocks) ------------
+    # arguments commented out (or absent) in the tempo_arg of the NULL
+    # management section accept NULL: their arg_check() line is wrapped in
+    # if( ! base::is.null(x = <arg>)){ ... } (skipped when NULL).
     "\n",
     .build_arg_check_section(fun_args = fun_args, arg_check_settings = arg_check_settings,
-                             extra_section = no_empty_block),
+                             extra_section = no_empty_block,
+                             wrap_null_args = base::setdiff(x = fun_args, y = non_null_args)),
 
     # ---- "second round of checking and data preparation" section -------
     # (seed protection + graphic device checking, both user-controlled)

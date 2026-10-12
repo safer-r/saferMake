@@ -272,27 +272,51 @@
 }
 
 # Builds the whole "#### argument secondary checking" section.
-# Each argument produces EXACTLY one line:
+# Each argument produces one arg_check() line: plain
 #     tempo <- saferDev::arg_check(data = <arg>, ...) ; base::eval(expr = ee, envir = base::environment(fun = NULL), enclos = base::environment(fun = NULL))
+# or, for wrapped arguments, the same line wrapped in an is.null() guard:
+#     if( ! base::is.null(x = <arg>)){ ... <tempo line> ... }
+# wrap_null_args: argument names whose arg_check() line is wrapped in
+#     if( ! base::is.null(x = <arg>)){ ... } (arguments commented out, or
+#     absent, in the tempo_arg of the "management of NULL arguments" section:
+#     they accept NULL, so the check must be skipped when they are NULL).
 # extra_section: optional text block (character string) inserted after
 #     "######## end argument checking with arg_check()" and before
 #     "#### end argument secondary checking" (used for the "" management
 #     section, which is emitted only when at least one box is ticked).
 .build_arg_check_section <- function(fun_args, arg_check_settings,
-                                     extra_section = NULL) {
+                                     extra_section = NULL,
+                                     wrap_null_args = base::character(length = 0L)) {
   calls <- base::vapply(
     X = fun_args,
     FUN = function(nm) {
       st <- arg_check_settings[[.arg_id(nm = nm)]]
       if (base::is.null(x = st)) st <- .arg_check_defaults
-      base::paste0(
-        "    tempo <- ",
+      wrapped <- nm %in% wrap_null_args
+      indent  <- if (wrapped) "        " else "    "
+      call_txt <- base::paste0(
+        indent, "tempo <- ",
         .arg_check_call_core(data_txt = nm, st = st,
                              lib_path_txt = "lib_path", error_text_txt = "embed_error_text"),
         " ; base::eval(expr = ee, envir = base::environment(fun = NULL), enclos = base::environment(fun = NULL))\n",
         collapse = NULL,
         recycle0 = FALSE
       )
+      if (wrapped) {
+        nm_txt <- base::deparse(expr = base::as.name(x = nm), width.cutoff = 500L,
+                                backtick = TRUE,
+                                control = base::c("keepNA", "keepInteger", "niceNames", "showAttributes"),
+                                nlines = -1L)
+        base::paste0(
+          "    if( ! base::is.null(x = ", nm_txt, ")){ # remove this argument checking if your own function has no ", nm, " argument\n",
+          call_txt,
+          "    }\n",
+          collapse = NULL,
+          recycle0 = FALSE
+        )
+      } else {
+        call_txt
+      }
     },
     FUN.VALUE = base::character(length = 1L),
     USE.NAMES = FALSE

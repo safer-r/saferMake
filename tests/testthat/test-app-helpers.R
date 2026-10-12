@@ -480,6 +480,42 @@ testthat::test_that(desc = ".build_rebuilt() places the seed section between the
   testthat::expect_lt(object = pos_dev, expected = pos_end)
 })
 
+testthat::test_that(desc = ".build_rebuilt() wraps the arg_check() line of NULL-accepting args in is.null()", code = {
+  out <- rebuild(code = code_1, null_args = "x", non_null_args = "y")
+  # x accepts NULL -> wrapped line
+  testthat::expect_match(object = out,
+                         regexp = "    if( ! base::is.null(x = x)){ # remove this argument checking if your own function has no x argument\n        tempo <- saferDev::arg_check(data = x,",
+                         fixed = TRUE)
+  testthat::expect_match(object = out, regexp = "\n    }\n", fixed = TRUE)
+  # y must NOT be wrapped: plain line, no guard
+  testthat::expect_match(object = out,
+                         regexp = "    tempo <- saferDev::arg_check(data = y,",
+                         fixed = TRUE)
+  testthat::expect_no_match(object = out, regexp = "base::is.null(x = y)", fixed = TRUE)
+  # ordering: guard after the ee header, before the footer
+  pos_ee   <- base::regexpr(pattern = "ee <- base::expression(", text = out,
+                            ignore.case = FALSE, perl = FALSE, fixed = TRUE, useBytes = FALSE)
+  pos_wrap <- base::regexpr(pattern = "if( ! base::is.null(x = x)){", text = out,
+                            ignore.case = FALSE, perl = FALSE, fixed = TRUE, useBytes = FALSE)
+  pos_foot <- base::regexpr(pattern = "# lib_path already checked above", text = out,
+                            ignore.case = FALSE, perl = FALSE, fixed = TRUE, useBytes = FALSE)
+  testthat::expect_gt(object = pos_wrap, expected = pos_ee)
+  testthat::expect_lt(object = pos_wrap, expected = pos_foot)
+  # and the generated function still parses
+  testthat::expect_error(object = base::parse(file = "", n = NULL, text = out,
+                                              prompt = "?",
+                                              keep.source = base::getOption(x = "keep.source", default = NULL),
+                                              srcfile = NULL, encoding = "unknown"),
+                         regexp = NA)
+})
+
+testthat::test_that(desc = ".build_rebuilt() wraps arg_check() of args absent from both NULL vectors", code = {
+  # direct call with neither null_args nor non_null_args: all args wrapped
+  out <- rebuild(code = code_1)
+  testthat::expect_match(object = out, regexp = "if( ! base::is.null(x = x)){", fixed = TRUE)
+  testthat::expect_match(object = out, regexp = "if( ! base::is.null(x = y)){", fixed = TRUE)
+})
+
 testthat::test_that(desc = ".build_rebuilt() emits one arg_check() line per argument", code = {
   out <- rebuild(code = code_1)
   testthat::expect_match(object = out, regexp = "tempo <- saferDev::arg_check(data = x,", fixed = TRUE)
