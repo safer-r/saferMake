@@ -63,6 +63,9 @@ server <- function(input, output, session) {
     seed_arg         = "",        # "seed argument" box value ("" = blank)
     seed_arg_ok      = TRUE,      # FALSE when the seed name is not a function argument
     seed_arg_error_msg = base::character(length = 0L), # seed validation message(s)
+    lib_path_arg_name = "",       # "Library path argument" box value ("" = blank)
+    lib_path_arg_ok   = TRUE,     # FALSE when the name is not a function argument
+    lib_path_arg_error_msg = base::character(length = 0L), # lib-path validation message(s)
     graphic_dev      = FALSE,     # "Graphic device management" tick box state
     scroll_to        = NULL      # html id of the block to scroll to (or NULL)
   )
@@ -126,6 +129,9 @@ server <- function(input, output, session) {
     # NEW: seed argument + graphic device tick box (kept on Back)
     sd <- input$seed_arg_name
     rv$seed_arg_name <- if (is.null(sd)) rv$seed_arg_name else trimws(sd)
+    # NEW: library path argument name (kept on Back)
+    lp <- input$lib_path_arg_name
+    rv$lib_path_arg_name <- if (is.null(lp)) rv$lib_path_arg_name else trimws(lp)
     gd <- input$graphic_dev
     rv$graphic_dev <- if (is.null(gd)) rv$graphic_dev else isTRUE(gd)
     if (length(rv$fun_args) > 0L) {
@@ -346,6 +352,8 @@ server <- function(input, output, session) {
     rv$check_failed  <- character(0)   # NEW: reset the failing list on a new run
     rv$seed_arg_ok   <- TRUE           # NEW: reset the seed field error state
     rv$seed_arg_error_msg <- base::character(length = 0L) # NEW
+    rv$lib_path_arg_ok   <- TRUE           # NEW: reset the lib-path field error state
+    rv$lib_path_arg_error_msg <- base::character(length = 0L) # NEW
     rv$scroll_to     <- NULL           # NEW
 
     collide <- intersect(rv$fun_args, .safer_args)
@@ -357,7 +365,8 @@ server <- function(input, output, session) {
           "The following argument ", ifelse(test = length(collide) > 1, "names", no = "name"), " of your function ", ifelse(test = length(collide) > 1, "are", no = "is"), " reserved by the ",
           "safer-r rules and cannot be used:\n",
           paste(collide, collapse = "\n"),
-          ".\nPlease rename ", ifelse(test = length(collide) > 1, "them", no = "it"), " and run again."
+          ".\nPlease rename ", ifelse(test = length(collide) > 1, "them", no = "it"), " and run again.",
+          ifelse(test = "lib_path" %in% collide, yes = "\nIf this argument takes a R library path, use the Library path argument section of the settings page instead.", no = "")
         )
       )
       return(invisible())
@@ -412,11 +421,27 @@ server <- function(input, output, session) {
         rv$seed_arg_error_msg <- seed_err
         rv$check_failed <- character(0)
         rv$arg_check_test <- list()
+        rv$lib_path_arg_ok <- TRUE             # NEW: no stale lib-path alert
+        rv$lib_path_arg_error_msg <- base::character(length = 0L) # NEW
         rv$scroll_to    <- "seed_section"
         return(invisible())
       }
       rv$seed_arg_ok <- TRUE
       rv$seed_arg_error_msg <- base::character(length = 0L)
+      # NEW: "Library path argument" field validation (must name one of the
+      # function arguments, and cannot be the seed argument). Blocks the
+      # download exactly like a failed arg_check().
+      lib_err <- lib_path_arg_check(input$lib_path_arg_name)
+      if (length(lib_err) > 0L) {
+        rv$lib_path_arg_ok <- FALSE
+        rv$lib_path_arg_error_msg <- lib_err
+        rv$check_failed <- character(0)
+        rv$arg_check_test <- list()
+        rv$scroll_to    <- "lib_path_section"
+        return(invisible())
+      }
+      rv$lib_path_arg_ok <- TRUE
+      rv$lib_path_arg_error_msg <- base::character(length = 0L)
       # NEW: consistency errors of the settings themselves (independent of
       # saferDev): detected BEFORE the arg_check() lines are tested. When
       # present, the arg_check() tests are not run and the download is blocked,
@@ -502,6 +527,48 @@ server <- function(input, output, session) {
     }
   }
 
+  # NEW: validation of the "Library path argument" field: the name must be one
+  # of the function argument names ("" = blank is allowed: no rename, the
+  # backbone appends its own lib_path = NULL argument). Reads the snapshot in
+  # rv (NOT input) so that renderUI does not re-run on each keystroke of the
+  # field; the message is stored in rv$lib_path_arg_error_msg by the Run
+  # observer. A library-path argument cannot also be the seed argument.
+  lib_path_arg_error <- function() {
+    if (!rv$lib_path_arg_ok) rv$lib_path_arg_error_msg else base::character(length = 0L)
+  }
+  # Computes the lib-path validation message from a given value (used by the
+  # Run observer before updating rv$lib_path_arg_ok / rv$lib_path_arg_error_msg).
+  lib_path_arg_check <- function(val) {
+    val <- base::trimws(x = val, which = "both", whitespace = "[ \t\r\n]")
+    if (base::is.null(x = val) || base::length(x = val) == 0L) val <- ""
+    if (base::any(base::is.na(x = val))) val <- ""   # robustness: NA -> blank
+    if (base::length(x = rv$fun_args) == 0L) {
+      # zero-argument function: no name can be a library path argument
+      if (base::nzchar(x = val)) {
+        base::c(base::paste0(
+          "\"", val, "\" cannot be a library path argument: your function has no argument."
+        ))
+      } else {
+        base::character(length = 0L)
+      }
+    } else if (! base::nzchar(x = val) || val %in% rv$fun_args) {
+      if (base::nzchar(x = val) &&
+          base::identical(x = val, y = base::trimws(x = input$seed_arg_name,
+                                                    which = "both", whitespace = "[ \t\r\n]"))) {
+        base::c(base::paste0(
+          "\"", val, "\" cannot be at the same time the seed argument and a library path argument."
+        ))
+      } else {
+        base::character(length = 0L)
+      }
+    } else {
+      base::c(base::paste0(
+        "\"", val, "\" is not one of the argument names of your function ",
+        "(expected one of: ", base::paste0(rv$fun_args, collapse = ", "), ")."
+      ))
+    }
+  }
+
   # ---- BACK buttons (checkbox states are preserved like pkg/link) ----------
   observeEvent(input$back_from_result, {
     # NEW: centralized snapshot (pkg, link, checkboxes, arg_check() settings)
@@ -529,6 +596,10 @@ server <- function(input, output, session) {
       gd  <- if (is.null(input$graphic_dev)) rv$graphic_dev else isTRUE(input$graphic_dev)
       rv$seed_arg_name <- sd                     # kept in sync for "Back"
       rv$graphic_dev   <- gd                     # kept in sync for "Back"
+      # NEW: library path argument name (with rv fallback)
+      lp  <- if (is.null(input$lib_path_arg_name)) rv$lib_path_arg_name else trimws(input$lib_path_arg_name)
+      lp  <- if (is.null(lp)) "" else lp
+      rv$lib_path_arg_name <- lp                 # kept in sync for "Back"
       # seed_arg for .build_rebuilt(): NULL = no section, NA = blank field
       # (only the delimiters), otherwise the argument name.
       seed_arg <- if (!base::nzchar(x = sd)) NA_character_ else sd
@@ -564,22 +635,61 @@ server <- function(input, output, session) {
       arg_check_settings <- get_arg_check_settings()
       rv$arg_check_settings <- arg_check_settings       # kept in sync for "Back"
 
+      # NEW: library-path argument handling: when the field is filled (and
+      # validated by the check_and_save observer), the named argument is
+      # renamed to lib_path in the verbatim signature (aa) and body, so that
+      # it becomes the lib_path argument handled by the backbone. The
+      # backbone then does not append its own lib_path = NULL (user_lib_path
+      # = TRUE), and "lib_path" is excluded from the per-argument checks.
+      aa_use  <- rv$aa
+      body_use <- rv$fun_body
+      no_def_use <- rv$no_default_args
+      fun_args_use <- rv$fun_args
+      null_use     <- null_argument
+      non_null_use <- non_null_argument
+      empty_use    <- empty_argument
+      non_empty_use <- non_empty_argument
+      no_empty_use  <- no_empty_argument
+      user_lib_path <- FALSE
+      if (base::nzchar(x = lp) && lp %in% rv$fun_args) {
+        parts_ren <- .rename_lib_path_arg(aa = aa_use, body = body_use, name = lp,
+                                          has_no_default = lp %in% no_def_use)
+        aa_use     <- parts_ren$aa
+        body_use   <- parts_ren$body
+        if (base::length(x = no_def_use) > 0L && lp %in% no_def_use) {
+          no_def_use <- base::setdiff(x = no_def_use, y = lp)
+        }
+        # rename the original name into lib_path in all the per-argument
+        # vectors, so that the generated code never references the old name
+        # (the per-argument settings, keyed by the ORIGINAL names, are kept
+        # for the "Back" restoration but are ignored for lib_path:
+        # .build_rebuilt() excludes it from every checking list)
+        fun_args_use[fun_args_use == lp]   <- "lib_path"
+        null_use[null_use == lp]           <- "lib_path"
+        non_null_use[non_null_use == lp]   <- "lib_path"
+        empty_use[empty_use == lp]         <- "lib_path"
+        non_empty_use[non_empty_use == lp] <- "lib_path"
+        no_empty_use[no_empty_use == lp]   <- "lib_path"
+        user_lib_path <- TRUE
+      }
+
       # NEW: the arg_check() tests are NOT run here anymore. They are run by the
       # check_and_save observer BEFORE the download is triggered, so that the
       # save pop-up appears only when no arg_check() line failed.
 
       # FIX (bug 2): pass the LOCAL vectors
-      code <- .build_rebuilt(aa = rv$aa, body = rv$fun_body, pkg = pkg, link = link,
-                            null_args = null_argument,
-                            non_null_args = non_null_argument,
-                            empty_args = empty_argument,
-                            non_empty_args = non_empty_argument,
-                            no_default_args = rv$no_default_args,
-                            fun_args = rv$fun_args,
+      code <- .build_rebuilt(aa = aa_use, body = body_use, pkg = pkg, link = link,
+                            null_args = null_use,
+                            non_null_args = non_null_use,
+                            empty_args = empty_use,
+                            non_empty_args = non_empty_use,
+                            no_default_args = no_def_use,
+                            fun_args = fun_args_use,
                             arg_check_settings = arg_check_settings,
-                            no_empty_string_args = no_empty_argument,
+                            no_empty_string_args = no_empty_use,
                             seed_arg = seed_arg,
-                            graphic_dev = gd)
+                            graphic_dev = gd,
+                            user_lib_path = user_lib_path)
       rv$rebuilt <- code
 
       # Guard: never write a file that does not parse
@@ -611,6 +721,7 @@ server <- function(input, output, session) {
         list(tags$li(tags$a(href = "#link_section", "Error report link"))),
         list(tags$li(tags$a(href = "#seed_section", "Seed argument"))),
         list(tags$li(tags$a(href = "#graphic_section", "Graphic device management"))),
+        list(tags$li(tags$a(href = "#lib_path_section", "Library path argument"))),
         if (length(rv$fun_args) == 0L) {
           list(tags$li("No arguments"))
         } else {
@@ -742,6 +853,38 @@ server <- function(input, output, session) {
                                width = "100%")
                )
 
+               # NEW: "Library path argument" section: name of the argument
+               # whose value is an R library path (blank = no rename, the
+               # backbone appends its own lib_path = NULL argument). Red alert
+               # under the field when the name is not one of the function
+               # argument names (set by the Run button check); orange warning
+               # announcing the rename when the name is valid.
+               lib_path_section <- tagList(
+                 h4(id = "lib_path_section", "Library path argument"),
+                 md_code("If one of the argument of your function takes a R library path, please indicates its name. Otherwise leave blank."),
+                 textInput(inputId = "lib_path_arg_name",
+                           label = "Library path argument name. Otherwise, leave blanck.",
+                           value = rv$lib_path_arg_name,
+                           placeholder = "Library path argument name",
+                           width = "100%"),
+                 if (!isTRUE(rv$lib_path_arg_ok)) {
+                   div(id = "lib_path_arg_error",
+                       class = "alert alert-danger", role = "alert",
+                       style = "margin-top: 5px; margin-bottom: 5px; white-space: pre-line;",
+                       lib_path_arg_error())
+                 } else if (base::nzchar(x = rv$lib_path_arg_name) &&
+                            rv$lib_path_arg_name %in% rv$fun_args) {
+                   div(class = "alert alert-warning", role = "alert",
+                       style = "margin-top: 5px; margin-bottom: 5px; white-space: pre-line;",
+                       md_code(paste0(
+                         "The argument `", rv$lib_path_arg_name,
+                         "` will be renamed to `lib_path` in the safer-r function. Its value checking is ",
+                         "handled by the backbone \"check of lib_path\" section, so its per-argument ",
+                         "arg_check() settings below are ignored."
+                       )))
+                 }
+               )
+
                # NEW: summary of the failed arg_check() tests, displayed at the
                # top of the settings page (scroll target when a check fails).
                check_summary <- if (length(rv$check_failed) > 0L) {
@@ -793,6 +936,8 @@ server <- function(input, output, session) {
                    hr(),
                    graphic_section,
                    hr(),
+                   lib_path_section,
+                   hr(),
                    result_footer,
                    scroll_to_js(rv$scroll_to) # NEW: slide to the top error message
                  )
@@ -811,6 +956,8 @@ server <- function(input, output, session) {
                    seed_section,
                    hr(),
                    graphic_section,
+                   hr(),
+                   lib_path_section,
                    hr(),
                    # One section per argument: NULL/empty checkboxes, then the five
                    # arg_check() text fields stacked vertically (free text, no

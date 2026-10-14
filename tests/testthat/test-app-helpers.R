@@ -727,3 +727,129 @@ testthat::test_that(desc = ".run_arg_check_tests() reports a failure for inconsi
   testthat::expect_false(object = res$arg_x$ok)
   testthat::expect_true(object = base::nzchar(x = res$arg_x$message, keepNA = FALSE))
 })
+
+# --- .rename_lib_path_arg() ----------------------------------------------------
+
+testthat::test_that(desc = ".rename_lib_path_arg() renames the argument in the signature and the body", code = {
+  code <- "my_fun <- function(lib_paths, dir = 1){\n    base::.libPaths(new = lib_paths)\n    dir\n}"
+  parts <- saferMake:::.extract_aa_body(code = code)
+  ren <- saferMake:::.rename_lib_path_arg(aa = parts$aa, body = parts$body, name = "lib_paths")
+  testthat::expect_match(object = ren$aa, regexp = "function(lib_path, dir = 1", fixed = TRUE)
+  testthat::expect_match(object = ren$body, regexp = "base::.libPaths(new = lib_path)", fixed = TRUE)
+  testthat::expect_no_match(object = ren$aa, regexp = "lib_paths", fixed = TRUE)
+  testthat::expect_no_match(object = ren$body, regexp = "lib_paths", fixed = TRUE)
+})
+
+testthat::test_that(desc = ".rename_lib_path_arg() respects word boundaries", code = {
+  code <- "my_fun <- function(lib_paths){\n    my_lib_paths <- 1\n    lib_paths2 <- 2\n    base::paste0(prefix_lib_paths, lib_paths)\n}"
+  parts <- saferMake:::.extract_aa_body(code = code)
+  ren <- saferMake:::.rename_lib_path_arg(aa = parts$aa, body = parts$body, name = "lib_paths")
+  # unrelated identifiers are NOT touched
+  testthat::expect_match(object = ren$body, regexp = "my_lib_paths <- 1", fixed = TRUE)
+  testthat::expect_match(object = ren$body, regexp = "lib_paths2 <- 2", fixed = TRUE)
+  testthat::expect_match(object = ren$body, regexp = "prefix_lib_paths", fixed = TRUE)
+  # the real argument IS renamed (last use, after a comma-space)
+  testthat::expect_match(object = ren$body, regexp = "base::paste0(prefix_lib_paths, lib_path)", fixed = TRUE)
+})
+
+testthat::test_that(desc = ".rename_lib_path_arg() inserts = NULL when the formal has no default", code = {
+  code <- "my_fun <- function(lib_paths, dir){\n    dir\n}"
+  parts <- saferMake:::.extract_aa_body(code = code)
+  ren <- saferMake:::.rename_lib_path_arg(aa = parts$aa, body = parts$body, name = "lib_paths",
+                                          has_no_default = TRUE)
+  testthat::expect_match(object = ren$aa, regexp = "function(lib_path = NULL, dir", fixed = TRUE)
+  # body untouched by the = NULL insertion
+  testthat::expect_no_match(object = ren$body, regexp = "= NULL", fixed = TRUE)
+  # no = NULL insertion when the argument already has a default
+  code2 <- "my_fun <- function(lib_paths = \"~/R\", dir){\n    dir\n}"
+  parts2 <- saferMake:::.extract_aa_body(code = code2)
+  ren2 <- saferMake:::.rename_lib_path_arg(aa = parts2$aa, body = parts2$body, name = "lib_paths",
+                                           has_no_default = FALSE)
+  testthat::expect_match(object = ren2$aa, regexp = 'function(lib_path = "~/R", dir', fixed = TRUE)
+})
+
+testthat::test_that(desc = ".rename_lib_path_arg() does not corrupt the signature when the function name equals the argument name", code = {
+  code <- "lib_paths <- function(x, lib_paths){\n    x\n}"
+  parts <- saferMake:::.extract_aa_body(code = code)
+  ren <- saferMake:::.rename_lib_path_arg(aa = parts$aa, body = parts$body, name = "lib_paths",
+                                          has_no_default = TRUE)
+  # the function name is renamed (documented limitation) but the "= NULL"
+  # insertion MUST hit the formal declaration, not the function name
+  testthat::expect_match(object = ren$aa,
+                         regexp = "lib_path <- function(x, lib_path = NULL", fixed = TRUE)
+  testthat::expect_error(object = base::parse(file = "", n = NULL,
+                                              text = base::paste0(ren$aa, "){\n", ren$body, "\n}"),
+                                              prompt = "?",
+                                              keep.source = base::getOption(x = "keep.source", default = NULL),
+                                              srcfile = NULL, encoding = "unknown"),
+                         regexp = NA)
+})
+
+# --- .build_rebuilt(user_lib_path = TRUE): merge semantics ---------------------
+
+testthat::test_that(desc = ".build_rebuilt(user_lib_path = TRUE) does not duplicate lib_path in the signature", code = {
+  code <- "my_fun <- function(lib_paths = NULL, dir = 1){\n    dir\n}"
+  parts <- saferMake:::.extract_aa_body(code = code)
+  ren <- saferMake:::.rename_lib_path_arg(aa = parts$aa, body = parts$body, name = "lib_paths")
+  out <- saferMake:::.build_rebuilt(aa = ren$aa, body = ren$body, pkg = "", link = "",
+                                    fun_args = c("lib_path", "dir"),
+                                    user_lib_path = TRUE)
+  # exactly one lib_path formal (the renamed user one), then the two remaining
+  # safer-r args; the appended lib_path = NULL is NOT present
+  testthat::expect_match(object = out, regexp = "function(lib_path = NULL, dir = 1,", fixed = TRUE)
+  testthat::expect_no_match(object = out, regexp = "dir = 1,\n    lib_path = NULL", fixed = TRUE)
+  testthat::expect_match(object = out, regexp = "safer_check = TRUE,", fixed = TRUE)
+  testthat::expect_error(object = base::parse(file = "", n = NULL, text = out,
+                                              prompt = "?",
+                                              keep.source = base::getOption(x = "keep.source", default = NULL),
+                                              srcfile = NULL, encoding = "unknown"),
+                         regexp = NA)
+})
+
+testthat::test_that(desc = ".build_rebuilt(user_lib_path = TRUE) excludes lib_path from the per-argument checks", code = {
+  code <- "my_fun <- function(lib_paths = NULL, dir = 1){\n    dir\n}"
+  parts <- saferMake:::.extract_aa_body(code = code)
+  ren <- saferMake:::.rename_lib_path_arg(aa = parts$aa, body = parts$body, name = "lib_paths")
+  out <- saferMake:::.build_rebuilt(aa = ren$aa, body = ren$body, pkg = "", link = "",
+                                    null_args = character(0),
+                                    non_null_args = "dir",
+                                    empty_args = character(0),
+                                    non_empty_args = "dir",
+                                    fun_args = c("lib_path", "dir"),
+                                    no_empty_string_args = character(0),
+                                    user_lib_path = TRUE)
+  # the tempo_arg blocks list only the regular user arg + the safer-r args:
+  # no ACTIVE "lib_path" line (only the commented safer-r line "inactivated
+  # because can be NULL", which starts with "# ")
+  testthat::expect_no_match(object = out, regexp = "\n        \"lib_path\", ", fixed = TRUE)
+  testthat::expect_match(object = out,
+                         regexp = '# "lib_path", # inactivated because can be NULL',
+                         fixed = TRUE)
+  # no arg_check() line for lib_path
+  testthat::expect_no_match(object = out, regexp = "arg_check(data = lib_path,", fixed = TRUE)
+  testthat::expect_match(object = out, regexp = "arg_check(data = dir,", fixed = TRUE)
+  testthat::expect_error(object = base::parse(file = "", n = NULL, text = out,
+                                              prompt = "?",
+                                              keep.source = base::getOption(x = "keep.source", default = NULL),
+                                              srcfile = NULL, encoding = "unknown"),
+                         regexp = NA)
+})
+
+testthat::test_that(desc = ".build_rebuilt() emits the check of lib_path section without the safer_check guard", code = {
+  out <- rebuild(code = code_1)
+  testthat::expect_match(object = out,
+                         regexp = "    ######## check of lib_path\n    # must be before any :: or ::: non basic package calling\n    # always executed: lib_path is always checked, whatever the value of safer_check\n    if( ! base::is.null(x = lib_path)){",
+                         fixed = TRUE)
+  # the section body is indented one level less than before (no guard wrapper)
+  testthat::expect_match(object = out,
+                         regexp = "\n    }else{\n        lib_path <- base::.libPaths(new = , include.site = TRUE)",
+                         fixed = TRUE)
+  testthat::expect_no_match(object = out,
+                            regexp = "this line must be inactivated if you want to use lib_path in the main code",
+                            fixed = TRUE)
+  testthat::expect_error(object = base::parse(file = "", n = NULL, text = out,
+                                              prompt = "?",
+                                              keep.source = base::getOption(x = "keep.source", default = NULL),
+                                              srcfile = NULL, encoding = "unknown"),
+                         regexp = NA)
+})

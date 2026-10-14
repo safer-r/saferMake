@@ -66,6 +66,58 @@
   }
 }
 
+# Rename an argument of the submitted function to lib_path, in the verbatim
+# signature (aa) and in the verbatim body. Used when the user declares, in the
+# "Library path argument" section of the app, an argument whose value is an R
+# library path: the backbone expects this argument to be named lib_path.
+# name           : original argument name (e.g. "lib_paths"). Never "lib_path"
+#                  itself (a literal lib_path argument is rejected by the app).
+# has_no_default : when TRUE, " = NULL" is inserted right after the formal
+#                  declaration in the signature, because the backbone expects
+#                  lib_path to default to NULL. Only the first formal-looking
+#                  occurrence is modified.
+# Replacement uses word boundaries: no alphanumeric, "_" or "." character is
+# accepted just before or just after the name, so that renaming "lib_paths"
+# never touches "my_lib_paths" or "lib_paths2".
+# Known limitations (same class as .extract_aa_body(), which does not track
+# string literals either): occurrences of the name inside string literals, and
+# list member accesses like df$name, are also renamed; and if another argument
+# default value uses the renamed argument inside a call (e.g.
+# function(x = paste(lib_paths), lib_paths)), the "= NULL" insertion can hit
+# that occurrence instead of the formal declaration. If the function name
+# itself equals the renamed argument name (e.g. lib_paths <- function(x,
+# lib_paths)), the function name is also renamed in the signature.
+.rename_lib_path_arg <- function(aa, body, name, has_no_default = FALSE) {
+  # \Q...\E quoting of the verbatim name: a literal \E inside the name would
+  # terminate the quoting early, so escape it ("\\E\\E" resumes the quoting)
+  name_q <- base::gsub(pattern = "\\\\E", replacement = "\\\\E\\\\E", x = name,
+                       ignore.case = FALSE, perl = TRUE, fixed = FALSE, useBytes = FALSE)
+  # word-boundary pattern around the (verbatim) argument name
+  bound <- base::paste0("(?<![A-Za-z0-9_.])\\Q", name_q, "\\E(?![A-Za-z0-9_.])",
+                        collapse = NULL, recycle0 = FALSE)
+  if (base::isTRUE(x = has_no_default)) {
+    # a formal declaration is always preceded by "(", "," or a newline (plus
+    # optional spacing) inside the signature: \A cannot occur because aa
+    # always starts with "<fun_name> <- function("
+    form_pat <- base::paste0(
+      "((?:[(,]|\\n)[ \\t\\n]*)(?<![A-Za-z0-9_.])\\Q", name_q,
+      "\\E(?![A-Za-z0-9_.])(?![ \\t]*=)",
+      collapse = NULL,
+      recycle0 = FALSE
+    )
+    aa <- base::sub(pattern = form_pat,
+                    replacement = base::paste0("\\1", name, " = NULL",
+                                               collapse = NULL, recycle0 = FALSE),
+                    x = aa, ignore.case = FALSE, perl = TRUE, fixed = FALSE,
+                    useBytes = FALSE)
+  }
+  aa   <- base::gsub(pattern = bound, replacement = "lib_path", x = aa,
+                     ignore.case = FALSE, perl = TRUE, fixed = FALSE, useBytes = FALSE)
+  body <- base::gsub(pattern = bound, replacement = "lib_path", x = body,
+                     ignore.case = FALSE, perl = TRUE, fixed = FALSE, useBytes = FALSE)
+  base::list(aa = aa, body = body)
+}
+
 # null_args       : argument names that ACCEPT NULL -> commented out in tempo_arg
 # non_null_args   : argument names that must NOT be NULL -> active in tempo_arg
 # empty_args      : argument names that ACCEPT empty non NULL values
@@ -84,6 +136,15 @@
 #                   seed value of set.seed(): full section emitted).
 # graphic_dev      : TRUE (full graphic device checking section emitted),
 #                   FALSE (only the section delimiters emitted).
+# user_lib_path    : TRUE when the user function provides its own lib_path
+#                   argument (declared in the "Library path argument" section
+#                   of the app and renamed to lib_path by the caller): the
+#                   signature does NOT append a second lib_path = NULL (the
+#                   user formal is kept, with its own default), and "lib_path"
+#                   is excluded from all the per-argument checking lists
+#                   (NULL, empty, "", arg_check()): it is covered by the
+#                   standard commented safer-r lines of the tempo_arg blocks
+#                   and by the backbone "check of lib_path" section.
 .build_rebuilt <- function(aa, body, pkg, link,
                            null_args = base::character(length = 0L),
                            non_null_args = base::character(length = 0L),
@@ -94,13 +155,33 @@
                            arg_check_settings = base::list(),
                            no_empty_string_args = base::character(length = 0L),
                            seed_arg = NULL,
-                           graphic_dev = FALSE) {
+                           graphic_dev = FALSE,
+                           user_lib_path = FALSE) {
   aa   <- base::sub(pattern = "[[:space:]]+$", replacement = "", x = aa,
                     ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)
   body <- base::sub(pattern = "[[:space:]]+$", replacement = "",
                     x = base::sub(pattern = "^[[:space:]]*\n", replacement = "", x = body,
                                   ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE),
                     ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)
+
+  # ---- user-provided lib_path argument ------------------------------------
+  # When the user function provides its own lib_path argument (renamed from
+  # its original name by the caller, and signalled with user_lib_path = TRUE),
+  # the name appears among fun_args but must not be treated as a "regular"
+  # user argument in the per-argument checking lists: it is covered by the
+  # backbone "check of lib_path" section, the standard commented safer-r lines
+  # of the tempo_arg blocks, and no arg_check() line is generated for it.
+  # Note: a literal lib_path argument in the pasted code is rejected upstream
+  # by the app (reserved name), so this can only come from the rename flow.
+  if (base::isTRUE(x = user_lib_path)) {
+    null_args            <- base::setdiff(x = null_args,            y = "lib_path")
+    non_null_args        <- base::setdiff(x = non_null_args,        y = "lib_path")
+    empty_args           <- base::setdiff(x = empty_args,           y = "lib_path")
+    non_empty_args       <- base::setdiff(x = non_empty_args,       y = "lib_path")
+    no_default_args      <- base::setdiff(x = no_default_args,      y = "lib_path")
+    fun_args             <- base::setdiff(x = fun_args,             y = "lib_path")
+    no_empty_string_args <- base::setdiff(x = no_empty_string_args, y = "lib_path")
+  }
 
   comma <- if (base::grepl(pattern = "\\($", x = aa,
                            ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE) ||
@@ -439,7 +520,11 @@
 
   base::paste0(
     aa, comma,
-    "\n    lib_path = NULL, \n    safer_check = TRUE, \n    error_text = \"\" \n){\n",
+    if (base::isTRUE(x = user_lib_path)) {
+      "\n    safer_check = TRUE, \n    error_text = \"\" \n){\n"
+    } else {
+      "\n    lib_path = NULL, \n    safer_check = TRUE, \n    error_text = \"\" \n){\n"
+    },
     "\n    #### package name\n    ", pkg_line, "\n    #### end package name\n",
     "\n    #### internal error report link\n",
     "    internal_error_report_link <- ", link_line,
@@ -666,46 +751,45 @@
 
     "    ######## check of lib_path\n",
     "    # must be before any :: or ::: non basic package calling\n",
-    "    if(safer_check == TRUE){ # this line must be inactivated if you want to use lib_path in the main code (other than in safer functions present in the main code) \n",
-    "        if( ! base::is.null(x = lib_path)){ #  is.null(NA) returns FALSE so OK.\n",
-    "            if( ! base::all(base::typeof(x = lib_path) == \"character\", na.rm = TRUE)){ # na.rm = TRUE but no NA returned with typeof (typeof(NA) == \"character\" returns FALSE)\n",
-    "                if(base::all(base::mode(x = lib_path) == \"function\", na.rm = TRUE)){\n",
-    "                    lib_path <- base::deparse1(expr = lib_path, collapse = \"\", width.cutoff = 500L)\n",
-    "                }\n",
-    "                tempo_cat <- base::paste0(\n",
-    "                    error_text_start, \n",
-    "                    \"THE DIRECTORY PATH INDICATED IN THE lib_path ARGUMENT MUST BE A VECTOR OF CHARACTERS.\\nHERE IT IS:\\n\", \n",
-    "                    base::ifelse(test = base::length(x = lib_path) == 0 | base::all(base::suppressWarnings(expr = lib_path == base::quote(expr = ), classes = \"warning\"), na.rm = TRUE), yes = \"<NULL, EMPTY OBJECT OR EMPTY NAME>\", no = base::paste0(lib_path, collapse = \"\\n\", recycle0 = FALSE)),\n",
-    "                    collapse = NULL, \n",
-    "                    recycle0 = FALSE\n",
-    "                )\n",
-    "                base::stop(base::paste0(\"\\n\\n================\\n\\n\", tempo_cat, \"\\n\\n================\\n\\n\", collapse = NULL, recycle0 = FALSE), call. = FALSE, domain = NULL)\n",
-    "            }else if( ! base::all(base::dir.exists(paths = lib_path), na.rm = TRUE)){ # separation to avoid the problem of tempo$problem == FALSE and lib_path == NA. dir.exists(paths = NA) returns an error, so ok. dir.exists(paths = \"\") returns FALSE so ok\n",
-    "                tempo_log <- ! base::dir.exists(paths = lib_path)\n",
-    "                tempo_cat_b <- lib_path[tempo_log] # here lib_path is character string\n",
-    "                tempo_cat_b[tempo_cat_b == \"\"] <- \"\\\"\\\"\"\n",
-    "                tempo_cat <- base::paste0(\n",
-    "                    error_text_start, \n",
-    "                    \"THE DIRECTORY PATH\",\n",
-    "                    base::ifelse(test = base::sum(tempo_log, na.rm = TRUE) > 1, yes = \"S\", no = \"\"), \n",
-    "                    \" INDICATED IN THE lib_path ARGUMENT DO\", \n",
-    "                    base::ifelse(test = base::sum(tempo_log, na.rm = TRUE) > 1, yes = \"\", no = \"ES\"), \n",
-    "                    \" NOT EXIST:\\n\", \n",
-    "                    base::paste0(tempo_cat_b, collapse = \"\\n\", recycle0 = FALSE), \n",
-    "                    collapse = NULL, \n",
-    "                    recycle0 = FALSE\n",
-    "                )\n",
-    "                base::stop(base::paste0(\"\\n\\n================\\n\\n\", tempo_cat, \"\\n\\n================\\n\\n\", collapse = NULL, recycle0 = FALSE), call. = FALSE, domain = NULL)\n",
-    "            }else{\n",
-    "                ini_lib_path <- base::.libPaths(new = , include.site = TRUE) # normal to have empty new argument\n",
-    "                base::on.exit(expr = base::.libPaths(new = ini_lib_path, include.site = TRUE), add = TRUE, after = TRUE) # return to the previous libPaths()\n",
-    "                base::.libPaths(new = base::sub(x = base::c(ini_lib_path, lib_path), pattern = \"/$|\\\\\\\\$\", replacement = \"\", ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE), include.site = TRUE) # base::.libPaths(new = ) add path to default path. BEWARE: base::.libPaths() does not support / at the end of a submitted path. The reason of the check and replacement of the last / or \\\\ in path\n",
-    "                lib_path <- base::.libPaths(new = , include.site = TRUE) # normal to have empty new argument\n",
+    "    # always executed: lib_path is always checked, whatever the value of safer_check\n",
+    "    if( ! base::is.null(x = lib_path)){ #  is.null(NA) returns FALSE so OK.\n",
+    "        if( ! base::all(base::typeof(x = lib_path) == \"character\", na.rm = TRUE)){ # na.rm = TRUE but no NA returned with typeof (typeof(NA) == \"character\" returns FALSE)\n",
+    "            if(base::all(base::mode(x = lib_path) == \"function\", na.rm = TRUE)){\n",
+    "                lib_path <- base::deparse1(expr = lib_path, collapse = \"\", width.cutoff = 500L)\n",
     "            }\n",
+    "            tempo_cat <- base::paste0(\n",
+    "                error_text_start, \n",
+    "                \"THE DIRECTORY PATH INDICATED IN THE lib_path ARGUMENT MUST BE A VECTOR OF CHARACTERS.\\nHERE IT IS:\\n\", \n",
+    "                base::ifelse(test = base::length(x = lib_path) == 0 | base::all(base::suppressWarnings(expr = lib_path == base::quote(expr = ), classes = \"warning\"), na.rm = TRUE), yes = \"<NULL, EMPTY OBJECT OR EMPTY NAME>\", no = base::paste0(lib_path, collapse = \"\\n\", recycle0 = FALSE)),\n",
+    "                collapse = NULL, \n",
+    "                recycle0 = FALSE\n",
+    "            )\n",
+    "            base::stop(base::paste0(\"\\n\\n================\\n\\n\", tempo_cat, \"\\n\\n================\\n\\n\", collapse = NULL, recycle0 = FALSE), call. = FALSE, domain = NULL)\n",
+    "        }else if( ! base::all(base::dir.exists(paths = lib_path), na.rm = TRUE)){ # separation to avoid the problem of tempo$problem == FALSE and lib_path == NA. dir.exists(paths = NA) returns an error, so ok. dir.exists(paths = \"\") returns FALSE so ok\n",
+    "            tempo_log <- ! base::dir.exists(paths = lib_path)\n",
+    "            tempo_cat_b <- lib_path[tempo_log] # here lib_path is character string\n",
+    "            tempo_cat_b[tempo_cat_b == \"\"] <- \"\\\"\\\"\"\n",
+    "            tempo_cat <- base::paste0(\n",
+    "                error_text_start, \n",
+    "                \"THE DIRECTORY PATH\",\n",
+    "                base::ifelse(test = base::sum(tempo_log, na.rm = TRUE) > 1, yes = \"S\", no = \"\"), \n",
+    "                \" INDICATED IN THE lib_path ARGUMENT DO\", \n",
+    "                base::ifelse(test = base::sum(tempo_log, na.rm = TRUE) > 1, yes = \"\", no = \"ES\"), \n",
+    "                \" NOT EXIST:\\n\", \n",
+    "                base::paste0(tempo_cat_b, collapse = \"\\n\", recycle0 = FALSE), \n",
+    "                collapse = NULL, \n",
+    "                recycle0 = FALSE\n",
+    "            )\n",
+    "            base::stop(base::paste0(\"\\n\\n================\\n\\n\", tempo_cat, \"\\n\\n================\\n\\n\", collapse = NULL, recycle0 = FALSE), call. = FALSE, domain = NULL)\n",
     "        }else{\n",
-    "            lib_path <- base::.libPaths(new = , include.site = TRUE) # normal to have empty new argument # base::.libPaths(new = lib_path) # or base::.libPaths(new = base::c(base:::.libPaths(), lib_path))\n",
+    "            ini_lib_path <- base::.libPaths(new = , include.site = TRUE) # normal to have empty new argument\n",
+    "            base::on.exit(expr = base::.libPaths(new = ini_lib_path, include.site = TRUE), add = TRUE, after = TRUE) # return to the previous libPaths()\n",
+    "            base::.libPaths(new = base::sub(x = base::c(ini_lib_path, lib_path), pattern = \"/$|\\\\\\\\$\", replacement = \"\", ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE), include.site = TRUE) # base::.libPaths(new = ) add path to default path. BEWARE: base::.libPaths() does not support / at the end of a submitted path. The reason of the check and replacement of the last / or \\\\ in path\n",
+    "            lib_path <- base::.libPaths(new = , include.site = TRUE) # normal to have empty new argument\n",
     "        }\n",
-    "    }  # this line must be inactivated if you want to use lib_path in the main code (other than in safer functions present in the main code) \n",
+    "    }else{\n",
+    "        lib_path <- base::.libPaths(new = , include.site = TRUE) # normal to have empty new argument # base::.libPaths(new = lib_path) # or base::.libPaths(new = base::c(base:::.libPaths(), lib_path))\n",
+    "    }\n",
     "    ######## end check of lib_path\n",
     "\n",
 
