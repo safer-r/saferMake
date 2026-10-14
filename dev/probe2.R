@@ -1,0 +1,1 @@
+pd <- utils::getParseData(base::parse(text='a <- sum(x)\n# accent: caf\u00e9 puis sum(y)', keep.source=TRUE)); print(pd[, c('token','text','line1','col1','line2','col2')]); txt <- 'a <- sum(x)\n# caf\u00e9 sum(y)'; cat(nchar(strsplit(txt,'\n')[[1]], type='bytes'), nchar(strsplit(txt,'\n')[[1]], type='chars'), '\n')

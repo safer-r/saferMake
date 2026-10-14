@@ -23,6 +23,7 @@ server <- function(input, output, session) {
   .args_without_default <- saferMake:::.args_without_default
   .extract_aa_body      <- saferMake:::.extract_aa_body
   .build_rebuilt        <- saferMake:::.build_rebuilt
+  .run_code_checks      <- saferMake:::.run_code_checks
 
   # ---- Constants ------------------------------------------------------------
   # ERROR_TEXT / INTERNAL_ERROR_TEXT: user-facing texts of the two error channels
@@ -67,7 +68,13 @@ server <- function(input, output, session) {
     lib_path_arg_ok   = TRUE,     # FALSE when the name is not a function argument
     lib_path_arg_error_msg = base::character(length = 0L), # lib-path validation message(s)
     graphic_dev      = FALSE,     # "Graphic device management" tick box state
-    scroll_to        = NULL      # html id of the block to scroll to (or NULL)
+    scroll_to        = NULL,      # html id of the block to scroll to (or NULL)
+    # NEW: state of the staged code-check loop (see .run_code_checks)
+    code_check_stage = "ok",      # "ok" | "colons" | "args" | "aah_error" | "skip" | "user_error"
+    code_check_code  = NULL,      # modified code to hand back (download + Back restore)
+    code_check_report = NULL,     # raw report text displayed on the code_check screen
+    code_check_df    = NULL,      # all_args_here data.frame displayed at stage "args"
+    code_check_summary = NULL     # automatic-modification summary lines
   )
 
   # ---- JS message handler (register the programmatic download trigger) ------
@@ -275,7 +282,10 @@ server <- function(input, output, session) {
     env <- new.env(parent = globalenv())
     err <- NULL
     res <- tryCatch(
-      eval(parse(text = code), envir = env),
+      # keep.source = TRUE: the function keeps its srcref, so the staged
+      # code checks (.args_insert, saferDev::all_args_here) read the original
+      # text of the code when they run on it
+      eval(parse(text = code, keep.source = TRUE), envir = env),
       error = function(e) { err <<- conditionMessage(e); NULL }
     )
     if (!is.null(err)) {
@@ -371,6 +381,56 @@ server <- function(input, output, session) {
       )
       return(invisible())
     }
+
+    # NEW: staged code checks (always on). 1) qualify the basic-R calls of the
+    # code with <pkg>::, 2) saferDev::colons_check() on the qualified function,
+    # 3) saferDev::all_args_here() and automatic insertion of the argument names
+    # it reports. When a stage reports findings, the code_check screen displays
+    # the raw report, offers the modified code for download, and the Back button
+    # restores it in the code box so the user can complete and resubmit it: the
+    # progression to the settings page happens only when both checks are clean.
+    fun_name_for_loop <- if (identical(rv$fun_name, "<anonymous>")) {
+      "fun_to_complete"
+    } else {
+      rv$fun_name
+    }
+    # pass the already-evaluated function and environment to the staged
+    # checks: when the qualification changes nothing, the code is not
+    # evaluated a second time (the side effects of the user code, e.g.
+    # print() calls, then run only once per Run)
+    checks <- .run_code_checks(code = code, fun_args = rv$fun_args,
+                               fun_name = fun_name_for_loop, f = f, env = env)
+    if (identical(checks$stage, "user_error")) {
+      # the qualified code no longer evaluates (should not happen when the
+      # qualification is empty; the qualification inserts only text between
+      # tokens, and cases like `pkg:: fun(...)` are detected and skipped, but
+      # parse errors can never be fully excluded): Channel 1, as for the
+      # pasted code
+      user_code_error(checks$error_detail)
+      return(invisible())
+    }
+    rv$code_check_stage   <- checks$stage
+    rv$code_check_code    <- checks$code
+    rv$code_check_report  <- checks$report
+    rv$code_check_df      <- checks$df
+    rv$code_check_summary <- checks$summary
+    if (checks$stage %in% base::c("colons", "args", "aah_error")) {
+      rv$scroll_to <- "code_check_report"
+      rv$screen <- "code_check"
+      return(invisible())
+    }
+    # checks clean (or skipped): the qualified code becomes the code converted
+    # by .build_rebuilt(), and the saved code for the Back button of the result
+    # screen reflects it
+    code <- checks$code
+    rv$code <- code
+    parts <- .extract_aa_body(code)
+    if (is.null(parts)) {
+      internal_error(".extract_aa_body() could not locate the signature/body.")
+      return(invisible())
+    }
+    rv$aa        <- parts$aa
+    rv$fun_body  <- parts$body
 
     # FIX (bug 1): pass ALL arguments (named) and log the real parse error
     ok <- tryCatch({
@@ -581,6 +641,34 @@ server <- function(input, output, session) {
     rv$screen <- if (!is.null(rv$prev_screen)) rv$prev_screen else "input"
   })
 
+  # NEW: Back button of the code_check screen: restore the modified code in the
+  # code box so the user can complete it and resubmit it (the modified code is
+  # the last analyzed version, from which the download button also saves).
+  observeEvent(input$back_from_code_check, {
+    if (!is.null(rv$code_check_code) && base::nzchar(x = rv$code_check_code, keepNA = FALSE)) {
+      rv$code <- rv$code_check_code
+    }
+    rv$screen <- "input"
+  })
+
+  # NEW: download of the modified code from the code_check screen (the code the
+  # user must complete, as analyzed by the staged checks).
+  output$download_modified <- downloadHandler(
+    filename = function() {
+      fn <- if (is.null(rv$fun_name) || identical(rv$fun_name, "<anonymous>")) {
+        "fun_to_complete"
+      } else {
+        rv$fun_name
+      }
+      base::paste0(fn, "_to_complete.R")
+    },
+    content = function(file) {
+      code_out <- rv$code_check_code
+      if (is.null(code_out)) code_out <- ""
+      writeLines(code_out, file)
+    }
+  )
+
   # ---- DOWNLOAD: the modified (safer) function -------------------------------
   output$download_safer <- downloadHandler(
     filename = function() {
@@ -705,6 +793,15 @@ server <- function(input, output, session) {
     }
   )
 
+  # ---- The all_args_here() data.frame of the code_check screen ----------------
+  # NEW: rendered as a table under the raw report at stage "args".
+  output$code_check_table <- renderTable({
+    if (is.null(rv$code_check_df) || nrow(rv$code_check_df) == 0L) {
+      return(NULL)
+    }
+    rv$code_check_df
+  }, striped = TRUE, bordered = TRUE)
+
   # ---- Sidebar: Table of Contents (depends on the current screen) -----------
   output$toc <- renderUI({
     entries <- if (identical(rv$screen, "result")) {
@@ -734,6 +831,11 @@ server <- function(input, output, session) {
       list(
         tags$li(tags$a(href = "#intro", "Introduction")),
         tags$li(tags$a(href = "#error_alert_top", "Error message"))
+      )
+    } else if (identical(rv$screen, "code_check")) {
+      list(
+        tags$li(tags$a(href = "#intro", "Introduction")),
+        tags$li(tags$a(href = "#code_check_report", "Code check report"))
       )
     } else {
       list(
@@ -775,6 +877,48 @@ server <- function(input, output, session) {
                hr(),
                back_btn("back_from_error"),
                scroll_to_js(rv$scroll_to)               # NEW: slide to the top error message
+             ),
+
+             # NEW: code_check screen of the staged conversion loop. Shown when
+             # saferDev::colons_check() (stage "colons") or saferDev::
+             # all_args_here() (stages "args" and "aah_error") still reports
+             # findings after the automatic pass (qualification of the basic-R
+             # calls, insertion of the reported argument names). The raw report
+             # is displayed in orange; the modified code can be downloaded and
+             # the Back button restores it in the code box so the user can
+             # complete it and resubmit it (Run again). The progression to the
+             # settings page happens only when both checks are clean.
+             code_check = tagList(
+               intro(),
+               h4(id = "sec_code", "Code of your function"),
+               if (base::length(x = rv$code_check_summary) > 0L) {
+                 div(class = "alert alert-info", role = "alert",
+                     style = "margin-top: 10px; margin-bottom: 10px; white-space: pre-line;",
+                     paste(rv$code_check_summary, collapse = "\n"))
+               },
+               div(id = "code_check_report",
+                   class = "alert alert-warning", role = "alert",
+                   style = "margin-top: 10px; white-space: pre-line;",
+                   if (base::nzchar(x = rv$code_check_report, keepNA = FALSE)) {
+                     rv$code_check_report
+                   } else {
+                     "The check reported findings that could not be completed automatically."
+                   }),
+               if (!is.null(rv$code_check_df) && nrow(rv$code_check_df) > 0L) {
+                 div(style = "margin-top: 10px;",
+                     tags$p("Arguments reported by saferDev::all_args_here():"),
+                     tableOutput(outputId = "code_check_table"))
+               },
+               tags$p(style = "margin-top: 10px; white-space: pre-line;",
+                      "Please, click on the Back button to restore the modified code in the code box, complete it, then resubmit it with the Run button (the modified code can also be saved with the download button below)."),
+               hr(),
+               div(style = "text-align: right;",
+                   downloadButton(outputId = "download_modified",
+                                  label = "Save modified main code",
+                                  class = "btn-primary"),
+                   actionButton(inputId = "back_from_code_check",
+                                label = "Back", icon = icon("arrow-left"))),
+               scroll_to_js(rv$scroll_to)
              ),
 
              result = {

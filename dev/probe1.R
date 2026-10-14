@@ -1,0 +1,1 @@
+pd <- utils::getParseData(base::parse(text='base::sum(x)\nstats :: mean(1)\nx$sum(2)', keep.source=TRUE)); print(pd[, c('token','text','line1','col1')])
