@@ -828,9 +828,9 @@ server <- function(input, output, session) {
                # function argument names (set by the Run button check).
                seed_section <- tagList(
                  h4(id = "seed_section", "Seed argument"),
-                 md_code("If one of the argument is a value for `set.seed()`, please indicate the name."),
+                 md_code("If one of the argument is a value for `set.seed()`, please indicate the name. Otherwise, leave blanck."),
                  textInput(inputId = "seed_arg_name",
-                           label = "Seed argument name. Otherwise, leave blanck.",
+                           label = NULL,
                            value = rv$seed_arg_name,
                            placeholder = "Seed argument name",
                            width = "100%"),
@@ -861,9 +861,9 @@ server <- function(input, output, session) {
                # announcing the rename when the name is valid.
                lib_path_section <- tagList(
                  h4(id = "lib_path_section", "Library path argument"),
-                 md_code("If one of the argument of your function takes a R library path, please indicates its name. Otherwise leave blank."),
+                 md_code("If one of the argument of your function takes a R library path, please indicates its name. Otherwise, leave blanck."),
                  textInput(inputId = "lib_path_arg_name",
-                           label = "Library path argument name. Otherwise, leave blanck.",
+                           label = NULL,
                            value = rv$lib_path_arg_name,
                            placeholder = "Library path argument name",
                            width = "100%"),
