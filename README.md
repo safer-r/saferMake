@@ -9,7 +9,7 @@
 [![R Version](https://img.shields.io/badge/R-%3E%3D%204.6.0-blue?logo=R)](https://cran.r-project.org/)
 [![Downloads](https://cranlogs.r-pkg.org/badges/saferMake)](https://r-pkg.org/pkg/saferMake)<br />
 [![Rworkflows](https://github.com/safer-r/saferMake/actions/workflows/rworkflows.yml/badge.svg)](https://github.com/safer-r/saferMake/actions/workflows/rworkflows.yml)
-[![Codecov](https://codecov.io/github/safer-r/saferMake/coverage.svg?branch=master)](https://app.codecov.io/github/safer-r/saferMake?branch=master)
+[![Codecov](https://codecov.io/github/safer-r/saferMake/coverage.svg?branch=main)](https://app.codecov.io/github/safer-r/saferMake?branch=main)
 [![safer-R Status](https://img.shields.io/badge/Safer--R%20status-backbone%20v21.0-brightgreen)](https://github.com/safer-r/.github/blob/main/profile/backbone.R)<br />
 [![](https://img.shields.io/badge/license-GPL3.0-lightgrey.svg)](https://opensource.org/license/gpl-3.0)
 <!-- badges: end -->
