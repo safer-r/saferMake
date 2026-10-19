@@ -409,7 +409,7 @@ testthat::test_that(desc = ".build_rebuilt() emits the full seed section when se
   testthat::expect_match(object = out,
                          regexp = "base::set.seed(seed = y, kind = NULL, normal.kind = NULL, sample.kind = NULL) # seed value is the seed argument of the function",
                          fixed = TRUE)
-  testthat::expect_match(object = out, regexp = "tempo.random.seed <- .Random.seed", fixed = TRUE)
+  testthat::expect_match(object = out, regexp = "tempo_random_seed <- .Random.seed", fixed = TRUE)
   testthat::expect_match(object = out, regexp = "base::on.exit(expr = base::set.seed(seed = NULL", fixed = TRUE)
   # and the generated function still parses
   testthat::expect_error(object = base::parse(file = "", n = NULL, text = out,
