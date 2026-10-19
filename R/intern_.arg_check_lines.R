@@ -230,7 +230,7 @@
           env$ee <- base::expression(
             argum_check <- base::c(argum_check, tempo$problem),
             text_check <- base::c(text_check, tempo$text),
-            checked_arg_names <- base::c(checked_arg_names, tempo$object.name)
+            checked_arg_names <- base::c(checked_arg_names, tempo$object_name)
           )
           base::eval(
             expr = base::parse(file = "", n = NULL, text = line_txt, prompt = "?",
@@ -329,7 +329,7 @@
     "    text_check <- NULL\n",
     "    checked_arg_names <- NULL # for function debbuging: used by r_debugging_tools\n",
     "    arg_check_error_text <- base::paste0(\"ERROR \", embed_error_text, \"\\n\\n\", collapse = NULL, recycle0 = FALSE) # must be used instead of error_text = embed_error_text when several arg_check are performed on the same argument (tempo1, tempo2, see below)\n",
-    "    ee <- base::expression(argum_check <- base::c(argum_check, tempo$problem) , text_check <- base::c(text_check, tempo$text) , checked_arg_names <- base::c(checked_arg_names, tempo$object.name))\n",
+    "    ee <- base::expression(argum_check <- base::c(argum_check, tempo$problem) , text_check <- base::c(text_check, tempo$text) , checked_arg_names <- base::c(checked_arg_names, tempo$object_name))\n",
     "\n",
     collapse = NULL,
     recycle0 = FALSE
