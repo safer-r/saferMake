@@ -38,7 +38,7 @@ jobs:
           cont: ~
           rspm: ~
     steps:
-    - uses: neurogenomics/rworkflows@master
+    - uses: safer-r/rworkflows@agent
       with:
         run_bioccheck: ${{ false }}
         run_rcmdcheck: ${{ true }}
