@@ -8,6 +8,22 @@
 .base_pkgs <- base::c("stats", "graphics", "grDevices", "utils", "datasets",
                       "methods", "base")
 
+# Fixed explanation displayed in the blue alert of the code_check screen: the
+# automatic qualification covers ONLY the basic R functions, and a user
+# function whose name is identical to a basic function (mean() for instance)
+# but comes from another package may be wrongly qualified. The user must
+# verify that case manually. Built from .base_pkgs so the text cannot drift
+# from the actual set of qualified packages. Defined here (not in
+# R/intern_.code_checks.R) because package-level constants are evaluated at
+# load time, in alphabetical file order: intern_.code_checks.R is sourced
+# before intern_.qualify.R.
+.qualification_explanation <- base::c(
+  base::paste0("Only basic R functions (from the ", base::length(x = .base_pkgs),
+               " default packages: ", base::paste(.base_pkgs, collapse = ", "),
+               ") are automatically qualified with <pkg>::.", collapse = NULL, recycle0 = FALSE),
+  "Caution: if a function name of your code is identical to a basic R function (mean() for instance) but comes from another package, your function might be not good: verify the qualification manually."
+)
+
 # Resolve a call name to its package when the first binding of the name on the
 # current search path is one of the base packages (so that a user-attached
 # package like dplyr shadowing stats::filter is NOT silently qualified: the
@@ -100,7 +116,7 @@
   }
   p <- base::tryCatch(
     expr = base::parse(text = txt, keep.source = TRUE),
-    error = function(e) NULL
+    error = function(e) {NULL}
   )
   if (base::is.null(x = p)) {
     res$skipped <- base::c(res$skipped, "PARSE: the code does not parse")

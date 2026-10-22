@@ -10,36 +10,36 @@
   class_val   <- if (base::identical(x = st$class, y = "NULL", num.eq = TRUE, single.NA = TRUE,
                                      attrib.as.set = TRUE, ignore.bytecode = TRUE,
                                      ignore.environment = FALSE, ignore.srcref = TRUE,
-                                     extptr.as.ref = FALSE)) "NULL"
-                 else base::deparse(expr = st$class, width.cutoff = 60L, backtick = FALSE,
+                                     extptr.as.ref = FALSE)) {"NULL"}
+                 else {base::deparse(expr = st$class, width.cutoff = 60L, backtick = FALSE,
                                     control = base::c("keepNA", "keepInteger", "niceNames", "showAttributes"),
-                                    nlines = -1L)
+                                    nlines = -1L)}
   typeof_val  <- if (base::identical(x = st$typeof, y = "NULL", num.eq = TRUE, single.NA = TRUE,
                                      attrib.as.set = TRUE, ignore.bytecode = TRUE,
                                      ignore.environment = FALSE, ignore.srcref = TRUE,
-                                     extptr.as.ref = FALSE)) "NULL"
-                 else base::deparse(expr = st$typeof, width.cutoff = 60L, backtick = FALSE,
+                                     extptr.as.ref = FALSE)) {"NULL"}
+                 else {base::deparse(expr = st$typeof, width.cutoff = 60L, backtick = FALSE,
                                     control = base::c("keepNA", "keepInteger", "niceNames", "showAttributes"),
-                                    nlines = -1L)
+                                    nlines = -1L)}
   mode_val    <- if (base::identical(x = st$mode, y = "NULL", num.eq = TRUE, single.NA = TRUE,
                                      attrib.as.set = TRUE, ignore.bytecode = TRUE,
                                      ignore.environment = FALSE, ignore.srcref = TRUE,
-                                     extptr.as.ref = FALSE)) "NULL"
-                 else base::deparse(expr = st$mode, width.cutoff = 60L, backtick = FALSE,
+                                     extptr.as.ref = FALSE)) {"NULL"}
+                 else {base::deparse(expr = st$mode, width.cutoff = 60L, backtick = FALSE,
                                     control = base::c("keepNA", "keepInteger", "niceNames", "showAttributes"),
-                                    nlines = -1L)
+                                    nlines = -1L)}
   len_val     <- .arg_check_parse_length(txt = st$length)
-  length_val  <- if (base::is.null(x = len_val)) "NULL"
-                 else base::paste0(len_val, "L", collapse = NULL, recycle0 = FALSE)
+  length_val  <- if (base::is.null(x = len_val)) {"NULL"}
+                 else {base::paste0(len_val, "L", collapse = NULL, recycle0 = FALSE)}
   opts        <- .arg_check_parse_options(txt = st$options)
-  options_val <- if (base::is.null(x = opts)) "NULL"
+  options_val <- if (base::is.null(x = opts)) {"NULL"}
                  else if (base::identical(x = opts, y = "NULL", num.eq = TRUE, single.NA = TRUE,
                                           attrib.as.set = TRUE, ignore.bytecode = TRUE,
                                           ignore.environment = FALSE, ignore.srcref = TRUE,
-                                          extptr.as.ref = FALSE)) "NULL"
-                 else base::deparse(expr = opts, width.cutoff = 60L, backtick = FALSE,
+                                          extptr.as.ref = FALSE)) {"NULL"}
+                 else {base::deparse(expr = opts, width.cutoff = 60L, backtick = FALSE,
                                     control = base::c("keepNA", "keepInteger", "niceNames", "showAttributes"),
-                                    nlines = -1L)
+                                    nlines = -1L)}
   base::paste0(
     "saferDev::arg_check(data = ", data_txt,
     ", class = ", class_val,
@@ -88,49 +88,49 @@
     "numeric"
   }
   n <- .arg_check_parse_length(txt = st$length)
-  if (base::is.null(x = n) || n < 1L) n <- 1L
+  if (base::is.null(x = n) || n < 1L) {n <- 1L}
   opts <- .arg_check_parse_options(txt = st$options)
 
-  vals <- if (n <= 26L) base::letters[base::seq_len(length.out = n)] else
-    base::paste0("x", base::seq_len(length.out = n), collapse = NULL, recycle0 = FALSE)
-  char_code <- if (n == 1L) base::paste0("\"", vals, "\"", collapse = NULL, recycle0 = FALSE) else
-    base::paste0("c(", base::paste0("\"", vals, "\"", collapse = ", ", recycle0 = FALSE), ")",
-                 collapse = NULL, recycle0 = FALSE)
-  num_code <- if (n == 1L) "1.5" else
-    base::paste0(
+  vals <- if (n <= 26L) {base::letters[base::seq_len(length.out = n)]} else
+    {base::paste0("x", base::seq_len(length.out = n), collapse = NULL, recycle0 = FALSE)}
+  char_code <- if (n == 1L) {base::paste0("\"", vals, "\"", collapse = NULL, recycle0 = FALSE)} else
+    {base::paste0("c(", base::paste0("\"", vals, "\"", collapse = ", ", recycle0 = FALSE), ")",
+                 collapse = NULL, recycle0 = FALSE)}
+  num_code <- if (n == 1L) {"1.5"} else
+    {base::paste0(
       "c(",
       base::paste(base::format(x = base::seq(from = 1.5, to = , by = 1, length.out = n, along.with = ),
                                trim = TRUE),
                   sep = " ", collapse = ", ", recycle0 = FALSE),
       ")",
       collapse = NULL, recycle0 = FALSE
-    )
-  int_code <- if (n == 1L) "1L" else
-    base::paste0("c(", base::paste0(base::seq_len(length.out = n), "L",
+    )}
+  int_code <- if (n == 1L) {"1L"} else
+    {base::paste0("c(", base::paste0(base::seq_len(length.out = n), "L",
                                     collapse = ", ", recycle0 = FALSE), ")",
-                 collapse = NULL, recycle0 = FALSE)
-  log_code <- if (n == 1L) "TRUE" else
-    base::paste0("c(",
+                 collapse = NULL, recycle0 = FALSE)}
+  log_code <- if (n == 1L) {"TRUE"} else
+    {base::paste0("c(",
                   base::paste(base::rep(x = base::c("TRUE", "FALSE"), length.out = n),
                               sep = " ", collapse = ", ", recycle0 = FALSE),
                   ")",
-                  collapse = NULL, recycle0 = FALSE)
+                  collapse = NULL, recycle0 = FALSE)}
 
   # If options were provided, try to build the value from them (coerced to kind)
   if (! base::is.null(x = opts)) {
     num_opts <- base::suppressWarnings(expr = base::as.numeric(x = opts), classes = "warning")
     coerced <- base::switch(EXPR = kind,
       "character" = base::as.character(x = opts),
-      "numeric"   = if (! base::anyNA(x = num_opts, recursive = FALSE)) num_opts,
-      "double"    = if (! base::anyNA(x = num_opts, recursive = FALSE)) num_opts,
-      "integer"   = if (! base::anyNA(x = num_opts, recursive = FALSE)) base::as.integer(x = num_opts),
+      "numeric"   = if (! base::anyNA(x = num_opts, recursive = FALSE)) {num_opts} ,
+      "double"    = if (! base::anyNA(x = num_opts, recursive = FALSE)) {num_opts} ,
+      "integer"   = if (! base::anyNA(x = num_opts, recursive = FALSE)) {base::as.integer(x = num_opts)} ,
       "logical"   = base::suppressWarnings(expr = base::as.logical(x = opts), classes = "warning"),
       "factor"    = base::factor(x = base::as.character(x = opts), levels = , labels = ,
                                  exclude = NA, ordered = FALSE, nmax = NA),
       NULL
     )
     if (! base::is.null(x = coerced) && ! base::anyNA(x = coerced, recursive = FALSE)) {
-      if (base::length(x = coerced) < n) coerced <- base::rep(x = coerced, length.out = n)
+      if (base::length(x = coerced) < n) {coerced <- base::rep(x = coerced, length.out = n)}
       base::return(
         base::deparse(expr = coerced[base::seq_len(length.out = n)],
                       width.cutoff = 500L, backtick = FALSE,
@@ -179,8 +179,8 @@
                                               sep = " ", collapse = ", ", recycle0 = FALSE),
                                   ")",
                                   collapse = NULL, recycle0 = FALSE),
-    "complex"     = if (n == 1L) "1 + 0i" else base::paste0("(1:", n, ") + 0i",
-                                                            collapse = NULL, recycle0 = FALSE),
+    "complex"     = if (n == 1L) {"1 + 0i"} else {base::paste0("(1:", n, ") + 0i",
+                                                            collapse = NULL, recycle0 = FALSE)} ,
     "raw"         = base::paste0("as.raw(",
                                   base::paste(base::seq_len(length.out = n),
                                               sep = " ", collapse = ":", recycle0 = FALSE),
@@ -200,12 +200,12 @@
 # real argument) and collect ok / message / tested value, keyed by .arg_id(nm).
 .run_arg_check_tests <- function(fun_args, arg_check_settings) {
   out <- base::list()
-  if (base::length(x = fun_args) == 0L) base::return(out)
+  if (base::length(x = fun_args) == 0L) {base::return(out)}
   safer_ok <- base::requireNamespace(package = "saferDev", quietly = TRUE)
   for (nm in fun_args) {
     aid <- .arg_id(nm = nm)
     st  <- arg_check_settings[[aid]]
-    if (base::is.null(x = st)) st <- .arg_check_defaults
+    if (base::is.null(x = st)) {st <- .arg_check_defaults}
     val_code <- .ac_test_value_code(st = st)
     line_txt <- base::paste0(
       "tempo <- ",
@@ -291,9 +291,9 @@
     X = fun_args,
     FUN = function(nm) {
       st <- arg_check_settings[[.arg_id(nm = nm)]]
-      if (base::is.null(x = st)) st <- .arg_check_defaults
+      if (base::is.null(x = st)) {st <- .arg_check_defaults}
       wrapped <- nm %in% wrap_null_args
-      indent  <- if (wrapped) "        " else "    "
+      indent  <- if (wrapped) {"        "} else {"    "}
       call_txt <- base::paste0(
         indent, "tempo <- ",
         .arg_check_call_core(data_txt = nm, st = st,
@@ -348,7 +348,7 @@
     "    # end check with r_debugging_tools\n",
     "    ######## end argument checking with arg_check()\n",
     "\n",
-    if (base::is.null(x = extra_section)) character(0) else extra_section,
+    if (base::is.null(x = extra_section)) {character(0)} else {extra_section} ,
     "    #### end argument secondary checking\n",
     "\n",
     collapse = NULL,

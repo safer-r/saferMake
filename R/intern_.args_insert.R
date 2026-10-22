@@ -86,7 +86,7 @@
                       srcfile = NULL, encoding = "unknown")
           TRUE
         },
-        error = function(e) FALSE
+        error = function(e) {FALSE}
       )
     }
     if (! ok_parse || ln < 1L || ln > base::length(x = norm) ||
@@ -107,7 +107,7 @@
                     srcfile = NULL, encoding = "unknown")
         TRUE
       },
-      error = function(e) FALSE
+      error = function(e) {FALSE}
     )) {
       left <- base::c(left, base::paste0("line ", ln, ": ", st,
                                          collapse = NULL, recycle0 = FALSE))
@@ -184,7 +184,7 @@
                     srcfile = NULL, encoding = "unknown")
         TRUE
       },
-      error = function(e) FALSE
+      error = function(e) {FALSE}
     )
     if (! ok_full) {
       res$left <- base::c(res$left, inserted,

@@ -7,16 +7,16 @@
 # (e.g. function(x = NULL)) is NOT 'no default': it has a default (NULL).
 .args_without_default <- function(f) {
   fm <- base::formals(fun = f, envir = base::parent.frame(n = 1))
-  if (base::is.null(x = fm)) base::return(base::character(length = 0L))
+  if (base::is.null(x = fm)) {base::return(base::character(length = 0L))}
   fm <- base::as.list(x = fm) # pairlist -> plain list, so vapply is safe
-  if (base::length(x = fm) == 0L) base::return(base::character(length = 0L))
+  if (base::length(x = fm) == 0L) {base::return(base::character(length = 0L))}
   no_def <- base::vapply(
     X = fm,
-    FUN = function(v) base::identical(x = v, y = base::quote(expr = ),
+    FUN = function(v) {base::identical(x = v, y = base::quote(expr = ),
                                       num.eq = TRUE, single.NA = TRUE,
                                       attrib.as.set = TRUE, ignore.bytecode = TRUE,
                                       ignore.environment = FALSE, ignore.srcref = TRUE,
-                                      extptr.as.ref = FALSE),
+                                      extptr.as.ref = FALSE)} ,
     FUN.VALUE = base::logical(length = 1L),
     USE.NAMES = TRUE
   )
@@ -32,7 +32,7 @@
       depth <- depth + 1L
     } else if (chars[i] == close_ch) {
       depth <- depth - 1L
-      if (depth == 0L) base::return(i)
+      if (depth == 0L) {base::return(i)}
     }
   }
   -1L
@@ -41,10 +41,10 @@
 .extract_aa_body <- function(code) {
   m <- base::regexpr(pattern = "function[[:space:]]*\\(", text = code,
                      ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)
-  if (m == -1) base::return(NULL)
+  if (m == -1) {base::return(NULL)}
   p_open  <- m + base::attr(x = m, which = "match.length", exact = FALSE) - 1L
   p_close <- .match_close(txt = code, open = p_open, close_ch = ")")
-  if (p_close == -1) base::return(NULL)
+  if (p_close == -1) {base::return(NULL)}
   aa <- base::substring(text = code, first = 1L, last = p_close - 1L)
 
   # NOTE: last = (empty argument, the lazy default) is required for
@@ -53,12 +53,12 @@
   rest <- base::substring(text = code, first = p_close + 1L, last = )
   m2   <- base::regexpr(pattern = "\\S", text = rest,
                         ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)
-  if (m2 == -1) base::return(base::list(aa = aa, body = ""))
+  if (m2 == -1) {base::return(base::list(aa = aa, body = ""))}
   p_body <- p_close + m2
 
   if (base::substring(text = code, first = p_body, last = p_body) == "{") {
     p_end <- .match_close(txt = code, open = p_body, close_ch = "}")
-    if (p_end == -1) base::return(NULL)
+    if (p_end == -1) {base::return(NULL)}
     body <- base::substring(text = code, first = p_body + 1L, last = p_end - 1L)
     base::list(aa = aa, body = body)
   } else {
@@ -186,7 +186,7 @@
   comma <- if (base::grepl(pattern = "\\($", x = aa,
                            ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE) ||
                base::grepl(pattern = ",$", x = aa,
-                           ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)) "" else ","
+                           ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)) {""} else {","}
 
   pkg_line <- if (base::nzchar(x = pkg, keepNA = FALSE)) {
     base::paste0("package_name <- ",
@@ -212,27 +212,27 @@
   # COMMENTED line -> argument accepts NULL (excluded from the check)
   non_null_lines <- base::vapply(
     X = non_null_args,
-    FUN = function(nm) base::paste0(
+    FUN = function(nm) {base::paste0(
       "        ",
       base::deparse(expr = nm, width.cutoff = 500L, backtick = FALSE,
                     control = base::c("keepNA", "keepInteger", "niceNames", "showAttributes"),
                     nlines = -1L),
       ", ",
       collapse = NULL, recycle0 = FALSE
-    ),
+    )} ,
     FUN.VALUE = base::character(length = 1L),
     USE.NAMES = TRUE
   )
   null_lines <- base::vapply(
     X = null_args,
-    FUN = function(nm) base::paste0(
+    FUN = function(nm) {base::paste0(
       "        # ",
       base::deparse(expr = nm, width.cutoff = 500L, backtick = FALSE,
                     control = base::c("keepNA", "keepInteger", "niceNames", "showAttributes"),
                     nlines = -1L),
       ", # inactivated because can be NULL",
       collapse = NULL, recycle0 = FALSE
-    ),
+    )} ,
     FUN.VALUE = base::character(length = 1L),
     USE.NAMES = TRUE
   )
@@ -255,13 +255,13 @@
   no_def_block <- if (base::length(x = no_default_args) > 0L) {
     no_def_lines <- base::vapply(
       X = no_default_args,
-      FUN = function(nm) base::paste0(
+      FUN = function(nm) {base::paste0(
         "        ",
         base::deparse(expr = nm, width.cutoff = 500L, backtick = FALSE,
                       control = base::c("keepNA", "keepInteger", "niceNames", "showAttributes"),
                       nlines = -1L),
         collapse = NULL, recycle0 = FALSE
-      ),
+      )} ,
       FUN.VALUE = base::character(length = 1L),
       USE.NAMES = TRUE
     )
@@ -300,27 +300,27 @@
   # just after "tempo_arg <-base::c(", before the active names.
   non_empty_lines <- base::vapply(
     X = non_empty_args,
-    FUN = function(nm) base::paste0(
+    FUN = function(nm) {base::paste0(
       "        ",
       base::deparse(expr = nm, width.cutoff = 500L, backtick = FALSE,
                     control = base::c("keepNA", "keepInteger", "niceNames", "showAttributes"),
                     nlines = -1L),
       ", ",
       collapse = NULL, recycle0 = FALSE
-    ),
+    )} ,
     FUN.VALUE = base::character(length = 1L),
     USE.NAMES = TRUE
   )
   can_empty_lines <- base::vapply(
     X = empty_args,
-    FUN = function(nm) base::paste0(
+    FUN = function(nm) {base::paste0(
       "        # ",
       base::deparse(expr = nm, width.cutoff = 500L, backtick = FALSE,
                     control = base::c("keepNA", "keepInteger", "niceNames", "showAttributes"),
                     nlines = -1L),
       ", # inactivated because can be an empty non NULL object",
       collapse = NULL, recycle0 = FALSE
-    ),
+    )} ,
     FUN.VALUE = base::character(length = 1L),
     USE.NAMES = TRUE
   )
@@ -345,13 +345,13 @@
   # comma (a trailing comma before ")" would be a syntax error in R).
   no_empty_lines <- base::vapply(
     X = no_empty_string_args,
-    FUN = function(nm) base::paste0(
+    FUN = function(nm) {base::paste0(
       "        ",
       base::deparse(expr = nm, width.cutoff = 500L, backtick = FALSE,
                     control = base::c("keepNA", "keepInteger", "niceNames", "showAttributes"),
                     nlines = -1L),
       collapse = NULL, recycle0 = FALSE
-    ),
+    )} ,
     FUN.VALUE = base::character(length = 1L),
     USE.NAMES = TRUE
   )
