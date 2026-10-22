@@ -31,7 +31,7 @@
 # colons_check() (e.g. the "ARGUMENT ... IS NOT ALLOWED IN SAFER-R FUNCTIONS"
 # check) is also a finding: its text is displayed to the user.
 .run_colons_check <- function(f) {
-  out <- .capture_msg(fun = function() saferDev::colons_check(x = f))
+  out <- .capture_msg(fun = function() {saferDev::colons_check(x = f)} )
   report <- base::paste(out$msgs, collapse = "", recycle0 = FALSE)
   clean <- ! base::grepl(pattern = "ARE MISSING", x = report, ignore.case = FALSE,
                          perl = FALSE, fixed = TRUE, useBytes = FALSE)
@@ -49,7 +49,7 @@
 # data.frame (NULL when all_args_here() stopped with an error, whose text is
 # then in report).
 .run_all_args <- function(f) {
-  out <- .capture_msg(fun = function() saferDev::all_args_here(x = f))
+  out <- .capture_msg(fun = function() {saferDev::all_args_here(x = f)} )
   if (! base::is.null(x = out$err)) {
     base::return(base::list(clean = FALSE, report = out$err, df = NULL))
   }
@@ -101,7 +101,10 @@
 #                  does not eval; error_detail holds the message)
 #   code         : the code to hand back (qualified verbatim, or the corrected
 #                  function text; unchanged input text when stage = "ok")
-#   summary      : human-readable lines describing the automatic modifications
+#   summary      : human-readable lines describing the automatic modifications,
+#                  prefixed by the two fixed explanation lines of the blue
+#                  alert of the code_check screen (basic-R-only qualification
+#                  and the identical-name caution)
 #   report       : raw report text to display ("" at stage "ok")
 #   df           : the all_args_here data.frame at stage "args", else NULL
 #   error_detail : only at stage "user_error"
@@ -109,7 +112,7 @@
                              fun_name = "fun_to_complete", f = NULL,
                              env = NULL) {
   .run_code_checks_impl(code = code, fun_args = fun_args, fun_name = fun_name,
-                        summary = base::character(length = 0L), depth = 0L,
+                        summary = .qualification_explanation, depth = 0L,
                         f = f, env = env)
 }
 
@@ -136,12 +139,10 @@
   # 1. qualification of the basic-R calls
   qual <- .qualify_base_calls(txt = code, fun_args = fun_args)
   qualified_code <- qual$new_txt
-  if (base::length(x = qual$qualified) > 0L) {
-    summary <- base::c(summary, base::paste0(
-      "Automatically qualified with <pkg>:: (basic R functions): ",
-      base::paste(base::unique(x = qual$qualified), collapse = ", "),
-      ".", collapse = NULL, recycle0 = FALSE))
-  }
+  # NOTE: the list of qualified names is deliberately NOT added to the summary:
+  # the blue alert of the code_check screen explains the scope of the automatic
+  # qualification (.qualification_explanation) instead of listing the modified
+  # calls (user request 2026-10-15)
   if (base::length(x = qual$skipped) > 0L) {
     summary <- base::c(summary, base::paste0(
       "Not qualified automatically (complete manually if needed): ",
@@ -156,13 +157,13 @@
   # writes, ...) then run only once per Run.
   if (depth == 0L && identical(x = qualified_code, y = code) &&
       base::is.function(x = f) && base::is.environment(x = env)) {
-    base::return(.checks_on_function(f = f, code = code,
+    base::return(.checks_on_function(f = f, code = code, fun_args = fun_args,
                                      qualified_code = qualified_code,
                                      fun_name = fun_name, summary = summary,
                                      depth = depth))
   }
   env2 <- base::new.env(parent = base::globalenv())
-  ev <- .capture_msg(fun = function() base::eval(expr = base::parse(text = qualified_code, keep.source = TRUE), envir = env2))
+  ev <- .capture_msg(fun = function() {base::eval(expr = base::parse(text = qualified_code, keep.source = TRUE), envir = env2)} )
   if (! base::is.null(x = ev$err)) {
     res$stage <- "user_error"
     res$error_detail <- ev$err
@@ -174,9 +175,9 @@
   if (! base::is.function(x = f2)) {
     # the code defines the function by assignment: eval() returns the value of
     # the assignment (the function), but fetch it from the env to be safe
-    fnames <- base::Filter(f = function(n) base::is.function(x = base::get(x = n, envir = env2, mode = "any", inherits = FALSE)),
+    fnames <- base::Filter(f = function(n) {base::is.function(x = base::get(x = n, envir = env2, mode = "any", inherits = FALSE))} ,
                            x = base::ls(name = env2, all.names = FALSE, sorted = FALSE))
-    f2 <- if (base::length(x = fnames) > 0L) base::get(x = fnames[1], envir = env2) else ev$value
+    f2 <- if (base::length(x = fnames) > 0L) {base::get(x = fnames[1], envir = env2)} else {ev$value}
     if (! base::is.function(x = f2)) {
       res$stage <- "user_error"
       res$error_detail <- "no function found after qualification"
@@ -186,13 +187,16 @@
     }
   }
   .checks_on_function(f = f2, code = code, qualified_code = qualified_code,
-                      fun_name = fun_name, summary = summary, depth = depth)
+                     fun_args = fun_args, fun_name = fun_name, summary = summary,
+                     depth = depth)
 }
 
 # Stages 2 (colons_check) and 3 (all_args_here + insertion) on the evaluated
-# function. Shared by the reuse path and the fresh-eval path.
-.checks_on_function <- function(f, code, qualified_code, fun_name, summary,
-                                depth) {
+# function. Shared by the reuse path and the fresh-eval path. fun_args must be
+# forwarded: the correction loop re-runs the qualification on the corrected
+# code, which needs the argument names of the user function.
+.checks_on_function <- function(f, code, qualified_code, fun_args, fun_name,
+                                summary, depth) {
   res <- base::list(stage = "ok", code = code, summary = summary,
                     report = "", df = NULL, error_detail = NULL)
   # 2. colons_check on the qualified function

@@ -92,7 +92,7 @@ server <- function(input, output, session) {
 
   # NEW: build the inline script that scrolls the window to a target element
   scroll_to_js <- function(target) {
-    if (is.null(target) || !nzchar(target)) return(NULL)
+    if (is.null(target) || !nzchar(target)) {return(NULL)}
     tags$script(HTML(sprintf(
       "setTimeout(function(){var el = document.getElementById('%s');
        if(el){el.scrollIntoView({behavior:'smooth', block:'start'});}}, 50);",
@@ -101,19 +101,19 @@ server <- function(input, output, session) {
   }
 
   get_arg_check_settings <- function() {
-    if (length(rv$fun_args) == 0L) return(list())
+    if (length(rv$fun_args) == 0L) {return(list())}
     out <- lapply(rv$fun_args, function(nm) {
       ids <- .arg_check_field_ids(.arg_id(nm))
       list(
         # Blank text field = default value ("NULL" = no constraint for ALL the
         # five text fields: class/typeof/mode/length/options)
-        class                     = if (.field_blank(input[[ids$class]])) "NULL" else trimws(input[[ids$class]]),
-        typeof                    = if (.field_blank(input[[ids$typeof]])) "NULL" else trimws(input[[ids$typeof]]),
-        mode                      = if (.field_blank(input[[ids$mode]])) "NULL" else trimws(input[[ids$mode]]),
-        length                    = if (.field_blank(input[[ids$length]])) "NULL" else trimws(input[[ids$length]]),
+        class                     = if (.field_blank(input[[ids$class]])) {"NULL"} else {trimws(input[[ids$class]])} ,
+        typeof                    = if (.field_blank(input[[ids$typeof]])) {"NULL"} else {trimws(input[[ids$typeof]])} ,
+        mode                      = if (.field_blank(input[[ids$mode]])) {"NULL"} else {trimws(input[[ids$mode]])} ,
+        length                    = if (.field_blank(input[[ids$length]])) {"NULL"} else {trimws(input[[ids$length]])} ,
         prop                      = isTRUE(input[[ids$prop]]),
         double_as_integer_allowed = isTRUE(input[[ids$double_as_integer_allowed]]),
-        options                   = if (.field_blank(input[[ids$options]])) "NULL" else trimws(input[[ids$options]]),
+        options                   = if (.field_blank(input[[ids$options]])) {"NULL"} else {trimws(input[[ids$options]])} ,
         all_options_in_data       = isTRUE(input[[ids$all_options_in_data]]),
         na_contain                = isTRUE(input[[ids$na_contain]]),
         neg_values                = isTRUE(input[[ids$neg_values]]),
@@ -130,17 +130,17 @@ server <- function(input, output, session) {
   # the Back button can restore the settings page with all the user values.
   snapshot_result_inputs <- function() {
     pkg <- input$pkg_name
-    rv$pkg_name <- if (is.null(pkg)) rv$pkg_name else trimws(pkg)
+    rv$pkg_name <- if (is.null(pkg)) {rv$pkg_name} else {trimws(pkg)}
     lnk <- input$link_name
-    rv$link_name <- if (is.null(lnk)) rv$link_name else trimws(lnk)
+    rv$link_name <- if (is.null(lnk)) {rv$link_name} else {trimws(lnk)}
     # NEW: seed argument + graphic device tick box (kept on Back)
     sd <- input$seed_arg_name
-    rv$seed_arg_name <- if (is.null(sd)) rv$seed_arg_name else trimws(sd)
+    rv$seed_arg_name <- if (is.null(sd)) {rv$seed_arg_name} else {trimws(sd)}
     # NEW: library path argument name (kept on Back)
     lp <- input$lib_path_arg_name
-    rv$lib_path_arg_name <- if (is.null(lp)) rv$lib_path_arg_name else trimws(lp)
+    rv$lib_path_arg_name <- if (is.null(lp)) {rv$lib_path_arg_name} else {trimws(lp)}
     gd <- input$graphic_dev
-    rv$graphic_dev <- if (is.null(gd)) rv$graphic_dev else isTRUE(gd)
+    rv$graphic_dev <- if (is.null(gd)) {rv$graphic_dev} else {isTRUE(gd)}
     if (length(rv$fun_args) > 0L) {
       checked <- vapply(rv$fun_args, function(nm) {
         isTRUE(input[[.null_cb_id(nm)]])
@@ -153,7 +153,7 @@ server <- function(input, output, session) {
       rv$empty_args     <- rv$fun_args[checked_empty]
       rv$non_empty_args <- rv$fun_args[!checked_empty]
       s <- get_arg_check_settings()
-      if (length(s) > 0L) rv$arg_check_settings <- s
+      if (length(s) > 0L) {rv$arg_check_settings <- s}
       rv$no_empty_string_args <- rv$fun_args[vapply(rv$fun_args, function(nm) {
         isTRUE(input[[.no_empty_cb_id(nm)]])
       }, logical(1L))]
@@ -162,17 +162,17 @@ server <- function(input, output, session) {
 
   set_error <- function(detail, display) {
     # NEW: preserve the user values if the error occurs on the result screen
-    if (identical(rv$screen, "result")) snapshot_result_inputs()
+    if (identical(rv$screen, "result")) {snapshot_result_inputs()}
     # NEW: remember where to go back when the Back button of the error screen is used
-    rv$prev_screen   <- if (identical(rv$screen, "result")) "result" else "input"
+    rv$prev_screen   <- if (identical(rv$screen, "result")) {"result"} else {"input"}
     message("App error (not shown to the user): ", detail)
     rv$error_msg     <- detail
     rv$error_display <- display
     rv$scroll_to     <- "error_alert_top"   # NEW: scroll target for the error screen
     rv$screen        <- "error"
   }
-  user_code_error <- function(detail) set_error(detail, ERROR_TEXT)
-  internal_error  <- function(detail) set_error(detail, INTERNAL_ERROR_TEXT)
+  user_code_error <- function(detail) {set_error(detail, ERROR_TEXT)}
+  internal_error  <- function(detail) {set_error(detail, INTERNAL_ERROR_TEXT)}
 
   # ---- Shared UI fragments (used on input and error screens) --------------
   # NEW: render a character string containing markdown-style `code` spans as a
@@ -186,7 +186,7 @@ server <- function(input, output, session) {
     # strsplit() drops a trailing empty field: "a`b`" -> c("a", "b").
     # Re-append the dropped empty part when the backticks are paired so that
     # the last real segment keeps an even (code) index.
-    if (nbt %% 2L == 0L) parts <- c(parts, "")
+    if (nbt %% 2L == 0L) {parts <- c(parts, "")}
     do.call(tagList,
             lapply(seq_along(parts), function(i) {
               # odd indices are plain text, even indices are inside `...`;
@@ -214,7 +214,7 @@ server <- function(input, output, session) {
       return(HTML("none"))
     }
     HTML(paste(
-      vapply(items, function(x) as.character(tags$code(x)), character(1L)),
+      vapply(items, function(x) {as.character(tags$code(x))} , character(1L)),
       collapse = "\n"
     ))
   }
@@ -262,7 +262,7 @@ server <- function(input, output, session) {
   # ---- RUN logic -------------------------------------------------------------
   run_clicked <- function() {
     code <- isolate(input$user_ini_fun)
-    code <- if (is.null(code)) "" else code
+    code <- if (is.null(code)) {""} else {code}
     rv$code          <- code
     rv$error_msg     <- NULL
     rv$error_display <- NULL
@@ -293,7 +293,7 @@ server <- function(input, output, session) {
       return(invisible())
     }
 
-    fnames <- Filter(function(n) is.function(get(n, envir = env)), ls(envir = env))
+    fnames <- Filter(function(n) {is.function(get(n, envir = env))} , ls(envir = env))
     f <- NULL
     if (length(fnames) == 1L) {
       rv$fun_name <- fnames
@@ -316,7 +316,7 @@ server <- function(input, output, session) {
     }
 
     args <- names(formals(f))
-    rv$fun_args <- if (is.null(args)) character(0) else args
+    rv$fun_args <- if (is.null(args)) {character(0)} else {args}
     rv$no_default_args <- .args_without_default(f)
     parts <- .extract_aa_body(code)
     if (is.null(parts)) {
@@ -541,7 +541,7 @@ server <- function(input, output, session) {
     bad <- rv$fun_args[vapply(rv$fun_args, function(nm) {
       length(rv$arg_check_errors[[.arg_id(nm)]]) > 0L
     }, logical(1L))]
-    if (length(bad) == 0L) return(NULL)
+    if (length(bad) == 0L) {return(NULL)}
     div(id = "arg_check_error_summary",
         class = "alert alert-danger", role = "alert",
         style = "margin-top: 10px; white-space: pre-line;",
@@ -560,14 +560,14 @@ server <- function(input, output, session) {
   # (NOT input) so that renderUI does not re-run on each keystroke of the
   # field; the message is stored in rv$seed_arg_error_msg by the Run observer.
   seed_arg_error <- function() {
-    if (!rv$seed_arg_ok) rv$seed_arg_error_msg else base::character(length = 0L)
+    if (!rv$seed_arg_ok) {rv$seed_arg_error_msg} else {base::character(length = 0L)}
   }
   # Computes the seed validation message from a given value (used by the Run
   # observer before updating rv$seed_arg_ok / rv$seed_arg_error_msg).
   seed_arg_check <- function(val) {
     val <- base::trimws(x = val, which = "both", whitespace = "[ \t\r\n]")
-    if (base::is.null(x = val) || base::length(x = val) == 0L) val <- ""
-    if (base::any(base::is.na(x = val))) val <- ""   # robustness: NA -> blank
+    if (base::is.null(x = val) || base::length(x = val) == 0L) {val <- ""}
+    if (base::any(base::is.na(x = val))) {val <- ""}   # robustness: NA -> blank
     if (base::length(x = rv$fun_args) == 0L) {
       # zero-argument function: no name can be a set.seed() argument value
       if (base::nzchar(x = val)) {
@@ -594,14 +594,14 @@ server <- function(input, output, session) {
   # field; the message is stored in rv$lib_path_arg_error_msg by the Run
   # observer. A library-path argument cannot also be the seed argument.
   lib_path_arg_error <- function() {
-    if (!rv$lib_path_arg_ok) rv$lib_path_arg_error_msg else base::character(length = 0L)
+    if (!rv$lib_path_arg_ok) {rv$lib_path_arg_error_msg} else {base::character(length = 0L)}
   }
   # Computes the lib-path validation message from a given value (used by the
   # Run observer before updating rv$lib_path_arg_ok / rv$lib_path_arg_error_msg).
   lib_path_arg_check <- function(val) {
     val <- base::trimws(x = val, which = "both", whitespace = "[ \t\r\n]")
-    if (base::is.null(x = val) || base::length(x = val) == 0L) val <- ""
-    if (base::any(base::is.na(x = val))) val <- ""   # robustness: NA -> blank
+    if (base::is.null(x = val) || base::length(x = val) == 0L) {val <- ""}
+    if (base::any(base::is.na(x = val))) {val <- ""}   # robustness: NA -> blank
     if (base::length(x = rv$fun_args) == 0L) {
       # zero-argument function: no name can be a library path argument
       if (base::nzchar(x = val)) {
@@ -638,7 +638,7 @@ server <- function(input, output, session) {
   # NEW: the error-screen Back button returns to the screen the error came from
   # (input OR result), with all the user values restored from rv.
   observeEvent(input$back_from_error, {
-    rv$screen <- if (!is.null(rv$prev_screen)) rv$prev_screen else "input"
+    rv$screen <- if (!is.null(rv$prev_screen)) {rv$prev_screen} else {"input"}
   })
 
   # NEW: Back button of the code_check screen: restore the modified code in the
@@ -664,7 +664,7 @@ server <- function(input, output, session) {
     },
     content = function(file) {
       code_out <- rv$code_check_code
-      if (is.null(code_out)) code_out <- ""
+      if (is.null(code_out)) {code_out <- ""}
       writeLines(code_out, file)
     }
   )
@@ -676,21 +676,21 @@ server <- function(input, output, session) {
     },
     content = function(file) {
       # NEW: fallback to rv values if the inputs are not currently rendered
-      pkg  <- if (is.null(input$pkg_name)) rv$pkg_name else trimws(input$pkg_name)
-      link <- if (is.null(input$link_name)) rv$link_name else trimws(input$link_name)
+      pkg  <- if (is.null(input$pkg_name)) {rv$pkg_name} else {trimws(input$pkg_name)}
+      link <- if (is.null(input$link_name)) {rv$link_name} else {trimws(input$link_name)}
       # NEW: seed argument + graphic device tick box (with rv fallback)
-      sd  <- if (is.null(input$seed_arg_name)) rv$seed_arg_name else trimws(input$seed_arg_name)
-      sd  <- if (is.null(sd)) "" else sd
-      gd  <- if (is.null(input$graphic_dev)) rv$graphic_dev else isTRUE(input$graphic_dev)
+      sd  <- if (is.null(input$seed_arg_name)) {rv$seed_arg_name} else {trimws(input$seed_arg_name)}
+      sd  <- if (is.null(sd)) {""} else {sd}
+      gd  <- if (is.null(input$graphic_dev)) {rv$graphic_dev} else {isTRUE(input$graphic_dev)}
       rv$seed_arg_name <- sd                     # kept in sync for "Back"
       rv$graphic_dev   <- gd                     # kept in sync for "Back"
       # NEW: library path argument name (with rv fallback)
-      lp  <- if (is.null(input$lib_path_arg_name)) rv$lib_path_arg_name else trimws(input$lib_path_arg_name)
-      lp  <- if (is.null(lp)) "" else lp
+      lp  <- if (is.null(input$lib_path_arg_name)) {rv$lib_path_arg_name} else {trimws(input$lib_path_arg_name)}
+      lp  <- if (is.null(lp)) {""} else {lp}
       rv$lib_path_arg_name <- lp                 # kept in sync for "Back"
       # seed_arg for .build_rebuilt(): NULL = no section, NA = blank field
       # (only the delimiters), otherwise the argument name.
-      seed_arg <- if (!base::nzchar(x = sd)) NA_character_ else sd
+      seed_arg <- if (!base::nzchar(x = sd)) {NA_character_} else {sd}
 
       if (length(rv$fun_args) > 0L) {
         checked <- vapply(rv$fun_args, function(nm) {
@@ -812,7 +812,7 @@ server <- function(input, output, session) {
             }, logical(1L)))) {
           list(tags$li(tags$a(href = "#arg_check_error_summary",
                               "arg_check() check errors")))
-        } else list(),
+        } else {list()} ,
         list(tags$li(tags$a(href = "#detection_section", "Detection"))),
         list(tags$li(tags$a(href = "#pkg_section", "Package name"))),
         list(tags$li(tags$a(href = "#link_section", "Error report link"))),
@@ -873,7 +873,7 @@ server <- function(input, output, session) {
                div(id = "error_alert_top",              # NEW: scroll target
                    class = "alert alert-danger", role = "alert",
                    style = "margin-top: 10px; white-space: pre-line;",
-                   if (is.null(rv$error_display)) ERROR_TEXT else rv$error_display),
+                   if (is.null(rv$error_display)) {ERROR_TEXT} else {rv$error_display} ),
                hr(),
                back_btn("back_from_error"),
                scroll_to_js(rv$scroll_to)               # NEW: slide to the top error message
@@ -927,13 +927,13 @@ server <- function(input, output, session) {
                   tags$p(
                     style = "margin-bottom: 4px;",
                     HTML("Function name: "),
-                    if (is.null(rv$fun_name)) "none" else tags$code(rv$fun_name)
+                    if (is.null(rv$fun_name)) {"none"} else {tags$code(rv$fun_name)}
                   ),
                   tags$p(
                     style = "margin-bottom: 4px; white-space: pre-line;",
                     HTML(paste0(
                       "Arguments",
-                      if (length(rv$fun_args) == 0L) ": none" else ":"
+                      if (length(rv$fun_args) == 0L) {": none"} else {":"}
                     )),
                     md_value_lines(rv$fun_args)
                   ),
@@ -941,7 +941,7 @@ server <- function(input, output, session) {
                     style = "margin-bottom: 4px; white-space: pre-line;",
                     HTML(paste0(
                       "Arguments with no default value",
-                      if (length(rv$no_default_args) == 0L) ": none" else ":"
+                      if (length(rv$no_default_args) == 0L) {": none"} else {":"}
                     )),
                     md_value_lines(rv$no_default_args)
                   )
@@ -1111,7 +1111,7 @@ server <- function(input, output, session) {
                      nm <- rv$fun_args[i]
                      aid <- .arg_id(nm)
                      st  <- rv$arg_check_settings[[aid]]
-                     if (is.null(st)) st <- .arg_check_defaults
+                     if (is.null(st)) {st <- .arg_check_defaults}
                      ids <- .arg_check_field_ids(aid)
                      test_res <- rv$arg_check_test[[aid]]
                      # NEW: settings consistency errors for this argument
@@ -1125,9 +1125,9 @@ server <- function(input, output, session) {
                        NULL
                      }
                      # Show blank in the field when the stored value is the default
-                     class_disp  <- if (identical(st$class, "NULL")) "" else st$class
-                     typeof_disp <- if (identical(st$typeof, "NULL")) "" else st$typeof
-                     mode_disp   <- if (identical(st$mode, "NULL")) "" else st$mode
+                     class_disp  <- if (identical(st$class, "NULL")) {""} else {st$class}
+                     typeof_disp <- if (identical(st$typeof, "NULL")) {""} else {st$typeof}
+                     mode_disp   <- if (identical(st$mode, "NULL")) {""} else {st$mode}
                      sec <- tagList(
                        h4(id = aid, md_code(paste0("Value of argument `", nm, "`"))),
                        checkboxInput(inputId = .null_cb_id(nm),
@@ -1156,12 +1156,12 @@ server <- function(input, output, session) {
                                  width = "100%"),
                        textInput(inputId = ids$length,
                                  label = md_code("Length of the argument values. Left blank means not evaluated by `length()`."),
-                                 value = if (identical(st$length, "NULL")) "" else st$length,
+                                 value = if (identical(st$length, "NULL")) {""} else {st$length} ,
                                  placeholder = "e.g., 3",
                                  width = "100%"),
                        textInput(inputId = ids$options,
                                  label = "Argument values can only be these restricted string or integer values (separated by commas or spaces). Left blank means not evaluated.",
-                                 value = if (identical(st$options, "NULL")) "" else st$options,
+                                 value = if (identical(st$options, "NULL")) {""} else {st$options} ,
                                  placeholder = "e.g., option1, option2",
                                  width = "100%"),
                        hr(),
@@ -1214,7 +1214,7 @@ server <- function(input, output, session) {
                          )
                        }
                      )
-                     if (i < n) sec <- tagList(sec, hr())
+                     if (i < n) {sec <- tagList(sec, hr())}
                      sec
                    }),
                    hr(),

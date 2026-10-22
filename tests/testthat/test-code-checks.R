@@ -113,7 +113,7 @@ testthat::test_that(desc = ".qualify_base_calls() reports shadowed and multi-bas
   # a real attached environment shadowing stats::filter (search position 2,
   # before the base packages), detached on exit
   fake <- base::new.env(parent = base::emptyenv())
-  fake$filter <- function(x) x
+  fake$filter <- function(x) {x}
   base::attach(what = fake, pos = 2L, name = "test:userfake")
   on.exit(expr = base::detach(name = "test:userfake", character.only = TRUE), add = TRUE)
   code <- "my_fun <- function(x){\n    filter(x)\n}"
@@ -133,7 +133,7 @@ testthat::test_that(desc = ".args_insert() applies the STATUS corrections of all
   testthat::skip_if_not_installed(pkg = "saferDev")
   code <- "my_fun <- function(x){\n    a <- base::sum(x)\n    b <- base::paste0(x, '-')\n    base::list(a, b)\n}"
   f <- mk_fun(code)
-  cap <- saferMake:::.capture_msg(fun = function() saferDev::all_args_here(x = f))
+  cap <- saferMake:::.capture_msg(fun = function() {saferDev::all_args_here(x = f)} )
   rep <- cap$value
   res <- saferMake:::.args_insert(f = f, rep = rep, fun_name = "my_fun")
   testthat::expect_match(object = res$fun_txt, regexp = "base::sum\\(x, na\\.rm = FALSE\\)", fixed = FALSE)
@@ -142,7 +142,7 @@ testthat::test_that(desc = ".args_insert() applies the STATUS corrections of all
   testthat::expect_true(object = base::length(x = res$left) == 0L)
   # the corrected text must parse and re-run all_args_here() clean
   f2 <- mk_fun(res$fun_txt)
-  cap2 <- saferMake:::.capture_msg(fun = function() saferDev::all_args_here(x = f2))
+  cap2 <- saferMake:::.capture_msg(fun = function() {saferDev::all_args_here(x = f2)} )
   testthat::expect_true(object = base::is.data.frame(x = cap2$value))
   testthat::expect_false(object = base::any(x = base::nzchar(x = cap2$value$MISSING_ARGS, keepNA = FALSE), na.rm = TRUE))
 })
@@ -155,7 +155,7 @@ testthat::test_that(desc = ".args_insert() leaves multi-line calls and broken ST
   # a full one-line STATUS, which is applied when it matches the FUN_ARGS span.
   code <- "my_fun <- function(x){\n    r <- stats::optim(par = 1,\n         fn = function(p) p^2)\n    base::list(r)\n}"
   f <- mk_fun(code)
-  cap <- saferMake:::.capture_msg(fun = function() saferDev::all_args_here(x = f))
+  cap <- saferMake:::.capture_msg(fun = function() {saferDev::all_args_here(x = f)} )
   res <- saferMake:::.args_insert(f = f, rep = cap$value, fun_name = "my_fun")
   # whatever the outcome, the text handed back must parse (NULL = nothing applied)
   if (! base::is.null(x = res$fun_txt)) {
@@ -164,7 +164,7 @@ testthat::test_that(desc = ".args_insert() leaves multi-line calls and broken ST
   # broken STATUS: required positional argument missing
   code2 <- "my_fun <- function(x){\n    base::substr(x, 1)\n}"
   f2 <- mk_fun(code2)
-  cap2 <- saferMake:::.capture_msg(fun = function() saferDev::all_args_here(x = f2))
+  cap2 <- saferMake:::.capture_msg(fun = function() {saferDev::all_args_here(x = f2)} )
   res2 <- saferMake:::.args_insert(f = f2, rep = cap2$value, fun_name = "my_fun")
   testthat::expect_null(object = res2$fun_txt)
   testthat::expect_true(object = base::length(x = res2$left) > 0L)
@@ -178,7 +178,7 @@ testthat::test_that(desc = ".args_insert() applies at most one correction per li
   # iteration of the .run_code_checks() loop
   code <- "my_fun <- function(x){\n    a <- base::sum(base::mean(x))\n    base::list(a)\n}"
   f <- mk_fun(code)
-  cap <- saferMake:::.capture_msg(fun = function() saferDev::all_args_here(x = f))
+  cap <- saferMake:::.capture_msg(fun = function() {saferDev::all_args_here(x = f)} )
   res <- saferMake:::.args_insert(f = f, rep = cap$value, fun_name = "my_fun")
   # exactly one correction applied, the text parses, and the second correction
   # is left for the next loop iteration
@@ -197,7 +197,12 @@ testthat::test_that(desc = ".run_code_checks() converges on an unqualified funct
   res <- saferMake:::.run_code_checks(code = code, fun_args = "x", fun_name = "my_fun")
   testthat::expect_identical(object = res$stage, expected = "ok")
   testthat::expect_match(object = res$code, regexp = "base::sum\\(x, na\\.rm = FALSE\\)", fixed = FALSE)
-  testthat::expect_true(object = base::any(x = base::grepl(pattern = "Automatically qualified", x = res$summary, fixed = TRUE)))
+  # the summary explains the scope of the automatic qualification (basic R
+  # functions only) instead of listing the qualified calls
+  testthat::expect_true(object = base::any(x = base::grepl(pattern = "Only basic R functions", x = res$summary, fixed = TRUE)))
+  # the explanation is seeded once per Run, never duplicated by the loop
+  testthat::expect_identical(object = base::sum(x = base::grepl(pattern = "Only basic R functions", x = res$summary, fixed = TRUE)), expected = 1L)
+  testthat::expect_false(object = base::any(x = base::grepl(pattern = "Automatically qualified", x = res$summary, fixed = TRUE)))
   testthat::expect_true(object = base::any(x = base::grepl(pattern = "Automatically inserted", x = res$summary, fixed = TRUE)))
   # idempotent: running the checks again on the corrected code is stable
   res2 <- saferMake:::.run_code_checks(code = res$code, fun_args = "x", fun_name = "my_fun")
@@ -233,13 +238,13 @@ testthat::test_that(desc = ".run_code_checks() skips the checks when saferDev is
   code <- "my_fun <- function(x){\n    sum(x)\n}"
   res <- testthat::with_mocked_bindings(
     .package = "saferMake",
-    .safer_dev_available = function() FALSE,
+    .safer_dev_available = function() {FALSE} ,
     {
       saferMake:::.run_code_checks(code = code, fun_args = "x", fun_name = "my_fun")
     }
   )
   testthat::expect_identical(object = res$stage, expected = "skip")
-  testthat::expect_match(object = res$summary, regexp = "not installed", fixed = TRUE)
+  testthat::expect_true(object = base::any(x = base::grepl(pattern = "not installed", x = res$summary, fixed = TRUE)))
 })
 
 testthat::test_that(desc = ".run_code_checks() uses a resubmittable name for anonymous functions", code = {

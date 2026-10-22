@@ -109,7 +109,7 @@
   for (nm in fun_args) {
     aid <- .arg_id(nm = nm)
     st  <- arg_check_settings[[aid]]
-    if (base::is.null(x = st)) st <- .arg_check_defaults
+    if (base::is.null(x = st)) {st <- .arg_check_defaults}
     kinds <- base::unlist(
       x = base::list(st$class, st$typeof, st$mode),
       recursive = TRUE,
@@ -146,9 +146,9 @@
     whitespace = "[ \t\r\n]"
   )
   parts <- parts[base::nzchar(x = parts)]
-  if (base::length(x = parts) == 0L) base::return(NULL)
+  if (base::length(x = parts) == 0L) {base::return(NULL)}
   num <- base::suppressWarnings(expr = base::as.numeric(x = parts), classes = "warning")
-  if (! base::anyNA(x = num, recursive = FALSE)) num else parts
+  if (! base::anyNA(x = num, recursive = FALSE)) {num} else {parts}
 }
 
 # "3" -> 3L ; anything else (blank, "2.5", "abc") -> NULL

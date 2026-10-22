@@ -22,12 +22,12 @@ code_3 <- "my_fun <- function(x) x + 1"
 # here until .match_close() is string-aware.
 
 # arg_check() settings with a real constraint, as the app builds them
-st_vec <- function() base::list(
+st_vec <- function() {base::list(
   class = "vector", typeof = "NULL", mode = "NULL", length = "NULL",
   options = "NULL", prop = FALSE, double_as_integer_allowed = FALSE,
   all_options_in_data = FALSE, na_contain = TRUE, neg_values = TRUE,
   inf_values = TRUE
-)
+)}
 
 # Rebuild a pasted code into its safer version, using the app's own flow
 rebuild <- function(code, settings = base::list(), ...) {
@@ -41,7 +41,7 @@ rebuild <- function(code, settings = base::list(), ...) {
                                      keep.source = base::getOption(x = "keep.source", default = NULL),
                                      srcfile = NULL, encoding = "unknown"))
   fun_args <- base::names(x = base::formals(fun = f, envir = base::parent.frame(n = 1)))
-  if (base::is.null(x = fun_args)) fun_args <- base::character(length = 0L)
+  if (base::is.null(x = fun_args)) {fun_args <- base::character(length = 0L)}
   saferMake:::.build_rebuilt(aa = parts$aa, body = parts$body, pkg = "", link = "",
                              fun_args = fun_args,
                              no_default_args = saferMake:::.args_without_default(f = f),
@@ -255,7 +255,7 @@ testthat::test_that(desc = ".args_without_default() only flags truly default-les
                                       srcfile = NULL, encoding = "unknown"))
   testthat::expect_setequal(object = saferMake:::.args_without_default(f = f2), expected = base::c("x", "y"))
   # explicit NULL default is NOT "no default"
-  f3 <- function(x = NULL, y = 1) x
+  f3 <- function(x = NULL, y = 1) {x}
   testthat::expect_identical(object = saferMake:::.args_without_default(f = f3),
                              expected = base::character(length = 0L))
 })
@@ -409,7 +409,7 @@ testthat::test_that(desc = ".build_rebuilt() emits the full seed section when se
   testthat::expect_match(object = out,
                          regexp = "base::set.seed(seed = y, kind = NULL, normal.kind = NULL, sample.kind = NULL) # seed value is the seed argument of the function",
                          fixed = TRUE)
-  testthat::expect_match(object = out, regexp = "tempo.random.seed <- .Random.seed", fixed = TRUE)
+  testthat::expect_match(object = out, regexp = "tempo_random_seed <- .Random.seed", fixed = TRUE)
   testthat::expect_match(object = out, regexp = "base::on.exit(expr = base::set.seed(seed = NULL", fixed = TRUE)
   # and the generated function still parses
   testthat::expect_error(object = base::parse(file = "", n = NULL, text = out,
