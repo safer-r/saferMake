@@ -1,246 +1,294 @@
-# Staged code checks (qualification + colons_check + all_args_here) and the
-# correction loop of the code_check screen. Extracted from inst/app/server.R;
-# see the header of R/intern_.app_helpers.R.
+# Staged code checks of the pasted function (the five checks run by the Run
+# button of window 1, after the pasted code has been evaluated without error).
+# Extracted from inst/app/server.R; see the header of R/intern_.app_helpers.R.
+#
+# The five checks, always run in this order, each with the dedicated function
+# of saferDev (>= 3.0.0):
+#   1. saferDev::lambda_check()         no lambda function written \(x)
+#   2. saferDev::curly_bracket_check()  curly brackets after if, else, for, ...
+#   3. saferDev::true_false_check()     TRUE and FALSE written in full
+#   4. saferDev::colons_check()         package attribution (pkg::) of the functions
+#   5. saferDev::all_args_here()        all the arguments of the functions written
+# When a check modifies the code, the loop stops: the modified code is handed
+# back to window 1 (orange message), and the user clicks on Run again, which
+# restarts the five checks on the modified code.
 
-# Run a zero-argument function, capture every message (muffled) and any error.
-# Returns list(value, msgs, err): value is the returned value (NULL on error),
-# msgs the captured messages as a character vector, err the error message (NULL
-# when no error).
+# Run a zero-argument function, capture every message and warning (muffled) and
+# any error.
+# Returns list(value, msgs, warns, err): value is the returned value (NULL on
+# error), msgs and warns the captured messages and warnings as character
+# vectors, err the error message (NULL when no error).
 .capture_msg <- function(fun) {
   msgs <- base::character(length = 0L)
+  warns <- base::character(length = 0L)
   err <- NULL
   value <- base::tryCatch(
-    expr = withCallingHandlers(
+    expr = base::withCallingHandlers(
       expr = fun(),
       message = function(m) {
         msgs <<- base::c(msgs, base::conditionMessage(c = m))
-        base::invokeRestart("muffleMessage")
+        base::invokeRestart(r = "muffleMessage")
+      },
+      warning = function(w) {
+        warns <<- base::c(warns, base::conditionMessage(c = w))
+        base::invokeRestart(r = "muffleWarning")
       }
     ),
     error = function(e) {
       err <<- base::conditionMessage(c = e)
       NULL
-    }
+    },
+    finally = 
   )
-  base::list(value = value, msgs = msgs, err = err)
+  base::list(value = value, msgs = msgs, warns = warns, err = err)
 }
 
-# Run saferDev::colons_check() on a function, with the messages captured.
-# Returns list(clean, report): clean is TRUE when no finding was reported
-# (the "ARE MISSING" strings of the BASIC and OTHER channels); a stop of
-# colons_check() (e.g. the "ARGUMENT ... IS NOT ALLOWED IN SAFER-R FUNCTIONS"
-# check) is also a finding: its text is displayed to the user.
-.run_colons_check <- function(f) {
-  out <- .capture_msg(fun = function() {saferDev::colons_check(x = f)} )
-  report <- base::paste(out$msgs, collapse = "", recycle0 = FALSE)
-  clean <- ! base::grepl(pattern = "ARE MISSING", x = report, ignore.case = FALSE,
-                         perl = FALSE, fixed = TRUE, useBytes = FALSE)
-  if (! base::is.null(x = out$err)) {
-    clean <- FALSE
-    report <- base::paste0(report, out$err, collapse = NULL, recycle0 = FALSE)
-  }
-  base::list(clean = clean, report = report)
-}
+# The five checks, in the order of execution.
+# key        : short identifier
+# fun        : name of the saferDev function
+# export_arg : name of the argument of the saferDev function that exports the
+#              modified function in a file (all_args_here() has two export
+#              arguments: table_export for the table, fun_export for the code)
+# what       : sentence explaining the modification, displayed in window 1
+# loses_format : TRUE when the saferDev function rebuilds the code from its
+#              analysis, so that the comments (and the indentation) of the
+#              submitted code are lost (see the Details of each function)
+.code_check_steps <- base::list(
+  base::list(key = "lambda", fun = "lambda_check", export_arg = "export",
+             what = "the lambda functions written \\(x) have been rewritten function(x).",
+             loses_format = FALSE),
+  base::list(key = "curly", fun = "curly_bracket_check", export_arg = "export",
+             what = "curly brackets { } have been added to the bodies of the if, else, for, while, repeat and function that had none.",
+             loses_format = TRUE),
+  base::list(key = "true_false", fun = "true_false_check", export_arg = "export",
+             what = "the T and F written as values have been rewritten TRUE and FALSE.",
+             loses_format = FALSE),
+  base::list(key = "colons", fun = "colons_check", export_arg = "export",
+             what = "the package attribution (<package>::) of the basic R functions has been added.",
+             loses_format = TRUE),
+  base::list(key = "args", fun = "all_args_here", export_arg = "fun_export",
+             what = "the missing arguments of the called functions have been added.",
+             loses_format = TRUE)
+)
 
-# Run saferDev::all_args_here() on a function, with the messages captured.
-# Returns list(clean, report, df): clean TRUE when the function needs no
-# argument completion ("EVERYTHING SEEMS CLEAN" message, i.e. no row with a
-# non-empty MISSING_ARGS), report the raw captured text, df the returned
-# data.frame (NULL when all_args_here() stopped with an error, whose text is
-# then in report).
-.run_all_args <- function(f) {
-  out <- .capture_msg(fun = function() {saferDev::all_args_here(x = f)} )
-  if (! base::is.null(x = out$err)) {
-    base::return(base::list(clean = FALSE, report = out$err, df = NULL))
-  }
-  df <- out$value
-  if (base::is.null(x = df)) {
-    base::return(base::list(clean = FALSE, report = out$err, df = NULL))
-  }
-  clean <- TRUE
-  if (base::is.data.frame(x = df) && base::nrow(x = df) > 0L) {
-    clean <- ! base::any(x = base::nzchar(x = df$MISSING_ARGS, keepNA = FALSE),
-                         na.rm = TRUE)
-  }
-  report <- base::paste(out$msgs, collapse = "", recycle0 = FALSE)
-  base::list(clean = clean, report = report, df = df)
-}
+# TEMPORARY SWITCH (set to FALSE on 2026-10-22 so that the rest of the app can be
+# tested without saferDev >= 3.0.0 installed).
+# TRUE  : when saferDev (>= 3.0.0) is not available, window 1 shows a red
+#         message asking to install it, and window 2 cannot be reached.
+# FALSE : the five checks are skipped (message in the R console only) and the
+#         app goes on to window 2.
+# Set it back to TRUE as soon as saferDev >= 3.0.0 is installed.
+.safer_dev_required <- FALSE
 
-# Is saferDev available for the staged checks? An internal helper (instead of a
-# direct base::requireNamespace() call) so that the "saferDev not installed"
-# branch can be unit tested.
+# Is saferDev available, in a version that provides the five checks? An
+# internal helper (instead of a direct base::requireNamespace() call) so that
+# the "saferDev not available" branch can be unit tested.
 .safer_dev_available <- function() {
-  base::requireNamespace(package = "saferDev", quietly = TRUE)
+  if (! base::requireNamespace(package = "saferDev", quietly = TRUE)) {
+    base::return(FALSE)
+  }
+  funs <- base::vapply(X = .code_check_steps, FUN = function(st) {st$fun} ,
+                       FUN.VALUE = base::character(length = 1L), USE.NAMES = FALSE)
+  base::all(base::vapply(X = funs, FUN = function(fn) {
+    base::exists(x = fn, where = -1, envir = base::asNamespace(ns = "saferDev", base.OK = TRUE), frame = , mode = "function", inherits = FALSE)
+  } , FUN.VALUE = base::logical(length = 1L), USE.NAMES = FALSE), na.rm = FALSE)
 }
 
-# Full staged check of the pasted code (the conversion loop of the app):
-# 1. qualify the basic-R calls of the code (auto, always on);
-# 2. saferDev::colons_check() on the qualified function: when findings remain
-#    (shadowed names, non-resolvable names), stop at stage "colons" and hand
-#    the qualified code back to the user;
-# 3. saferDev::all_args_here() on the qualified function: apply the corrections
-#    of its STATUS column to the code (auto), then re-run it on the corrected
-#    function: when findings remain (multi-line calls, broken STATUS, calls
-#    that cannot be completed), stop at stage "args" and hand the corrected
-#    code back to the user.
-# code     : the pasted code (character)
-# fun_args : the argument names of the function (for the qualification)
-# fun_name : the function name (for the rebuilt text of the args stage; the
-#            "<anonymous>" marker of the app is replaced by "fun_to_complete",
-#            because the corrected code must be valid R the user can resubmit)
-# f, env   : optional function object and environment already evaluated from
-#            code by the caller (the app): when the qualification does not
-#            change the code, they are reused instead of evaluating the code a
-#            second time, so that the side effects of the user code (print,
-#            message, file writes, ...) run only once per Run. When the
-#            qualification changes the code, the qualified code is evaluated
-#            here (its side effects necessarily run again) and f is ignored.
-# Returns list(stage, code, summary, report, df, error_detail) with:
-#   stage        : "ok" (all checks clean), "colons", "args", "aah_error",
-#                  "skip" (saferDev not installed) or "user_error" (the code
-#                  does not eval; error_detail holds the message)
-#   code         : the code to hand back (qualified verbatim, or the corrected
-#                  function text; unchanged input text when stage = "ok")
-#   summary      : human-readable lines describing the automatic modifications,
-#                  prefixed by the two fixed explanation lines of the blue
-#                  alert of the code_check screen (basic-R-only qualification
-#                  and the identical-name caution)
-#   report       : raw report text to display ("" at stage "ok")
-#   df           : the all_args_here data.frame at stage "args", else NULL
-#   error_detail : only at stage "user_error"
-.run_code_checks <- function(code, fun_args = base::character(length = 0L),
-                             fun_name = "fun_to_complete", f = NULL,
-                             env = NULL) {
-  .run_code_checks_impl(code = code, fun_args = fun_args, fun_name = fun_name,
-                        summary = .qualification_explanation, depth = 0L,
-                        f = f, env = env)
+# Name of the variable under which the function is handed to saferDev: the
+# saferDev functions designate the function by its name (messages, name of the
+# exported file). The user function name is used when it is a syntactic name,
+# otherwise (anonymous function, non syntactic name) "fun_to_check".
+.check_var_name <- function(fun_name) {
+  if (base::is.character(x = fun_name) && base::length(x = fun_name) == 1L &&
+      ! base::is.na(x = fun_name) && base::nzchar(x = fun_name, keepNA = FALSE) &&
+      base::identical(x = base::make.names(names = fun_name, unique = FALSE, allow_ = TRUE),
+                      y = fun_name, num.eq = TRUE, single.NA = TRUE, attrib.as.set = TRUE, ignore.bytecode = TRUE, ignore.environment = FALSE, ignore.srcref = TRUE, extptr.as.ref = FALSE)) {
+    fun_name
+  } else {
+    "fun_to_check"
+  }
 }
 
-# Implementation of .run_code_checks(): the summary accumulates over the
-# iterations of the correction loop (one automatic pass per stage per Run).
-# depth guards against a pathological non-converging loop (hard limit 20).
-# f/env are only honored at depth 0 (see the header of .run_code_checks()).
-.run_code_checks_impl <- function(code, fun_args, fun_name, summary, depth,
-                                  f = NULL, env = NULL) {
-  res <- base::list(stage = "ok", code = code, summary = summary,
-                    report = "", df = NULL, error_detail = NULL)
-  if (depth > 20L) {
-    res$stage <- "args"
-    res$report <- "The automatic correction loop did not converge. Please, complete the code manually."
-    res$summary <- summary
+# Position of the text of function f inside the code it was evaluated from.
+# The function carries its source references (parse(keep.source = TRUE)): their
+# text is searched in the code. Returns c(start, end) (character positions) or
+# NULL when the text cannot be located.
+.function_span <- function(code, f) {
+  src <- base::attr(x = f, which = "srcref", exact = TRUE)
+  if (base::is.null(x = src)) {base::return(NULL)}
+  txt <- base::paste(base::as.character(x = src, useSource = TRUE), sep = " ", collapse = "\n", recycle0 = FALSE)
+  if (! base::nzchar(x = txt, keepNA = FALSE)) {base::return(NULL)}
+  start <- base::regexpr(pattern = txt, text = code, ignore.case = FALSE, perl = FALSE,
+                         fixed = TRUE, useBytes = FALSE)
+  if (start == -1L) {base::return(NULL)}
+  base::c(base::as.integer(x = start),
+          base::as.integer(x = start) + base::nchar(x = txt, type = "chars", allowNA = FALSE, keepNA = NA) - 1L)
+}
+
+# Put the modified function text back in the code: what is written before and
+# after the function in the pasted code (name of the function and assignment,
+# header comments, ...) is kept. When the function cannot be located, the
+# modified function replaces the whole code.
+# fun_txt_new : text of the modified function, starting with "function"
+.splice_function <- function(code, f, fun_txt_new, fun_name) {
+  span <- .function_span(code = code, f = f)
+  if (base::is.null(x = span)) {
+    # the pasted code could not be located: rebuild a resubmittable code
+    base::return(if (base::identical(x = fun_name, y = "<anonymous>", num.eq = TRUE, single.NA = TRUE, attrib.as.set = TRUE, ignore.bytecode = TRUE, ignore.environment = FALSE, ignore.srcref = TRUE, extptr.as.ref = FALSE)) {
+      fun_txt_new
+    } else {
+      base::paste0(fun_name, " <- ", fun_txt_new, collapse = NULL, recycle0 = FALSE)
+    })
+  }
+  base::paste0(
+    base::substring(text = code, first = 1L, last = span[1] - 1L),
+    fun_txt_new,
+    base::substring(text = code, first = span[2] + 1L, last = ),
+    collapse = NULL, recycle0 = FALSE
+  )
+}
+
+# Run ONE check on the function f.
+# step     : one element of .code_check_steps
+# f        : the function, evaluated from the pasted code with keep.source = TRUE
+# var_name : name under which f is handed to saferDev (see .check_var_name())
+# The modified code is obtained by exporting it in a temporary file
+# (<var_name>_safer.R, written by saferDev) that is read back and deleted.
+# Returns list(fun_txt, report, clean, err):
+#   fun_txt : text of the modified function (starting with "function"), or NULL
+#             if the check did not modify the code
+#   report  : text printed by saferDev (messages and warnings, without the
+#             message giving the path of the temporary export file)
+#   clean   : TRUE when the check reports nothing to modify or to complete
+#   err     : error message of saferDev (NULL if no error)
+.run_check_step <- function(step, f, var_name) {
+  out_dir <- base::tempfile(pattern = "saferMake_check_", tmpdir = base::tempdir(check = FALSE), fileext = "")
+  base::dir.create(path = out_dir, showWarnings = FALSE, recursive = FALSE, mode = "0777")
+  base::on.exit(expr = base::unlink(x = out_dir, recursive = TRUE, force = TRUE, expand = TRUE), add = TRUE, after = TRUE)
+  env <- base::new.env(hash = TRUE, parent = base::globalenv(), size = 29L)
+  base::assign(x = var_name, value = f, pos = -1, envir = env, inherits = FALSE, immediate = TRUE)
+  # saferDev designates the function by the name written in the call: the call
+  # is built with that name and evaluated in env
+  args <- base::list(base::as.name(x = var_name), TRUE, out_dir)
+  base::names(x = args) <- base::c("x", step$export_arg, "out_path")
+  cl <- base::as.call(x = base::c(
+    base::list(base::call(name = "::", base::as.name(x = "saferDev"), base::as.name(x = step$fun))),
+    args
+  ))
+  cap <- .capture_msg(fun = function() {base::eval(expr = cl, envir = env, enclos = base::baseenv())} )
+  # the message giving the path of the temporary file is of no use to the user
+  msgs <- cap$msgs[ ! base::grepl(pattern = "MODIFIED CODE EXPORTED IN", x = cap$msgs,
+                                  ignore.case = FALSE, perl = FALSE, fixed = TRUE, useBytes = FALSE)]
+  # saferDev can print the same text several times (message printed twice, or
+  # message repeated in a warning): each distinct text is kept once
+  all_txt <- base::trimws(x = base::c(msgs, cap$warns), which = "both", whitespace = "[ \t\r\n]")
+  all_txt <- all_txt[base::nzchar(x = all_txt, keepNA = FALSE) & ! base::duplicated(x = all_txt, incomparables = FALSE)]
+  report <- base::paste(all_txt, sep = " ", collapse = "\n\n", recycle0 = FALSE)
+  res <- base::list(fun_txt = NULL, report = report, clean = FALSE, err = NULL)
+  if (! base::is.null(x = cap$err)) {
+    res$err <- base::trimws(x = cap$err, which = "both", whitespace = "[ \t\r\n=]")
     base::return(res)
   }
+  files <- base::list.files(path = out_dir, pattern = NULL, all.files = FALSE, full.names = TRUE,
+                            recursive = FALSE, ignore.case = FALSE, include.dirs = FALSE, no.. = FALSE)
+  if (base::length(x = files) > 0L) {
+    lines <- base::enc2utf8(x = base::readLines(con = files[1], n = -1L, ok = TRUE, warn = FALSE,
+                                                encoding = "unknown", skipNul = FALSE))
+    prefix <- base::paste0(var_name, "_safer <- ", collapse = NULL, recycle0 = FALSE)
+    if (base::length(x = lines) == 0L || ! base::startsWith(x = lines[1], prefix = prefix)) {
+      res$err <- "The modified code returned by saferDev has an unexpected format."
+      base::return(res)
+    }
+    lines[1] <- base::substring(text = lines[1], first = base::nchar(x = prefix, type = "chars", allowNA = FALSE, keepNA = NA) + 1L, last = )
+    res$fun_txt <- base::paste(lines, sep = " ", collapse = "\n", recycle0 = FALSE)
+    base::return(res)
+  }
+  # nothing modified: clean unless saferDev reports findings that it cannot
+  # correct itself (other functions without package, calls on several lines, ...)
+  res$clean <- base::grepl(pattern = "EVERYTHING SEEMS CLEAN", x = report, ignore.case = FALSE,
+                           perl = FALSE, fixed = TRUE, useBytes = FALSE) &&
+               ! base::grepl(pattern = "ARE MISSING", x = report, ignore.case = FALSE,
+                             perl = FALSE, fixed = TRUE, useBytes = FALSE)
+  res
+}
+
+# Full staged check of the pasted code (the five checks of the Run button).
+# code     : the pasted code (character), already evaluated without error
+# f        : the function evaluated from code with keep.source = TRUE
+# fun_name : the function name ("<anonymous>" when the code is a bare function)
+# Returns list(stage, code, step, notice, report) with:
+#   stage  : "ok" (the five checks are clean), "modified" (the check number
+#            step modified the code), "findings" (the check number step
+#            reports something that it cannot correct itself: the user must
+#            complete the code), "error" (the saferDev function stopped), or
+#            "skip" (saferDev >= 3.0.0 is not available: no check can be
+#            done, the user is told to install it)
+#   code   : the code to display in window 1 (modified code at stage
+#            "modified", otherwise the unchanged pasted code)
+#   step   : number (1 to 5) of the check that stopped the loop, NULL at stage
+#            "ok" and "skip"
+#   notice : lines of the orange message of window 1 (character(0) at stage
+#            "ok")
+#   report : text printed by saferDev for that check ("" at stage "ok")
+.run_code_checks <- function(code, f, fun_name = "<anonymous>") {
+  res <- base::list(stage = "ok", code = code, step = NULL,
+                    notice = base::character(length = 0L), report = "")
   if (! .safer_dev_available()) {
+    # the five checks cannot be run: never go on silently to window 2
     res$stage <- "skip"
-    res$summary <- base::c(res$summary,
-      "The saferDev package is not installed: the colons_check() and all_args_here() checks were skipped.")
+    res$notice <- base::paste0("The safer-r code verifications need the saferDev package, version 3.0.0 or later, which is not available in the R session running this app (installed version: ",
+                               if (base::requireNamespace(package = "saferDev", quietly = TRUE)) {base::as.character(x = utils::packageVersion(pkg = "saferDev", lib.loc = NULL))} else {"none"},
+                               "). Please, install saferDev >= 3.0.0, restart R, and run saferMake::make() again.",
+                               collapse = NULL, recycle0 = FALSE)
     base::return(res)
   }
-  # 1. qualification of the basic-R calls
-  qual <- .qualify_base_calls(txt = code, fun_args = fun_args)
-  qualified_code <- qual$new_txt
-  # NOTE: the list of qualified names is deliberately NOT added to the summary:
-  # the blue alert of the code_check screen explains the scope of the automatic
-  # qualification (.qualification_explanation) instead of listing the modified
-  # calls (user request 2026-10-15)
-  if (base::length(x = qual$skipped) > 0L) {
-    summary <- base::c(summary, base::paste0(
-      "Not qualified automatically (complete manually if needed): ",
-      base::paste(base::unique(x = qual$skipped), collapse = "; "),
-      ".", collapse = NULL, recycle0 = FALSE))
-  }
-  # rebuild the function from the qualified code; keep.source = TRUE so that
-  # the function keeps its srcref and .args_insert() sees the original text.
-  # When the qualification changed nothing and the caller already evaluated
-  # the same code (f and env passed at depth 0), reuse the function and the
-  # environment: the side effects of the user code (print, message, file
-  # writes, ...) then run only once per Run.
-  if (depth == 0L && identical(x = qualified_code, y = code) &&
-      base::is.function(x = f) && base::is.environment(x = env)) {
-    base::return(.checks_on_function(f = f, code = code, fun_args = fun_args,
-                                     qualified_code = qualified_code,
-                                     fun_name = fun_name, summary = summary,
-                                     depth = depth))
-  }
-  env2 <- base::new.env(parent = base::globalenv())
-  ev <- .capture_msg(fun = function() {base::eval(expr = base::parse(text = qualified_code, keep.source = TRUE), envir = env2)} )
-  if (! base::is.null(x = ev$err)) {
-    res$stage <- "user_error"
-    res$error_detail <- ev$err
-    res$code <- code
-    res$summary <- base::character(length = 0L)
-    base::return(res)
-  }
-  f2 <- ev$value
-  if (! base::is.function(x = f2)) {
-    # the code defines the function by assignment: eval() returns the value of
-    # the assignment (the function), but fetch it from the env to be safe
-    fnames <- base::Filter(f = function(n) {base::is.function(x = base::get(x = n, envir = env2, mode = "any", inherits = FALSE))} ,
-                           x = base::ls(name = env2, all.names = FALSE, sorted = FALSE))
-    f2 <- if (base::length(x = fnames) > 0L) {base::get(x = fnames[1], envir = env2)} else {ev$value}
-    if (! base::is.function(x = f2)) {
-      res$stage <- "user_error"
-      res$error_detail <- "no function found after qualification"
-      res$code <- code
-      res$summary <- base::character(length = 0L)
+  var_name <- .check_var_name(fun_name = fun_name)
+  n_steps <- base::length(x = .code_check_steps)
+  for (i in base::seq_len(length.out = n_steps)) {
+    step <- .code_check_steps[[i]]
+    out <- .run_check_step(step = step, f = f, var_name = var_name)
+    head_txt <- base::paste0("Check ", i, "/", n_steps, " (saferDev::", step$fun, "()): ",
+                             collapse = NULL, recycle0 = FALSE)
+    if (! base::is.null(x = out$err)) {
+      res$stage <- "error"
+      res$step <- i
+      res$report <- out$err
+      res$notice <- base::paste0(head_txt, "saferDev stopped with the message below. Please, correct your code in the box below, then click on the Run button again.",
+                                 collapse = NULL, recycle0 = FALSE)
+      base::return(res)
+    }
+    if (! base::is.null(x = out$fun_txt)) {
+      new_code <- .splice_function(code = code, f = f, fun_txt_new = out$fun_txt, fun_name = fun_name)
+      res$step <- i
+      res$report <- out$report
+      if (base::identical(x = new_code, y = code, num.eq = TRUE, single.NA = TRUE, attrib.as.set = TRUE, ignore.bytecode = TRUE, ignore.environment = FALSE, ignore.srcref = TRUE, extptr.as.ref = FALSE)) {
+        # saferDev reported something but the text is unchanged: handing back
+        # the same code as "modified" would loop without end
+        res$stage <- "findings"
+        res$notice <- base::paste0(head_txt, "the check reported the findings below, that could not be corrected automatically. Please, complete your code in the box below, then click on the Run button again.",
+                                   collapse = NULL, recycle0 = FALSE)
+        base::return(res)
+      }
+      res$stage <- "modified"
+      res$code <- new_code
+      res$notice <- base::c(
+        base::paste0(head_txt, step$what, collapse = NULL, recycle0 = FALSE),
+        "The modified code is now in the box below. Please, check it, then click on the Run button again.",
+        if (base::isTRUE(x = step$loses_format)) {
+          base::paste0("Warning: saferDev::", step$fun, "() removes the comments of the code and can change its indentation.",
+                       collapse = NULL, recycle0 = FALSE)
+        }
+      )
+      base::return(res)
+    }
+    if (! out$clean) {
+      res$stage <- "findings"
+      res$step <- i
+      res$report <- out$report
+      res$notice <- base::paste0(head_txt, "the check reported the findings below, that could not be corrected automatically. Please, complete your code in the box below, then click on the Run button again.",
+                                 collapse = NULL, recycle0 = FALSE)
       base::return(res)
     }
   }
-  .checks_on_function(f = f2, code = code, qualified_code = qualified_code,
-                     fun_args = fun_args, fun_name = fun_name, summary = summary,
-                     depth = depth)
-}
-
-# Stages 2 (colons_check) and 3 (all_args_here + insertion) on the evaluated
-# function. Shared by the reuse path and the fresh-eval path. fun_args must be
-# forwarded: the correction loop re-runs the qualification on the corrected
-# code, which needs the argument names of the user function.
-.checks_on_function <- function(f, code, qualified_code, fun_args, fun_name,
-                                summary, depth) {
-  res <- base::list(stage = "ok", code = code, summary = summary,
-                    report = "", df = NULL, error_detail = NULL)
-  # 2. colons_check on the qualified function
-  cc <- .run_colons_check(f = f)
-  if (! cc$clean) {
-    res$stage <- "colons"
-    res$code <- qualified_code
-    res$report <- cc$report
-    res$summary <- base::unique(x = summary)
-    base::return(res)
-  }
-  # 3. all_args_here on the qualified function
-  aa <- .run_all_args(f = f)
-  if (! aa$clean) {
-    if (base::is.null(x = aa$df)) {
-      # all_args_here() stopped (e.g. method call x@sum(2) that colons_check
-      # passes but all_args_here cannot resolve): display its error text
-      res$stage <- "aah_error"
-      res$code <- qualified_code
-      res$report <- aa$report
-      res$summary <- base::unique(x = summary)
-      base::return(res)
-    }
-    ins <- .args_insert(f = f, rep = aa$df, fun_name = fun_name)
-    if (! base::is.null(x = ins$fun_txt)) {
-      summary <- base::c(summary, base::paste0(
-        "Automatically inserted the argument names reported by all_args_here(): ",
-        base::paste(x = ins$inserted, collapse = " | ", recycle0 = FALSE),
-        ".", collapse = NULL, recycle0 = FALSE))
-      # re-run the whole check on the corrected code (one auto pass per Run:
-      # the remaining findings, if any, are handed back to the user)
-      return(.run_code_checks_impl(code = ins$fun_txt, fun_args = fun_args,
-                                   fun_name = fun_name, summary = summary,
-                                   depth = depth + 1L))
-    }
-    res$stage <- "args"
-    res$code <- qualified_code
-    res$report <- aa$report
-    res$df <- aa$df
-    res$summary <- base::unique(x = summary)
-    base::return(res)
-  }
-  # everything clean: hand back the (possibly qualified) code
-  res$code <- qualified_code
-  res$summary <- base::unique(x = summary)
   res
 }
