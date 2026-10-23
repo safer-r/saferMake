@@ -52,25 +52,20 @@
 #              modified function in a file (all_args_here() has two export
 #              arguments: table_export for the table, fun_export for the code)
 # what       : sentence explaining the modification, displayed in window 1
-# loses_format : TRUE when the saferDev function rebuilds the code from its
-#              analysis, so that the comments (and the indentation) of the
-#              submitted code are lost (see the Details of each function)
+# The five saferDev functions keep the comments and the indentation of the
+# submitted code (the function evaluated with keep.source = TRUE carries its
+# source references).
 .code_check_steps <- base::list(
   base::list(key = "lambda", fun = "lambda_check", export_arg = "export",
-             what = "the lambda functions written \\(x) have been rewritten function(x).",
-             loses_format = FALSE),
+             what = "the lambda functions written \\(x) have been rewritten function(x)."),
   base::list(key = "curly", fun = "curly_bracket_check", export_arg = "export",
-             what = "curly brackets { } have been added to the bodies of the if, else, for, while, repeat and function that had none.",
-             loses_format = TRUE),
+             what = "curly brackets { } have been added to the bodies of the if, else, for, while, repeat and function that had none."),
   base::list(key = "true_false", fun = "true_false_check", export_arg = "export",
-             what = "the T and F written as values have been rewritten TRUE and FALSE.",
-             loses_format = FALSE),
+             what = "the T and F written as values have been rewritten TRUE and FALSE."),
   base::list(key = "colons", fun = "colons_check", export_arg = "export",
-             what = "the package attribution (<package>::) of the basic R functions has been added.",
-             loses_format = TRUE),
+             what = "the package attribution (<package>::) of the basic R functions has been added."),
   base::list(key = "args", fun = "all_args_here", export_arg = "fun_export",
-             what = "the missing arguments of the called functions have been added.",
-             loses_format = TRUE)
+             what = "the missing arguments of the called functions have been added.")
 )
 
 # TEMPORARY SWITCH (set to FALSE on 2026-10-22 so that the rest of the app can be
@@ -316,11 +311,7 @@
   res$code <- new_code
   res$notice <- base::c(
     base::paste0(head_txt, step$what, collapse = NULL, recycle0 = FALSE),
-    "The modified code is now in the box below. Please, check it, then click on the Run button again.",
-    if (base::isTRUE(x = step$loses_format)) {
-      base::paste0("Warning: saferDev::", step$fun, "() removes the comments of the code and can change its indentation.",
-                   collapse = NULL, recycle0 = FALSE)
-    }
+    "The modified code is now in the box below. Please, check it, then click on the Run button again."
   )
   res
 }

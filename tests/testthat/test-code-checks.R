@@ -140,8 +140,6 @@ testthat::test_that(desc = ".run_code_checks() stops at check 1 on a lambda func
   testthat::expect_true(object = base::startsWith(x = res$code, prefix = "#' header\nmy_fun <- function(x){ # keep this comment"))
   testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "Check 1/5", fixed = TRUE)
   testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "click on the Run button again", fixed = TRUE)
-  # no warning about the comments for this check
-  testthat::expect_false(object = base::any(base::grepl(pattern = "removes the comments", x = res$notice, fixed = TRUE)))
 })
 
 testthat::test_that(desc = ".run_code_checks() handles a function written as a lambda from its first character", code = {
@@ -154,16 +152,18 @@ testthat::test_that(desc = ".run_code_checks() handles a function written as a l
 
 testthat::test_that(desc = ".run_code_checks() runs the checks in order: curly brackets, then TRUE/FALSE", code = {
   skip_if_no_checks()
-  code <- "my_fun <- function(x){\n    if(x == T) base::return(x)\n}"
+  code <- "my_fun <- function(x){\n    # keep this comment\n    if(x == T) base::return(x)   # and this one\n}"
   res <- run_checks(code = code)
   testthat::expect_identical(object = res$stage, expected = "modified")
   testthat::expect_identical(object = res$step, expected = 2L)
-  testthat::expect_match(object = res$code, regexp = "if (x == T) {", fixed = TRUE)
-  testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "removes the comments", fixed = TRUE)
+  # curly_bracket_check() keeps the comments and the indentation of the code
+  testthat::expect_identical(object = res$code, expected = "my_fun <- function(x){\n    # keep this comment\n    if(x == T) { base::return(x) }   # and this one\n}")
+  testthat::expect_false(object = base::any(base::grepl(pattern = "removes the comments", x = res$notice, fixed = TRUE)))
   res2 <- run_checks(code = res$code)
   testthat::expect_identical(object = res2$stage, expected = "modified")
   testthat::expect_identical(object = res2$step, expected = 3L)
   testthat::expect_match(object = res2$code, regexp = "x == TRUE", fixed = TRUE)
+  testthat::expect_match(object = res2$code, regexp = "# keep this comment", fixed = TRUE)
 })
 
 testthat::test_that(desc = ".run_code_checks() adds the package attribution at check 4, then the arguments at check 5", code = {

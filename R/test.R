@@ -39,7 +39,7 @@
 #'
 #' Warning: \code{saferDev::lambda_check()} only sees the \code{\\(x)} writing in a function carrying its source references (attribute \code{srcref}, e.g., after a \code{base::parse(keep.source = TRUE)}, see the examples). The function corrected by a check is rebuilt with its source references before the next check.
 #'
-#' Warning: \code{saferDev::curly_bracket_check()}, \code{saferDev::colons_check()} and \code{saferDev::all_args_here()} rebuild the code from their analysis, so that the comments (and the indentation) of the code can be lost.
+#' The comments and the indentation of the code are kept by the five checks. Warning: comments are only available when \code{x} carries its source references (attribute \code{srcref}). Otherwise, the code is the deparsed one: no comments and standard indentation.
 #' @author \href{mailto:gael.millot@pasteur.fr}{Gael Millot}
 #' @examples
 #' # Warning: these examples may not work well when using the "Run examples" link
@@ -591,7 +591,6 @@ test <- function(
     check_report <- base::rep(x = "", times = n_steps)
     current_fun <- x # function checked at each step: the function corrected by the previous checks
     current_txt <- NULL # code of current_fun (NULL as long as nothing has been corrected)
-    lost_format <- FALSE # TRUE if a check that removes the comments has corrected the code
     stop_step <- NULL
     for(i1 in base::seq_len(length.out = n_steps)){
         step <- .code_check_steps[[i1]]
@@ -613,9 +612,6 @@ test <- function(
                 current_txt <- out$fun_txt
                 # the corrected function is rebuilt with its source references (required by the next checks, see lambda_check()), in the environment of x. Warning: the srcfile argument must not be written here, because srcfile = NULL removes the source references (all_args_here() reports it as missing: expected)
                 current_fun <- base::eval(expr = base::parse(file = "", n = NULL, text = current_txt, prompt = "?", keep.source = TRUE, encoding = "unknown")[[1]], envir = base::environment(fun = x), enclos = base::baseenv())
-                if(base::isTRUE(x = step$loses_format)){
-                    lost_format <- TRUE
-                }
             }
         }else if(out$clean == TRUE){
             check_status[i1] <- "clean"
@@ -668,7 +664,6 @@ test <- function(
             ),
             no = ""
         ),
-        base::ifelse(test = lost_format == TRUE, yes = "\n\nWARNING: THE COMMENTS OF THE CODE HAVE BEEN REMOVED AND ITS INDENTATION CAN HAVE CHANGED.", no = ""),
         base::ifelse(test = stage == "ok", yes = "\n\nEVERYTHING SEEMS CLEAN.", no = ""),
         collapse = NULL,
         recycle0 = FALSE

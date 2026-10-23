@@ -64,7 +64,7 @@ Requires a version of the saferDev package that provides the five functions abov
 
 Warning: \code{saferDev::lambda_check()} only sees the \code{\\(x)} writing in a function carrying its source references (attribute \code{srcref}, e.g., after a \code{base::parse(keep.source = TRUE)}, see the examples). The function corrected by a check is rebuilt with its source references before the next check.
 
-Warning: \code{saferDev::curly_bracket_check()}, \code{saferDev::colons_check()} and \code{saferDev::all_args_here()} rebuild the code from their analysis, so that the comments (and the indentation) of the code can be lost.
+The comments and the indentation of the code are kept by the five checks. Warning: comments are only available when \code{x} carries its source references (attribute \code{srcref}). Otherwise, the code is the deparsed one: no comments and standard indentation.
 }
 \examples{
 # Warning: these examples may not work well when using the "Run examples" link
