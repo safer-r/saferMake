@@ -390,11 +390,11 @@ server <- function(input, output, session) {
     # clicks on Run again. The progression to window 2 (settings) happens only
     # when the five checks return no modification.
     checks <- .run_code_checks(code = code, f = f, fun_name = rv$fun_name)
-    # saferDev (>= 3.0.0) not available: blocking (red message) only while
+    # current saferDev not available: blocking (red message) only while
     # .safer_dev_required is TRUE (temporary switch, see R/intern_.code_checks.R)
     skip_blocks <- (checks$stage == "skip") && base::isTRUE(x = .safer_dev_required)
     if (checks$stage == "skip" && ! skip_blocks) {
-      base::message("saferDev (>= 3.0.0) is not available: the safer-r code verifications were skipped (temporary, see .safer_dev_required in R/intern_.code_checks.R).",
+      base::message("The current (development) saferDev is not available: the safer-r code verifications were skipped (temporary, see .safer_dev_required in R/intern_.code_checks.R).",
                     domain = NULL, appendLF = TRUE)
     }
     if (checks$stage %in% base::c("modified", "findings", "error") || skip_blocks) {

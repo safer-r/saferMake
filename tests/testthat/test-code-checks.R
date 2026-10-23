@@ -1,7 +1,7 @@
 # Unit tests of the staged code checks (R/intern_.code_checks.R): the five
 # saferDev checks of the Run button of window 1. All helpers are internal
 # (dot-prefixed): access them via ::: (normal for internal testing).
-# The tests that run a saferDev function need saferDev >= 3.0.0 (lambda_check(),
+# The tests that run a saferDev function need the current (development) saferDev (lambda_check(),
 # curly_bracket_check(), true_false_check() and the code export of
 # colons_check() and all_args_here()); they are skipped otherwise.
 
@@ -17,7 +17,7 @@ mk_fun <- function(code) {
 skip_if_no_checks <- function() {
   testthat::skip_if_not_installed(pkg = "saferDev")
   testthat::skip_if_not(condition = saferMake:::.safer_dev_available(),
-                        message = "saferDev >= 3.0.0 is needed")
+                        message = "the current (development) saferDev is needed")
 }
 
 # Run the checks like the Run button does: evaluate the code, then check it
@@ -230,7 +230,7 @@ testthat::test_that(desc = ".run_code_checks() works on a bare (anonymous) funct
   testthat::expect_match(object = res$code, regexp = "base::sum(x, na.rm = FALSE)", fixed = TRUE)
 })
 
-testthat::test_that(desc = ".run_code_checks() stops with a message when saferDev >= 3.0.0 is not available", code = {
+testthat::test_that(desc = ".run_code_checks() stops with a message when the current saferDev is not available", code = {
   code <- "my_fun <- function(x){\n    sum(x)\n}"
   f <- mk_fun(code = code)
   res <- testthat::with_mocked_bindings(
@@ -242,7 +242,7 @@ testthat::test_that(desc = ".run_code_checks() stops with a message when saferDe
   )
   testthat::expect_identical(object = res$stage, expected = "skip")
   testthat::expect_identical(object = res$code, expected = code)
-  testthat::expect_match(object = res$notice, regexp = "saferDev package, version 3.0.0 or later", fixed = TRUE)
+  testthat::expect_match(object = res$notice, regexp = "current (development) version of the saferDev package", fixed = TRUE)
 })
 
 testthat::test_that(desc = "the five checks do not leave files behind", code = {
