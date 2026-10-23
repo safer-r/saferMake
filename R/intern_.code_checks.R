@@ -3,15 +3,17 @@
 # Extracted from inst/app/server.R; see the header of R/intern_.app_helpers.R.
 #
 # The five checks, always run in this order, each with the dedicated function
-# of saferDev (>= 3.0.0):
+# of the current (development) version of saferDev:
 #   1. saferDev::lambda_check()         no lambda function written \(x)
 #   2. saferDev::curly_bracket_check()  curly brackets after if, else, for, ...
 #   3. saferDev::true_false_check()     TRUE and FALSE written in full
 #   4. saferDev::colons_check()         package attribution (pkg::) of the functions
 #   5. saferDev::all_args_here()        all the arguments of the functions written
-# When a check modifies the code, the loop stops: the modified code is handed
-# back to window 1 (orange message), and the user clicks on Run again, which
-# restarts the five checks on the modified code.
+# The five checks are run by the exported saferMake::test() (R/test.R), that
+# can also be used on its own. In the app, .run_code_checks() calls test() with
+# stop_at_first = TRUE: when a check modifies the code, the loop stops, the
+# modified code is handed back to window 1 (orange message), and the user
+# clicks on Run again, which restarts the five checks on the modified code.
 
 # Run a zero-argument function, capture every message and warning (muffled) and
 # any error.
@@ -72,15 +74,17 @@
 )
 
 # TEMPORARY SWITCH (set to FALSE on 2026-10-22 so that the rest of the app can be
-# tested without saferDev >= 3.0.0 installed).
-# TRUE  : when saferDev (>= 3.0.0) is not available, window 1 shows a red
-#         message asking to install it, and window 2 cannot be reached.
+# tested with a saferDev version that does not provide the five checks).
+# TRUE  : when the saferDev of the R session does not provide the five checks,
+#         window 1 shows a red message asking to load the current saferDev,
+#         and window 2 cannot be reached.
 # FALSE : the five checks are skipped (message in the R console only) and the
 #         app goes on to window 2.
-# Set it back to TRUE as soon as saferDev >= 3.0.0 is installed.
+# Set it back to TRUE once the current saferDev is released (CRAN).
 .safer_dev_required <- FALSE
 
-# Is saferDev available, in a version that provides the five checks? An
+# Is saferDev available, in a version that provides the five checks (current,
+# development version; not the released CRAN version)? An
 # internal helper (instead of a direct base::requireNamespace() call) so that
 # the "saferDev not available" branch can be unit tested.
 .safer_dev_available <- function() {
@@ -106,6 +110,17 @@
     fun_name
   } else {
     "fun_to_check"
+  }
+}
+
+# Text of the code of function f: the text of its source references when it
+# carries them (parse(keep.source = TRUE)), otherwise its deparsed code.
+.fun_text <- function(f) {
+  src <- base::attr(x = f, which = "srcref", exact = TRUE)
+  if (base::is.null(x = src)) {
+    base::paste(base::deparse(expr = f, width.cutoff = 60L, backtick = TRUE, control = base::c("keepNA", "keepInteger", "niceNames", "showAttributes"), nlines = -1L), sep = " ", collapse = "\n", recycle0 = FALSE)
+  } else {
+    base::paste(base::as.character(x = src, useSource = TRUE), sep = " ", collapse = "\n", recycle0 = FALSE)
   }
 }
 
@@ -152,6 +167,9 @@
 # step     : one element of .code_check_steps
 # f        : the function, evaluated from the pasted code with keep.source = TRUE
 # var_name : name under which f is handed to saferDev (see .check_var_name())
+# safer_check, lib_path, error_text : passed to the saferDev function
+#            (safer_check = FALSE when called by saferMake::test(), that has
+#            already performed these checks)
 # The modified code is obtained by exporting it in a temporary file
 # (<var_name>_safer.R, written by saferDev) that is read back and deleted.
 # Returns list(fun_txt, report, clean, err):
@@ -161,7 +179,7 @@
 #             message giving the path of the temporary export file)
 #   clean   : TRUE when the check reports nothing to modify or to complete
 #   err     : error message of saferDev (NULL if no error)
-.run_check_step <- function(step, f, var_name) {
+.run_check_step <- function(step, f, var_name, safer_check = TRUE, lib_path = NULL, error_text = "") {
   out_dir <- base::tempfile(pattern = "saferMake_check_", tmpdir = base::tempdir(check = FALSE), fileext = "")
   base::dir.create(path = out_dir, showWarnings = FALSE, recursive = FALSE, mode = "0777")
   base::on.exit(expr = base::unlink(x = out_dir, recursive = TRUE, force = TRUE, expand = TRUE), add = TRUE, after = TRUE)
@@ -169,8 +187,8 @@
   base::assign(x = var_name, value = f, pos = -1, envir = env, inherits = FALSE, immediate = TRUE)
   # saferDev designates the function by the name written in the call: the call
   # is built with that name and evaluated in env
-  args <- base::list(base::as.name(x = var_name), TRUE, out_dir)
-  base::names(x = args) <- base::c("x", step$export_arg, "out_path")
+  args <- base::list(base::as.name(x = var_name), TRUE, out_dir, safer_check, lib_path, error_text)
+  base::names(x = args) <- base::c("x", step$export_arg, "out_path", "safer_check", "lib_path", "error_text")
   cl <- base::as.call(x = base::c(
     base::list(base::call(name = "::", base::as.name(x = "saferDev"), base::as.name(x = step$fun))),
     args
@@ -221,8 +239,9 @@
 #            step modified the code), "findings" (the check number step
 #            reports something that it cannot correct itself: the user must
 #            complete the code), "error" (the saferDev function stopped), or
-#            "skip" (saferDev >= 3.0.0 is not available: no check can be
-#            done, the user is told to install it)
+#            "skip" (the saferDev of the R session does not provide the five
+#            checks: no check can be done, the user is told to load the
+#            current saferDev)
 #   code   : the code to display in window 1 (modified code at stage
 #            "modified", otherwise the unchanged pasted code)
 #   step   : number (1 to 5) of the check that stopped the loop, NULL at stage
@@ -236,59 +255,72 @@
   if (! .safer_dev_available()) {
     # the five checks cannot be run: never go on silently to window 2
     res$stage <- "skip"
-    res$notice <- base::paste0("The safer-r code verifications need the saferDev package, version 3.0.0 or later, which is not available in the R session running this app (installed version: ",
+    res$notice <- base::paste0("The safer-r code verifications need the current (development) version of the saferDev package (https://github.com/safer-r/saferDev), which provides lambda_check(), curly_bracket_check() and true_false_check(). The saferDev of the R session running this app does not (version: ",
                                if (base::requireNamespace(package = "saferDev", quietly = TRUE)) {base::as.character(x = utils::packageVersion(pkg = "saferDev", lib.loc = NULL))} else {"none"},
-                               "). Please, install saferDev >= 3.0.0, restart R, and run saferMake::make() again.",
+                               "). Please, load the current saferDev (for instance with devtools::load_all() on its local folder) before saferMake, then run saferMake::make() again.",
                                collapse = NULL, recycle0 = FALSE)
     base::return(res)
   }
   var_name <- .check_var_name(fun_name = fun_name)
+  # saferMake::test() designates the function by the name written in the
+  # call (saferDev messages): the call is built with that name and evaluated
+  # in env
+  env <- base::new.env(hash = TRUE, parent = base::globalenv(), size = 29L)
+  base::assign(x = var_name, value = f, pos = -1, envir = env, inherits = FALSE, immediate = TRUE)
+  cl <- base::call(name = "test", x = base::as.name(x = var_name), stop_at_first = TRUE,
+                   export = FALSE, out_path = ".", safer_check = FALSE, lib_path = NULL, error_text = "")
+  cl[[1]] <- base::call(name = "::", base::as.name(x = "saferMake"), base::as.name(x = "test"))
+  # the summary message of test() is not displayed (the app builds its own)
+  cap <- .capture_msg(fun = function() {base::eval(expr = cl, envir = env, enclos = base::baseenv())} )
   n_steps <- base::length(x = .code_check_steps)
-  for (i in base::seq_len(length.out = n_steps)) {
-    step <- .code_check_steps[[i]]
-    out <- .run_check_step(step = step, f = f, var_name = var_name)
-    head_txt <- base::paste0("Check ", i, "/", n_steps, " (saferDev::", step$fun, "()): ",
-                             collapse = NULL, recycle0 = FALSE)
-    if (! base::is.null(x = out$err)) {
-      res$stage <- "error"
-      res$step <- i
-      res$report <- out$err
-      res$notice <- base::paste0(head_txt, "saferDev stopped with the message below. Please, correct your code in the box below, then click on the Run button again.",
-                                 collapse = NULL, recycle0 = FALSE)
-      base::return(res)
-    }
-    if (! base::is.null(x = out$fun_txt)) {
-      new_code <- .splice_function(code = code, f = f, fun_txt_new = out$fun_txt, fun_name = fun_name)
-      res$step <- i
-      res$report <- out$report
-      if (base::identical(x = new_code, y = code, num.eq = TRUE, single.NA = TRUE, attrib.as.set = TRUE, ignore.bytecode = TRUE, ignore.environment = FALSE, ignore.srcref = TRUE, extptr.as.ref = FALSE)) {
-        # saferDev reported something but the text is unchanged: handing back
-        # the same code as "modified" would loop without end
-        res$stage <- "findings"
-        res$notice <- base::paste0(head_txt, "the check reported the findings below, that could not be corrected automatically. Please, complete your code in the box below, then click on the Run button again.",
-                                   collapse = NULL, recycle0 = FALSE)
-        base::return(res)
-      }
-      res$stage <- "modified"
-      res$code <- new_code
-      res$notice <- base::c(
-        base::paste0(head_txt, step$what, collapse = NULL, recycle0 = FALSE),
-        "The modified code is now in the box below. Please, check it, then click on the Run button again.",
-        if (base::isTRUE(x = step$loses_format)) {
-          base::paste0("Warning: saferDev::", step$fun, "() removes the comments of the code and can change its indentation.",
-                       collapse = NULL, recycle0 = FALSE)
-        }
-      )
-      base::return(res)
-    }
-    if (! out$clean) {
-      res$stage <- "findings"
-      res$step <- i
-      res$report <- out$report
-      res$notice <- base::paste0(head_txt, "the check reported the findings below, that could not be corrected automatically. Please, complete your code in the box below, then click on the Run button again.",
-                                 collapse = NULL, recycle0 = FALSE)
-      base::return(res)
-    }
+  if (! base::is.null(x = cap$err)) {
+    # saferMake::test() itself stopped (should not happen: errors of the
+    # saferDev functions are returned in its output)
+    res$stage <- "error"
+    res$report <- base::trimws(x = cap$err, which = "both", whitespace = "[ \t\r\n=]")
+    res$notice <- "saferMake::test() stopped with the message below. Please, correct your code in the box below, then click on the Run button again."
+    base::return(res)
   }
+  out <- cap$value
+  if (base::identical(x = out$stage, y = "ok", num.eq = TRUE, single.NA = TRUE, attrib.as.set = TRUE, ignore.bytecode = TRUE, ignore.environment = FALSE, ignore.srcref = TRUE, extptr.as.ref = FALSE)) {
+    base::return(res)
+  }
+  i <- out$step
+  step <- .code_check_steps[[i]]
+  head_txt <- base::paste0("Check ", i, "/", n_steps, " (saferDev::", step$fun, "()): ",
+                           collapse = NULL, recycle0 = FALSE)
+  res$step <- i
+  res$report <- out$checks$report[i]
+  findings_txt <- base::paste0(head_txt, "the check reported the findings below, that could not be corrected automatically. Please, complete your code in the box below, then click on the Run button again.",
+                               collapse = NULL, recycle0 = FALSE)
+  if (out$stage == "error") {
+    res$stage <- "error"
+    res$notice <- base::paste0(head_txt, "saferDev stopped with the message below. Please, correct your code in the box below, then click on the Run button again.",
+                               collapse = NULL, recycle0 = FALSE)
+    base::return(res)
+  }
+  if (out$stage == "findings") {
+    res$stage <- "findings"
+    res$notice <- findings_txt
+    base::return(res)
+  }
+  # stage "modified"
+  new_code <- .splice_function(code = code, f = f, fun_txt_new = out$code, fun_name = fun_name)
+  if (base::identical(x = new_code, y = code, num.eq = TRUE, single.NA = TRUE, attrib.as.set = TRUE, ignore.bytecode = TRUE, ignore.environment = FALSE, ignore.srcref = TRUE, extptr.as.ref = FALSE)) {
+    # handing back the same code as "modified" would loop without end
+    res$stage <- "findings"
+    res$notice <- findings_txt
+    base::return(res)
+  }
+  res$stage <- "modified"
+  res$code <- new_code
+  res$notice <- base::c(
+    base::paste0(head_txt, step$what, collapse = NULL, recycle0 = FALSE),
+    "The modified code is now in the box below. Please, check it, then click on the Run button again.",
+    if (base::isTRUE(x = step$loses_format)) {
+      base::paste0("Warning: saferDev::", step$fun, "() removes the comments of the code and can change its indentation.",
+                   collapse = NULL, recycle0 = FALSE)
+    }
+  )
   res
 }

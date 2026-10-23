@@ -16,7 +16,7 @@ Imports:
     shiny,
     bslib
 Suggests: 
-    saferDev (>= 3.0.0),
+    saferDev,
     knitr,
     rmarkdown,
     testthat (>= 3.0.0)
