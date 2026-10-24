@@ -7,7 +7,9 @@
 .arg_check_call_core <- function(data_txt, st,
                                  lib_path_txt = "lib_path",
                                  error_text_txt = "embed_error_text") {
-  class_val   <- if (base::identical(x = st$class, y = "NULL", num.eq = TRUE, single.NA = TRUE,
+  .arg_check_parse_length <- utils::getFromNamespace(x = ".arg_check_parse_length", ns = "saferMake", pos = , envir = )
+  .arg_check_parse_options <- utils::getFromNamespace(x = ".arg_check_parse_options", ns = "saferMake", pos = , envir = )
+  class_val  <- if (base::identical(x = st$class, y = "NULL", num.eq = TRUE, single.NA = TRUE,
                                      attrib.as.set = TRUE, ignore.bytecode = TRUE,
                                      ignore.environment = FALSE, ignore.srcref = TRUE,
                                      extptr.as.ref = FALSE)) {"NULL"}
@@ -69,7 +71,9 @@
 # kind from class, else typeof, else mode (default "numeric");
 # length from the length field (default 1); options used when provided.
 .ac_test_value_code <- function(st) {
-  kind <- if (! base::identical(x = st$class, y = "NULL", num.eq = TRUE, single.NA = TRUE,
+  .arg_check_parse_length <- utils::getFromNamespace(x = ".arg_check_parse_length", ns = "saferMake", pos = , envir = )
+  .arg_check_parse_options <- utils::getFromNamespace(x = ".arg_check_parse_options", ns = "saferMake", pos = , envir = )
+  kind<- if (! base::identical(x = st$class, y = "NULL", num.eq = TRUE, single.NA = TRUE,
                                 attrib.as.set = TRUE, ignore.bytecode = TRUE,
                                 ignore.environment = FALSE, ignore.srcref = TRUE,
                                 extptr.as.ref = FALSE)) {
@@ -199,6 +203,9 @@
 # Evaluate each generated arg_check() line with the test value (instead of the
 # real argument) and collect ok / message / tested value, keyed by .arg_id(nm).
 .run_arg_check_tests <- function(fun_args, arg_check_settings) {
+  .arg_id <- utils::getFromNamespace(x = ".arg_id", ns = "saferMake", pos = , envir = )
+  .ac_test_value_code <- utils::getFromNamespace(x = ".ac_test_value_code", ns = "saferMake", pos = , envir = )
+  .arg_check_call_core <- utils::getFromNamespace(x = ".arg_check_call_core", ns = "saferMake", pos = , envir = )
   out <- base::list()
   if (base::length(x = fun_args) == 0L) {base::return(out)}
   safer_ok <- base::requireNamespace(package = "saferDev", quietly = TRUE)
@@ -287,6 +294,8 @@
 .build_arg_check_section <- function(fun_args, arg_check_settings,
                                      extra_section = NULL,
                                      wrap_null_args = base::character(length = 0L)) {
+  .arg_id <- utils::getFromNamespace(x = ".arg_id", ns = "saferMake", pos = , envir = )
+  .arg_check_call_core <- utils::getFromNamespace(x = ".arg_check_call_core", ns = "saferMake", pos = , envir = )
   calls <- base::vapply(
     X = fun_args,
     FUN = function(nm) {
@@ -348,7 +357,7 @@
     "    # end check with r_debugging_tools\n",
     "    ######## end argument checking with arg_check()\n",
     "\n",
-    if (base::is.null(x = extra_section)) {character(0)} else {extra_section} ,
+    if (base::is.null(x = extra_section)) {base::character(length = 0L)} else {extra_section} ,
     "    #### end argument secondary checking\n",
     "\n",
     collapse = NULL,

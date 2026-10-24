@@ -23,7 +23,7 @@ code_3 <- "my_fun <- function(x) x + 1"
 
 # arg_check() settings with a real constraint, as the app builds them
 st_vec <- function() {base::list(
-  class = "vector", typeof = "NULL", mode = "NULL", length = "NULL",
+  class = "numeric", typeof = "NULL", mode = "NULL", length = "NULL",
   options = "NULL", prop = FALSE, double_as_integer_allowed = FALSE,
   all_options_in_data = FALSE, na_contain = TRUE, neg_values = TRUE,
   inf_values = TRUE
@@ -718,8 +718,9 @@ testthat::test_that(desc = ".run_arg_check_tests() returns ok=TRUE for consisten
 
 testthat::test_that(desc = ".run_arg_check_tests() reports a failure for inconsistent settings", code = {
   testthat::skip_if_not_installed(pkg = "saferDev")
-  # class = "character" but the default numeric-kind test value -> must fail
-  st <- utils::modifyList(x = st_vec(), val = base::list(class = "character"), keep.null = FALSE)
+  # class = "character" (the test value is built from the class: "a") but
+  # typeof = "double" -> arg_check() must fail
+  st <- utils::modifyList(x = st_vec(), val = base::list(class = "character", typeof = "double"), keep.null = FALSE)
   res <- saferMake:::.run_arg_check_tests(
     fun_args = "x",
     arg_check_settings = base::list(arg_x = st)

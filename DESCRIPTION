@@ -8,16 +8,21 @@ Authors@R: c(
   )
 Encoding: UTF-8
 Maintainer: Gael Millot <gael.millot@pasteur.fr>
-Description: the make function convert a user function according to the safer-r project recommendations (see <https://github.com/safer-r>). This includes checking argument values, ensuring correct specification of all mandatory arguments for embedded functions, as well as their explicit package namespace qualification, among other things.
-URL: <https://github.com/safer-r/saferDev>, <https://safer-r.github.io/saferDev/>
+Description: Shiny app, launched by make(), that converts a user R function into a function written according to the safer-r project recommendations for R function development (see <https://github.com/safer-r>), and test() function that runs the safer-r code checks of the 'saferDev' package on a function. This includes strict checking of argument values, explicit package namespace qualification of all the called functions and explicit writing of all their arguments, among other things.
+URL: <https://github.com/safer-r/saferMake>, <https://safer-r.github.io/saferMake/>
 License: GPL-3
 Config/roxygen2/version: 8.0.0
-Imports: 
+Depends:
+    R (>= 4.6.0)
+Imports:
+    bslib,
     shiny,
-    bslib
-Suggests: 
+    utils
+Suggests:
     saferDev,
     knitr,
     rmarkdown,
     testthat (>= 3.0.0)
+Remotes:
+    safer-r/saferDev
 VignetteBuilder: knitr

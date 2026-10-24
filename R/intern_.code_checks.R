@@ -26,7 +26,7 @@
   err <- NULL
   value <- base::tryCatch(
     expr = base::withCallingHandlers(
-      expr = fun(),
+      expr = base::do.call(what = fun, args = base::list(), quote = FALSE, envir = ), # do.call() instead of fun(): fun cannot be preceded by a package name. Empty envir: default value base::parent.frame() of base::do.call()
       message = function(m) {
         msgs <<- base::c(msgs, base::conditionMessage(c = m))
         base::invokeRestart(r = "muffleMessage")
@@ -141,6 +141,7 @@
 # modified function replaces the whole code.
 # fun_txt_new : text of the modified function, starting with "function"
 .splice_function <- function(code, f, fun_txt_new, fun_name) {
+  .function_span <- utils::getFromNamespace(x = ".function_span", ns = "saferMake", pos = , envir = )
   span <- .function_span(code = code, f = f)
   if (base::is.null(x = span)) {
     # the pasted code could not be located: rebuild a resubmittable code
@@ -175,6 +176,7 @@
 #   clean   : TRUE when the check reports nothing to modify or to complete
 #   err     : error message of saferDev (NULL if no error)
 .run_check_step <- function(step, f, var_name, safer_check = TRUE, lib_path = NULL, error_text = "") {
+  .capture_msg <- utils::getFromNamespace(x = ".capture_msg", ns = "saferMake", pos = , envir = )
   out_dir <- base::tempfile(pattern = "saferMake_check_", tmpdir = base::tempdir(check = FALSE), fileext = "")
   base::dir.create(path = out_dir, showWarnings = FALSE, recursive = FALSE, mode = "0777")
   base::on.exit(expr = base::unlink(x = out_dir, recursive = TRUE, force = TRUE, expand = TRUE), add = TRUE, after = TRUE)
@@ -203,7 +205,7 @@
     base::return(res)
   }
   files <- base::list.files(path = out_dir, pattern = NULL, all.files = FALSE, full.names = TRUE,
-                            recursive = FALSE, ignore.case = FALSE, include.dirs = FALSE, no.. = FALSE)
+                            recursive = FALSE, ignore.case = FALSE, include.dirs = FALSE, no.. = FALSE, fixed = FALSE)
   if (base::length(x = files) > 0L) {
     lines <- base::enc2utf8(x = base::readLines(con = files[1], n = -1L, ok = TRUE, warn = FALSE,
                                                 encoding = "unknown", skipNul = FALSE))
@@ -245,6 +247,10 @@
 #            "ok")
 #   report : text printed by saferDev for that check ("" at stage "ok")
 .run_code_checks <- function(code, f, fun_name = "<anonymous>") {
+  .safer_dev_available <- utils::getFromNamespace(x = ".safer_dev_available", ns = "saferMake", pos = , envir = )
+  .check_var_name <- utils::getFromNamespace(x = ".check_var_name", ns = "saferMake", pos = , envir = )
+  .capture_msg <- utils::getFromNamespace(x = ".capture_msg", ns = "saferMake", pos = , envir = )
+  .splice_function <- utils::getFromNamespace(x = ".splice_function", ns = "saferMake", pos = , envir = )
   res <- base::list(stage = "ok", code = code, step = NULL,
                     notice = base::character(length = 0L), report = "")
   if (! .safer_dev_available()) {

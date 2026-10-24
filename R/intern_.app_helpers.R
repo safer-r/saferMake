@@ -3,6 +3,9 @@
 # from inst/app/server.R so they can be unit tested in tests/testthat/.
 # Not exported: the app accesses them through saferMake::: .
 # All internal function names start with a dot; files start with intern_.
+# Inside the package, an internal function is called through a local copy
+# fetched with utils::getFromNamespace() (safer-r convention: no bare call,
+# and no saferMake::: call, that would raise a R CMD check NOTE).
 
 # The three additional safer-r arguments
 .safer_args <- base::c("lib_path", "safer_check", "error_text")
@@ -34,15 +37,19 @@
 }
 # Checkbox id for a given argument name
 .null_cb_id <- function(nm) {
+  .arg_id <- utils::getFromNamespace(x = ".arg_id", ns = "saferMake", pos = , envir = )
   base::paste0("null_", .arg_id(nm = nm), collapse = NULL, recycle0 = FALSE)
 }
 .empty_cb_id <- function(nm) {
+  .arg_id <- utils::getFromNamespace(x = ".arg_id", ns = "saferMake", pos = , envir = )
   base::paste0("empty_", .arg_id(nm = nm), collapse = NULL, recycle0 = FALSE)
 }
 # Checkbox id of the "cannot contain \"\"" setting: the checkbox is rendered
 # with inputId = .arg_check_field_ids(...)$no_empty_string ("ac_noempty_<id>"),
 # so read the state through that same id everywhere.
 .no_empty_cb_id <- function(nm) {
+  .arg_id <- utils::getFromNamespace(x = ".arg_id", ns = "saferMake", pos = , envir = )
+  .arg_check_field_ids <- utils::getFromNamespace(x = ".arg_check_field_ids", ns = "saferMake", pos = , envir = )
   .arg_check_field_ids(id = .arg_id(nm = nm))$no_empty_string
 }
 
@@ -85,6 +92,7 @@
 # when the settings of the argument are consistent, otherwise the error
 # messages to display.
 .arg_check_settings_errors <- function(fun_args, arg_check_settings) {
+  .arg_id <- utils::getFromNamespace(x = ".arg_id", ns = "saferMake", pos = , envir = )
   msg_char <- base::paste0(
     "The \"If values are strings, they cannot contain empty strings \\\"\\\"\" box is ticked ",
     "but character value has not been used in any of the Class, typeof or mode field.",
@@ -116,8 +124,8 @@
       use.names = FALSE
     )
     kinds <- kinds[! base::is.na(x = kinds)]
-    char_used <- base::any(x = kinds == "character", na.rm = TRUE)
-    num_used  <- base::any(x = kinds == "numeric" | kinds == "double", na.rm = TRUE)
+    char_used <- base::any(kinds == "character", na.rm = TRUE) # no x argument in base::any(..., na.rm)
+    num_used  <- base::any(kinds == "numeric" | kinds == "double", na.rm = TRUE)
     errs <- base::character(length = 0L)
     if (base::isTRUE(x = st$no_empty_string) && ! char_used) {
       errs <- base::c(errs, msg_char)
@@ -145,7 +153,7 @@
     which = "both",
     whitespace = "[ \t\r\n]"
   )
-  parts <- parts[base::nzchar(x = parts)]
+  parts <- parts[base::nzchar(x = parts, keepNA = FALSE)]
   if (base::length(x = parts) == 0L) {base::return(NULL)}
   num <- base::suppressWarnings(expr = base::as.numeric(x = parts), classes = "warning")
   if (! base::anyNA(x = num, recursive = FALSE)) {num} else {parts}

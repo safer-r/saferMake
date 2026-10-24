@@ -4,13 +4,32 @@
 \alias{make}
 \title{Shiny app launcher}
 \usage{
-make()
+make(safer_check = TRUE, lib_path = NULL, error_text = "")
+}
+\arguments{
+\item{safer_check}{Single logical value. Perform some "safer" checks? If \code{TRUE}, checkings are performed before main code running (see the \href{https://github.com/safer-r}{safer-r project}): 1) correct \code{lib_path} argument value 2) required functions and related packages effectively present in local R libraries and 3) R classical operators (like \code{"<-"}) not overwritten by another package because of the R scope. Requires the saferDev package. Must be set to \code{FALSE} if this function is used inside another "safer" function to avoid pointless multiple checkings.}
+
+\item{lib_path}{Vector of characters specifying the absolute pathways of the directories containing the required packages for the function, if not in the default directories. Useful when R packages are not installed in the default directories because of lack of admin rights. More precisely, \code{lib_path} is passed through the \code{new} argument of \code{.libPaths()} so that the new library paths are \code{unique(c(new, .Library.site, .Library))}. Warning: \code{.libPaths()} is restored to the initial paths, after function execution, i.e., when the app is closed. Ignored if \code{NULL} (default): only the pathways specified by the current \code{.libPaths()} are used for package calling.}
+
+\item{error_text}{Single character string used to add information in error messages returned by the function, notably if the function is inside other functions, which is practical for debugging. Example: \code{error_text = " INSIDE <PACKAGE_1>::<FUNCTION_1> INSIDE <PACKAGE_2>::<FUNCTION_2>."}. If \code{NULL}, converted into \code{""}.}
 }
 \value{
-A .R file which correspond to the converted function.
+The value returned by \code{shiny::runApp()} when the app is closed, invisibly. The converted function is saved by the app in a .R file (download button of the app).
 }
 \description{
-Launch the shiny app that convert the user function to a safer-r function.
+Launch the shiny app that converts a user function into a safer-r function (see the \href{https://github.com/safer-r}{safer-r project}).
+}
+\details{
+The safer-r code verifications of the app (\code{saferMake::test()}) need the current version of the saferDev package (see \url{https://github.com/safer-r/saferDev}).
+}
+\examples{
+# Warning: these examples may not work well when using the "Run examples" link
+# because of a particular environment. Please, copy-paste in a local environment.
+\dontrun{
+saferMake::make()
+# all the arguments.
+saferMake::make(safer_check = TRUE, lib_path = NULL, error_text = "")
+}
 }
 \author{
 \href{mailto:gael.millot@pasteur.fr}{Gael Millot}

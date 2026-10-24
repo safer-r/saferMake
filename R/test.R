@@ -610,8 +610,8 @@ test <- function(
             }else{
                 check_status[i1] <- "modified"
                 current_txt <- out$fun_txt
-                # the corrected function is rebuilt with its source references (required by the next checks, see lambda_check()), in the environment of x. Warning: the srcfile argument must not be written here, because srcfile = NULL removes the source references (all_args_here() reports it as missing: expected)
-                current_fun <- base::eval(expr = base::parse(file = "", n = NULL, text = current_txt, prompt = "?", keep.source = TRUE, encoding = "unknown")[[1]], envir = base::environment(fun = x), enclos = base::baseenv())
+                # the corrected function is rebuilt with its source references (required by the next checks, see lambda_check()), in the environment of x. Warning: srcfile = NULL (the default value proposed by all_args_here()) removes the source references: an explicit srcfile object is written instead, as in saferDev::colons_check()
+                current_fun <- base::eval(expr = base::parse(file = "", n = NULL, text = current_txt, prompt = "?", keep.source = TRUE, srcfile = base::srcfilecopy(filename = "<text>", lines = current_txt, timestamp = base::Sys.time(), isFile = FALSE), encoding = "unknown")[[1]], envir = base::environment(fun = x), enclos = base::baseenv())
             }
         }else if(out$clean == TRUE){
             check_status[i1] <- "clean"

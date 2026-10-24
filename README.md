@@ -59,6 +59,12 @@ The different *saferMake* releases are tagged [here](https://github.com/safer-r/
 remotes::install_github("https://github.com/safer-r/saferMake") # later install.packages("saferMake")
 ```
 
+The safer-r code checks of *saferMake* (`saferMake::test()` and the Run button of the `saferMake::make()` app) need the current *saferDev* version, installed from GitHub (`Remotes:` field of the DESCRIPTION file). If an older *saferDev* version (e.g., the CRAN release) is already installed, update it too:
+
+```r
+remotes::install_github(c("https://github.com/safer-r/saferDev", "https://github.com/safer-r/saferMake"), upgrade = "always")
+```
+
 Older versions can be installed like this:
 
 ```r

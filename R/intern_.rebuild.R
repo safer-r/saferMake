@@ -39,6 +39,7 @@
 }
 
 .extract_aa_body <- function(code) {
+  .match_close <- utils::getFromNamespace(x = ".match_close", ns = "saferMake", pos = , envir = )
   m <- base::regexpr(pattern = "function[[:space:]]*\\(", text = code,
                      ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)
   if (m == -1) {base::return(NULL)}
@@ -157,6 +158,7 @@
                            seed_arg = NULL,
                            graphic_dev = FALSE,
                            user_lib_path = FALSE) {
+  .build_arg_check_section <- utils::getFromNamespace(x = ".build_arg_check_section", ns = "saferMake", pos = , envir = )
   aa   <- base::sub(pattern = "[[:space:]]+$", replacement = "", x = aa,
                     ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)
   body <- base::sub(pattern = "[[:space:]]+$", replacement = "",
