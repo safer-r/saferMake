@@ -218,6 +218,13 @@
   # the message giving the path of the temporary file is of no use to the user
   msgs <- cap$msgs[ ! base::grepl(pattern = "MODIFIED CODE EXPORTED IN", x = cap$msgs,
                                   ignore.case = FALSE, perl = FALSE, fixed = TRUE, useBytes = FALSE)]
+  # the table of all the function calls printed by all_args_here() is not kept:
+  # the calls that could not be corrected are listed in its CORRECTIONS NOT
+  # APPLIED message. This table can be very large (each row padded to the
+  # longest call, e.g. a whole switch() body), which made the base::trimws()
+  # below last several seconds and buried the useful findings
+  msgs <- msgs[ ! base::grepl(pattern = "^[ \t\r\n]*LINE_NB[ ]+FUN_NAME", x = msgs,
+                              ignore.case = FALSE, perl = TRUE, fixed = FALSE, useBytes = FALSE)]
   # saferDev can print the same text several times (message printed twice, or
   # message repeated in a warning): each distinct text is kept once
   all_txt <- base::trimws(x = base::c(msgs, cap$warns), which = "both", whitespace = "[ \t\r\n]")
@@ -318,11 +325,11 @@
   }
   i <- out$step
   step <- .code_check_steps[[i]]
-  head_txt <- base::paste0("Check ", i, "/", n_steps, " (saferDev::", step$fun, "()): ",
-                           collapse = NULL, recycle0 = FALSE)
+  head_txt <- base::paste0("Check ", i, "/", n_steps, ": ", collapse = NULL, recycle0 = FALSE)
   res$step <- i
   res$report <- out$checks$report[i]
   findings_txt <- base::paste0(head_txt, "the check reported the findings below, that could not be corrected automatically. Please, complete your code in the box below, then click on the Run button again.",
+                               if (step$key == "args") {" The calls listed under CORRECTIONS NOT APPLIED (often calls written on several lines) must be completed by hand, with the missing arguments proposed (e.g., EXPR = method in a switch()); otherwise this check stops again at each Run."} else {""},
                                collapse = NULL, recycle0 = FALSE)
   if (out$stage == "error") {
     res$stage <- "error"

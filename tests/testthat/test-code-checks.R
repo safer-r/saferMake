@@ -176,7 +176,7 @@ testthat::test_that(desc = ".run_code_checks() stops at check 1 on a superassign
   testthat::expect_identical(object = res$code, expected = code)
   testthat::expect_match(object = res$report, regexp = "THE SUPERASSIGNMENT OPERATORS <<- AND ->> ARE NOT ALLOWED", fixed = TRUE)
   testthat::expect_match(object = res$report, regexp = "y <<- x", fixed = TRUE)
-  testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "Check 1/7 (saferDev::super_assign_check())", fixed = TRUE)
+  testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "Check 1/7: ", fixed = TRUE)
   # ->> is also reported
   res2 <- run_checks(code = "my_fun <- function(x){\n    x ->> y\n}")
   testthat::expect_identical(object = res2$stage, expected = "error")
@@ -209,7 +209,7 @@ testthat::test_that(desc = ".run_code_checks() adds the checking line of a for()
   testthat::expect_identical(object = res$stage, expected = "modified")
   testthat::expect_identical(object = res$step, expected = 5L)
   testthat::expect_match(object = res$code, regexp = "tempo_for_seq1", fixed = TRUE)
-  testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "Check 5/7 (saferDev::for_loop_nb_check())", fixed = TRUE)
+  testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "Check 5/7: ", fixed = TRUE)
   # the inserted checking line passes the next checks (colons_check() and all_args_here())
   out <- run_until_stop(code = res$code)
   testthat::expect_identical(object = out$res$stage, expected = "ok")
@@ -258,6 +258,11 @@ testthat::test_that(desc = ".run_code_checks() stops on findings of all_args_her
   # the same text is not repeated in the report
   testthat::expect_identical(object = base::lengths(x = base::regmatches(x = res$report, m = base::gregexpr(pattern = "CORRECTIONS NOT APPLIED", text = res$report, fixed = TRUE))),
                              expected = 1L)
+  # the table of all the calls printed by all_args_here() is not kept in the
+  # report (very large and slow to process), and the notice tells what to do
+  testthat::expect_false(object = base::grepl(pattern = "LINE_NB", x = res$report, fixed = TRUE), info = NULL, label = NULL)
+  testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "Check 7/7: the check reported", fixed = TRUE)
+  testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "must be completed by hand", fixed = TRUE)
 })
 
 testthat::test_that(desc = ".run_code_checks() reports a saferDev error", code = {
