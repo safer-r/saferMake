@@ -17,7 +17,7 @@ test(
 \arguments{
 \item{x}{A function name, written without quotes and brackets.}
 
-\item{stop_at_first}{Single logical value. Stop at the first check that modifies the code? If \code{FALSE} (default), the checks are chained: each check is run on the function corrected by the previous checks, so that the returned function is corrected by the five checks. Whatever this argument, the run stops at the first check that reports findings that it cannot correct itself, or that stops with an error, because the next checks can depend on these findings (e.g., \code{saferDev::all_args_here()} needs the package attributions checked by \code{saferDev::colons_check()}). If \code{TRUE}, the code returned is the one corrected by the check that stopped the run only (behavior of \code{saferMake::make()}, where the user checks the modified code before running the checks again).}
+\item{stop_at_first}{Single logical value. Stop at the first check that modifies the code? If \code{FALSE} (default), the checks are chained: each check is run on the function corrected by the previous checks, so that the returned function is corrected by the seven checks. Whatever this argument, the run stops at the first check that reports findings that it cannot correct itself, or that stops with an error, because the next checks can depend on these findings (e.g., \code{saferDev::all_args_here()} needs the package attributions checked by \code{saferDev::colons_check()}). If \code{TRUE}, the code returned is the one corrected by the check that stopped the run only (behavior of \code{saferMake::make()}, where the user checks the modified code before running the checks again).}
 
 \item{export}{Single logical value. Write the corrected function into a file? If \code{TRUE}, the file \code{<function name>_safer.R} is written in \code{out_path} (e.g., \code{fun_safer.R} for \code{x = fun}), containing an assignment of the corrected function (\code{fun_safer <- function(...) ...}), so that \code{base::source()}ing it recreates the corrected function. Nothing is exported if nothing has been corrected. An error is returned if the file already exists, and if \code{x} is not designated by a function name (like \code{fun} or \code{package::fun}).}
 
@@ -34,9 +34,9 @@ A message is always printed, with the result of each check and the reports of th
 
 A list, returned invisibly when nothing has been corrected, made of:
 
-- \code{$stage}: single character string. \code{"ok"} (the five checks report nothing), \code{"modified"} (at least one check has corrected the code, and no check reports findings), \code{"findings"} (a check reports something that it cannot correct itself, like a non basic function written without its package, or a call written on several lines for \code{all_args_here()}: the code must be completed by the user), or \code{"error"} (a saferDev function stopped with an error). The next checks are not run after \code{"findings"} or \code{"error"}.
+- \code{$stage}: single character string. \code{"ok"} (the seven checks report nothing), \code{"modified"} (at least one check has corrected the code, and no check reports findings), \code{"findings"} (a check reports something that it cannot correct itself, like a non basic function written without its package, or a call written on several lines for \code{all_args_here()}: the code must be completed by the user), or \code{"error"} (a saferDev function stopped with an error, which is the expected result of \code{saferDev::super_assign_check()} when a superassignment is detected). The next checks are not run after \code{"findings"} or \code{"error"}.
 
-- \code{$step}: single integer. Number (1 to 5) of the check that stopped the run (findings, error, or modification with \code{stop_at_first = TRUE}), \code{NULL} otherwise.
+- \code{$step}: single integer. Number (1 to 7) of the check that stopped the run (findings, error, or modification with \code{stop_at_first = TRUE}), \code{NULL} otherwise.
 
 - \code{$fun}: the corrected function (with the environment of \code{x}), or \code{NULL} if nothing has been corrected.
 
@@ -45,26 +45,30 @@ A list, returned invisibly when nothing has been corrected, made of:
 - \code{$checks}: data frame with one row per check (columns \code{check}: name of the saferDev function; \code{status}: \code{"clean"}, \code{"modified"}, \code{"findings"}, \code{"error"} or \code{"not run"}; \code{report}: text printed by the saferDev function, or its error message).
 }
 \description{
-Run, in this order, the five code checks of the safer-r project on a function, each with the dedicated function of the saferDev package:
+Run, in this order, the seven code checks of the safer-r project on a function, each with the dedicated function of the saferDev package:
 
-1. \code{saferDev::lambda_check()}: no lambda function written \code{\\(x)}.
+1. \code{saferDev::super_assign_check()}: no superassignment \code{<<-} or \code{->>}. This check never modifies the code: it returns an error (status \code{"error"}) when a superassignment is detected, because what these operators modify cannot be guessed from the code.
 
-2. \code{saferDev::curly_bracket_check()}: curly brackets \code{\{ \}} written after \code{if}, \code{else}, \code{for}, \code{while}, \code{repeat} and \code{function}.
+2. \code{saferDev::lambda_check()}: no lambda function written \code{\\(x)}.
 
-3. \code{saferDev::true_false_check()}: \code{TRUE} and \code{FALSE} written in full (no \code{T} or \code{F}).
+3. \code{saferDev::curly_bracket_check()}: curly brackets \code{\{ \}} written after \code{if}, \code{else}, \code{for}, \code{while}, \code{repeat} and \code{function}.
 
-4. \code{saferDev::colons_check()}: package attribution (\code{<package>::}) of the called functions.
+4. \code{saferDev::true_false_check()}: \code{TRUE} and \code{FALSE} written in full (no \code{T} or \code{F}).
 
-5. \code{saferDev::all_args_here()}: all the arguments of the called functions written.
+5. \code{saferDev::for_loop_nb_check()}: a checking line of the sequence added before the \code{for()} loops whose number of iterations is not fixed by the writing itself (like \code{1:length(x)}).
+
+6. \code{saferDev::colons_check()}: package attribution (\code{<package>::}) of the called functions.
+
+7. \code{saferDev::all_args_here()}: all the arguments of the called functions written.
 
 These are the checks run by the Run button of the first window of the \code{saferMake::make()} app, that calls this function.
 }
 \details{
-Requires a version of the saferDev package that provides the five functions above (current version of saferDev, see \url{https://github.com/safer-r/saferDev}).
+Requires a version of the saferDev package that provides the seven functions above (current version of saferDev, see \url{https://github.com/safer-r/saferDev}).
 
 Warning: \code{saferDev::lambda_check()} only sees the \code{\\(x)} writing in a function carrying its source references (attribute \code{srcref}, e.g., after a \code{base::parse(keep.source = TRUE)}, see the examples). The function corrected by a check is rebuilt with its source references before the next check.
 
-The comments and the indentation of the code are kept by the five checks. Warning: comments are only available when \code{x} carries its source references (attribute \code{srcref}). Otherwise, the code is the deparsed one: no comments and standard indentation.
+The comments and the indentation of the code are kept by the seven checks. Warning: comments are only available when \code{x} carries its source references (attribute \code{srcref}). Otherwise, the code is the deparsed one: no comments and standard indentation.
 }
 \examples{
 # Warning: these examples may not work well when using the "Run examples" link
@@ -74,8 +78,8 @@ fun1 <- eval(parse(text = code1, keep.source = TRUE))
 res <- saferMake::test(x = fun1)
 res$stage
 res$checks
-res$fun # function corrected by the five checks
-res2 <- saferMake::test(x = fun1, stop_at_first = TRUE) # stops at check 1 (lambda)
+res$fun # function corrected by the seven checks
+res2 <- saferMake::test(x = fun1, stop_at_first = TRUE) # stops at check 2 (lambda)
 res2$step
 # Write the corrected function in the fun1_safer.R file of a new temporary folder:
 tempo_dir <- base::tempfile(pattern = "dir", tmpdir = base::tempdir(), fileext = "")

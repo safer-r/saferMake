@@ -1,67 +1,83 @@
-# Staged code checks of the pasted function (the five checks run by the Run
+# Staged code checks of the pasted function (the seven checks run by the Run
 # button of window 1, after the pasted code has been evaluated without error).
 # Extracted from inst/app/server.R; see the header of R/intern_.app_helpers.R.
 #
-# The five checks, always run in this order, each with the dedicated function
+# The seven checks, always run in this order, each with the dedicated function
 # of the current (development) version of saferDev:
-#   1. saferDev::lambda_check()         no lambda function written \(x)
-#   2. saferDev::curly_bracket_check()  curly brackets after if, else, for, ...
-#   3. saferDev::true_false_check()     TRUE and FALSE written in full
-#   4. saferDev::colons_check()         package attribution (pkg::) of the functions
-#   5. saferDev::all_args_here()        all the arguments of the functions written
-# The five checks are run by the exported saferMake::test() (R/test.R), that
+#   1. saferDev::super_assign_check()   no superassignment <<- or ->> (error only:
+#                                       nothing can be corrected automatically)
+#   2. saferDev::lambda_check()         no lambda function written \(x)
+#   3. saferDev::curly_bracket_check()  curly brackets after if, else, for, ...
+#   4. saferDev::true_false_check()     TRUE and FALSE written in full
+#   5. saferDev::for_loop_nb_check()    checking of the for() loop sequences
+#   6. saferDev::colons_check()         package attribution (pkg::) of the functions
+#   7. saferDev::all_args_here()        all the arguments of the functions written
+# super_assign_check() is first because it cannot correct the code: the user
+# rewrites the superassignments before any automatic modification.
+# for_loop_nb_check() is before colons_check() and all_args_here() because the
+# checking lines that it inserts must also be checked by these two functions.
+# The seven checks are run by the exported saferMake::test() (R/test.R), that
 # can also be used on its own. In the app, .run_code_checks() calls test() with
 # stop_at_first = TRUE: when a check modifies the code, the loop stops, the
 # modified code is handed back to window 1 (orange message), and the user
-# clicks on Run again, which restarts the five checks on the modified code.
+# clicks on Run again, which restarts the seven checks on the modified code.
 
 # Run a zero-argument function, capture every message and warning (muffled) and
 # any error.
 # Returns list(value, msgs, warns, err): value is the returned value (NULL on
 # error), msgs and warns the captured messages and warnings as character
 # vectors, err the error message (NULL when no error).
+# The captured texts are stored in the explicit environment store (no
+# superassignment <<-, see saferDev::super_assign_check()).
 .capture_msg <- function(fun) {
-  msgs <- base::character(length = 0L)
-  warns <- base::character(length = 0L)
-  err <- NULL
+  store <- base::new.env(hash = TRUE, parent = base::emptyenv(), size = 29L)
+  store$msgs <- base::character(length = 0L)
+  store$warns <- base::character(length = 0L)
+  store$err <- NULL
   value <- base::tryCatch(
     expr = base::withCallingHandlers(
       expr = base::do.call(what = fun, args = base::list(), quote = FALSE, envir = ), # do.call() instead of fun(): fun cannot be preceded by a package name. Empty envir: default value base::parent.frame() of base::do.call()
       message = function(m) {
-        msgs <<- base::c(msgs, base::conditionMessage(c = m))
+        store$msgs <- base::c(store$msgs, base::conditionMessage(c = m))
         base::invokeRestart(r = "muffleMessage")
       },
       warning = function(w) {
-        warns <<- base::c(warns, base::conditionMessage(c = w))
+        store$warns <- base::c(store$warns, base::conditionMessage(c = w))
         base::invokeRestart(r = "muffleWarning")
       }
     ),
     error = function(e) {
-      err <<- base::conditionMessage(c = e)
+      store$err <- base::conditionMessage(c = e)
       NULL
     },
-    finally = 
+    finally =
   )
-  base::list(value = value, msgs = msgs, warns = warns, err = err)
+  base::list(value = value, msgs = store$msgs, warns = store$warns, err = store$err)
 }
 
-# The five checks, in the order of execution.
+# The seven checks, in the order of execution.
 # key        : short identifier
 # fun        : name of the saferDev function
 # export_arg : name of the argument of the saferDev function that exports the
 #              modified function in a file (all_args_here() has two export
-#              arguments: table_export for the table, fun_export for the code)
+#              arguments: table_export for the table, fun_export for the code).
+#              NULL for super_assign_check(), that never modifies the code (it
+#              returns an error when a superassignment is detected)
 # what       : sentence explaining the modification, displayed in window 1
-# The five saferDev functions keep the comments and the indentation of the
+# The saferDev functions keep the comments and the indentation of the
 # submitted code (the function evaluated with keep.source = TRUE carries its
 # source references).
 .code_check_steps <- base::list(
+  base::list(key = "super_assign", fun = "super_assign_check", export_arg = NULL,
+             what = "no modification (the superassignments <<- and ->> must be rewritten by the user)."),
   base::list(key = "lambda", fun = "lambda_check", export_arg = "export",
              what = "the lambda functions written \\(x) have been rewritten function(x)."),
   base::list(key = "curly", fun = "curly_bracket_check", export_arg = "export",
              what = "curly brackets { } have been added to the bodies of the if, else, for, while, repeat and function that had none."),
   base::list(key = "true_false", fun = "true_false_check", export_arg = "export",
              what = "the T and F written as values have been rewritten TRUE and FALSE."),
+  base::list(key = "for_loop", fun = "for_loop_nb_check", export_arg = "export",
+             what = "a checking line of the sequence has been added before the for() loops whose number of iterations is not fixed by the writing itself (like 1:length(x))."),
   base::list(key = "colons", fun = "colons_check", export_arg = "export",
              what = "the package attribution (<package>::) of the basic R functions has been added."),
   base::list(key = "args", fun = "all_args_here", export_arg = "fun_export",
@@ -69,16 +85,16 @@
 )
 
 # TEMPORARY SWITCH (set to FALSE on 2026-10-22 so that the rest of the app can be
-# tested with a saferDev version that does not provide the five checks).
-# TRUE  : when the saferDev of the R session does not provide the five checks,
+# tested with a saferDev version that does not provide the seven checks).
+# TRUE  : when the saferDev of the R session does not provide the seven checks,
 #         window 1 shows a red message asking to load the current saferDev,
 #         and window 2 cannot be reached.
-# FALSE : the five checks are skipped (message in the R console only) and the
+# FALSE : the seven checks are skipped (message in the R console only) and the
 #         app goes on to window 2.
 # Set it back to TRUE once the current saferDev is released (CRAN).
 .safer_dev_required <- FALSE
 
-# Is saferDev available, in a version that provides the five checks (current,
+# Is saferDev available, in a version that provides the seven checks (current,
 # development version; not the released CRAN version)? An
 # internal helper (instead of a direct base::requireNamespace() call) so that
 # the "saferDev not available" branch can be unit tested.
@@ -168,6 +184,8 @@
 #            already performed these checks)
 # The modified code is obtained by exporting it in a temporary file
 # (<var_name>_safer.R, written by saferDev) that is read back and deleted.
+# A step without export argument (export_arg NULL) is called without export
+# and out_path: it never writes a file.
 # Returns list(fun_txt, report, clean, err):
 #   fun_txt : text of the modified function (starting with "function"), or NULL
 #             if the check did not modify the code
@@ -184,8 +202,14 @@
   base::assign(x = var_name, value = f, pos = -1, envir = env, inherits = FALSE, immediate = TRUE)
   # saferDev designates the function by the name written in the call: the call
   # is built with that name and evaluated in env
-  args <- base::list(base::as.name(x = var_name), TRUE, out_dir, safer_check, lib_path, error_text)
-  base::names(x = args) <- base::c("x", step$export_arg, "out_path", "safer_check", "lib_path", "error_text")
+  if (base::is.null(x = step$export_arg)) {
+    # check without export argument (super_assign_check(): never modifies the code)
+    args <- base::list(base::as.name(x = var_name), safer_check, lib_path, error_text)
+    base::names(x = args) <- base::c("x", "safer_check", "lib_path", "error_text")
+  } else {
+    args <- base::list(base::as.name(x = var_name), TRUE, out_dir, safer_check, lib_path, error_text)
+    base::names(x = args) <- base::c("x", step$export_arg, "out_path", "safer_check", "lib_path", "error_text")
+  }
   cl <- base::as.call(x = base::c(
     base::list(base::call(name = "::", base::as.name(x = "saferDev"), base::as.name(x = step$fun))),
     args
@@ -227,21 +251,21 @@
   res
 }
 
-# Full staged check of the pasted code (the five checks of the Run button).
+# Full staged check of the pasted code (the seven checks of the Run button).
 # code     : the pasted code (character), already evaluated without error
 # f        : the function evaluated from code with keep.source = TRUE
 # fun_name : the function name ("<anonymous>" when the code is a bare function)
 # Returns list(stage, code, step, notice, report) with:
-#   stage  : "ok" (the five checks are clean), "modified" (the check number
+#   stage  : "ok" (the seven checks are clean), "modified" (the check number
 #            step modified the code), "findings" (the check number step
 #            reports something that it cannot correct itself: the user must
 #            complete the code), "error" (the saferDev function stopped), or
-#            "skip" (the saferDev of the R session does not provide the five
+#            "skip" (the saferDev of the R session does not provide the seven
 #            checks: no check can be done, the user is told to load the
 #            current saferDev)
 #   code   : the code to display in window 1 (modified code at stage
 #            "modified", otherwise the unchanged pasted code)
-#   step   : number (1 to 5) of the check that stopped the loop, NULL at stage
+#   step   : number (1 to 7) of the check that stopped the loop, NULL at stage
 #            "ok" and "skip"
 #   notice : lines of the orange message of window 1 (character(0) at stage
 #            "ok")
@@ -254,9 +278,9 @@
   res <- base::list(stage = "ok", code = code, step = NULL,
                     notice = base::character(length = 0L), report = "")
   if (! .safer_dev_available()) {
-    # the five checks cannot be run: never go on silently to window 2
+    # the seven checks cannot be run: never go on silently to window 2
     res$stage <- "skip"
-    res$notice <- base::paste0("The safer-r code verifications need the current (development) version of the saferDev package (https://github.com/safer-r/saferDev), which provides lambda_check(), curly_bracket_check() and true_false_check(). The saferDev of the R session running this app does not (version: ",
+    res$notice <- base::paste0("The safer-r code verifications need the current (development) version of the saferDev package (https://github.com/safer-r/saferDev), which provides super_assign_check(), lambda_check(), curly_bracket_check(), true_false_check() and for_loop_nb_check(). The saferDev of the R session running this app does not (version: ",
                                if (base::requireNamespace(package = "saferDev", quietly = TRUE)) {base::as.character(x = utils::packageVersion(pkg = "saferDev", lib.loc = NULL))} else {"none"},
                                "). Please, load the current saferDev (for instance with devtools::load_all() on its local folder) before saferMake, then run saferMake::make() again.",
                                collapse = NULL, recycle0 = FALSE)

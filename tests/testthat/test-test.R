@@ -43,7 +43,7 @@ testthat::test_that("test()", {
             .safer_dev_available = function(){FALSE},
             code = {saferMake::test(x = fun1, stop_at_first = FALSE, export = FALSE, out_path = ".", safer_check = FALSE, lib_path = NULL, error_text = "")}
         ),
-        regexp = "DOES NOT PROVIDE THE FIVE FUNCTIONS"
+        regexp = "DOES NOT PROVIDE THE SEVEN FUNCTIONS"
     )
     tempo_dir <- base::tempfile(pattern = "dir", tmpdir = base::tempdir(), fileext = "")
     base::dir.create(path = tempo_dir, showWarnings = TRUE, recursive = FALSE, mode = "0777")
@@ -52,12 +52,12 @@ testthat::test_that("test()", {
     ######## end other checkings
 
     ######## main code
-    # chained checks: the five checks correct the function
+    # chained checks: the seven checks correct the function (super_assign_check() and for_loop_nb_check() have nothing to report)
     res <- base::suppressMessages(expr = saferMake::test(x = fun1, stop_at_first = FALSE, export = FALSE, out_path = ".", safer_check = TRUE, lib_path = NULL, error_text = ""), classes = "message")
     testthat::expect_identical(object = res$stage, expected = "modified")
     testthat::expect_null(object = res$step)
-    testthat::expect_identical(object = res$checks$check, expected = base::c("lambda_check", "curly_bracket_check", "true_false_check", "colons_check", "all_args_here"))
-    testthat::expect_identical(object = res$checks$status, expected = base::rep(x = "modified", times = 5))
+    testthat::expect_identical(object = res$checks$check, expected = base::c("super_assign_check", "lambda_check", "curly_bracket_check", "true_false_check", "for_loop_nb_check", "colons_check", "all_args_here"))
+    testthat::expect_identical(object = res$checks$status, expected = base::c("clean", "modified", "modified", "modified", "clean", "modified", "modified"))
     testthat::expect_true(object = base::is.function(x = res$fun))
     testthat::expect_identical(object = base::environment(fun = res$fun), expected = base::environment(fun = fun1))
     testthat::expect_match(object = res$code, regexp = "x == TRUE", fixed = TRUE)
@@ -65,12 +65,12 @@ testthat::test_that("test()", {
     testthat::expect_match(object = res$code, regexp = "FUN = function(y)", fixed = TRUE)
     testthat::expect_identical(object = res$fun(1), expected = 1)
     # the message
-    testthat::expect_message(object = saferMake::test(x = fun1, stop_at_first = FALSE, export = FALSE, out_path = ".", safer_check = FALSE, lib_path = NULL, error_text = ""), regexp = "CHECK 5/5 saferDev::all_args_here\\(\\): MODIFIED")
+    testthat::expect_message(object = saferMake::test(x = fun1, stop_at_first = FALSE, export = FALSE, out_path = ".", safer_check = FALSE, lib_path = NULL, error_text = ""), regexp = "CHECK 7/7 saferDev::all_args_here\\(\\): MODIFIED")
     # stop at the first check that modifies the code
     res2 <- base::suppressMessages(expr = saferMake::test(x = fun1, stop_at_first = TRUE, export = FALSE, out_path = ".", safer_check = FALSE, lib_path = NULL, error_text = ""), classes = "message")
     testthat::expect_identical(object = res2$stage, expected = "modified")
-    testthat::expect_identical(object = res2$step, expected = 1L)
-    testthat::expect_identical(object = res2$checks$status, expected = base::c("modified", base::rep(x = "not run", times = 4)))
+    testthat::expect_identical(object = res2$step, expected = 2L)
+    testthat::expect_identical(object = res2$checks$status, expected = base::c("clean", "modified", base::rep(x = "not run", times = 5)))
     testthat::expect_identical(object = res2$code, expected = base::sub(pattern = "\\(y)", replacement = "function(y)", x = code1, fixed = TRUE))
     # clean function: invisible output, nothing corrected
     testthat::expect_invisible(call = base::suppressMessages(expr = saferMake::test(x = fun_clean, stop_at_first = FALSE, export = FALSE, out_path = ".", safer_check = FALSE, lib_path = NULL, error_text = ""), classes = "message"))
@@ -78,23 +78,31 @@ testthat::test_that("test()", {
     testthat::expect_identical(object = res3$stage, expected = "ok")
     testthat::expect_null(object = res3$fun)
     testthat::expect_null(object = res3$code)
-    testthat::expect_identical(object = res3$checks$status, expected = base::rep(x = "clean", times = 5))
+    testthat::expect_identical(object = res3$checks$status, expected = base::rep(x = "clean", times = 7))
     testthat::expect_message(object = saferMake::test(x = fun_clean, stop_at_first = FALSE, export = FALSE, out_path = ".", safer_check = FALSE, lib_path = NULL, error_text = ""), regexp = "EVERYTHING SEEMS CLEAN")
     # findings that cannot be corrected (function without package): the run stops, also when the checks are chained
     res4 <- base::suppressMessages(expr = saferMake::test(x = fun_helper, stop_at_first = FALSE, export = FALSE, out_path = ".", safer_check = FALSE, lib_path = NULL, error_text = ""), classes = "message")
     testthat::expect_identical(object = res4$stage, expected = "findings")
-    testthat::expect_identical(object = res4$step, expected = 4L)
-    testthat::expect_identical(object = res4$checks$status[4], expected = "findings")
-    testthat::expect_identical(object = res4$checks$status[5], expected = "not run")
+    testthat::expect_identical(object = res4$step, expected = 6L)
+    testthat::expect_identical(object = res4$checks$status[6], expected = "findings")
+    testthat::expect_identical(object = res4$checks$status[7], expected = "not run")
     testthat::expect_null(object = res4$fun)
-    testthat::expect_match(object = res4$checks$report[4], regexp = "my_helper", fixed = TRUE)
+    testthat::expect_match(object = res4$checks$report[6], regexp = "my_helper", fixed = TRUE)
     res5 <- base::suppressMessages(expr = saferMake::test(x = fun_helper, stop_at_first = TRUE, export = FALSE, out_path = ".", safer_check = FALSE, lib_path = NULL, error_text = ""), classes = "message")
     testthat::expect_identical(object = res5$stage, expected = "findings")
-    testthat::expect_identical(object = res5$step, expected = 4L)
-    testthat::expect_identical(object = res5$checks$status[5], expected = "not run")
+    testthat::expect_identical(object = res5$step, expected = 6L)
+    testthat::expect_identical(object = res5$checks$status[7], expected = "not run")
     # saferDev error or findings on a code that cannot be rewritten
     res6 <- base::suppressMessages(expr = saferMake::test(x = fun_err, stop_at_first = FALSE, export = FALSE, out_path = ".", safer_check = FALSE, lib_path = NULL, error_text = ""), classes = "message")
     testthat::expect_true(object = res6$stage %in% base::c("error", "findings"))
+    # superassignment: error at check 1, the next checks are not run, nothing corrected
+    fun_super <- base::eval(expr = base::parse(text = "function(x){\n    y <<- x\n}", keep.source = TRUE))
+    res7 <- base::suppressMessages(expr = saferMake::test(x = fun_super, stop_at_first = FALSE, export = FALSE, out_path = ".", safer_check = FALSE, lib_path = NULL, error_text = ""), classes = "message")
+    testthat::expect_identical(object = res7$stage, expected = "error")
+    testthat::expect_identical(object = res7$step, expected = 1L)
+    testthat::expect_identical(object = res7$checks$status, expected = base::c("error", base::rep(x = "not run", times = 6)))
+    testthat::expect_null(object = res7$fun)
+    testthat::expect_match(object = res7$checks$report[1], regexp = "y <<- x", fixed = TRUE)
     # export
     base::suppressMessages(expr = saferMake::test(x = fun1, stop_at_first = FALSE, export = TRUE, out_path = tempo_dir, safer_check = FALSE, lib_path = NULL, error_text = ""), classes = "message")
     testthat::expect_true(object = base::file.exists(base::file.path(tempo_dir, "fun1_safer.R", fsep = "/")))

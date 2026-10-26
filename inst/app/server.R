@@ -319,7 +319,7 @@ server <- function(input, output, session) {
     args <- names(formals(f))
     rv$fun_args <- if (is.null(args)) {character(0)} else {args}
     rv$no_default_args <- .args_without_default(f)
-    # (the signature/body of the code are extracted only after the five code
+    # (the signature/body of the code are extracted only after the seven code
     # checks, which can modify the code, e.g. a function written \(x) ...)
 
     # NEW: keep or reset the user settings depending on whether the same
@@ -379,16 +379,19 @@ server <- function(input, output, session) {
     }
 
     # NEW: staged code checks (always on), run only once the pasted code has
-    # been evaluated without error. In this order: 1) no lambda function
-    # (saferDev::lambda_check), 2) curly brackets (curly_bracket_check),
-    # 3) TRUE/FALSE written in full (true_false_check), 4) package attribution
-    # (colons_check), 5) all the arguments written (all_args_here). They run
-    # one by one on the function evaluated above (so the pasted code is run
-    # only once per Run). The first check that modifies the code (or reports
-    # something the user must complete) stops the loop: the code of window 1 is
-    # replaced by the modified code, with an orange message, and the user
-    # clicks on Run again. The progression to window 2 (settings) happens only
-    # when the five checks return no modification.
+    # been evaluated without error. In this order: 1) no superassignment <<-
+    # or ->> (saferDev::super_assign_check, error only: the user rewrites the
+    # code), 2) no lambda function (lambda_check), 3) curly brackets
+    # (curly_bracket_check), 4) TRUE/FALSE written in full (true_false_check),
+    # 5) checking of the for() loop sequences (for_loop_nb_check), 6) package
+    # attribution (colons_check), 7) all the arguments written (all_args_here).
+    # They run one by one on the function evaluated above (so the pasted code
+    # is run only once per Run). The first check that modifies the code (or
+    # reports something the user must complete, or stops with an error) stops
+    # the loop: the code of window 1 is replaced by the modified code, with an
+    # orange message, and the user clicks on Run again. The progression to
+    # window 2 (settings) happens only when the seven checks return no
+    # modification.
     checks <- .run_code_checks(code = code, f = f, fun_name = rv$fun_name)
     # current saferDev not available: blocking (red message) only while
     # .safer_dev_required is TRUE (temporary switch, see R/intern_.code_checks.R)
@@ -408,7 +411,7 @@ server <- function(input, output, session) {
       rv$screen <- "input"
       return(invisible())
     }
-    # the five checks are clean (or skipped): the code is converted by
+    # the seven checks are clean (or skipped): the code is converted by
     # .build_rebuilt()
     parts <- .extract_aa_body(code)
     if (is.null(parts)) {
