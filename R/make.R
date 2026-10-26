@@ -369,6 +369,10 @@ make <- function(
     #### main code
     # nocov start
     # codecov inactivated because the app blocks the R session until it is closed
+    # error trail of make() handed to the app (error messages of the code checks
+    # end with " INSIDE saferMake::make()"), restored when the app is closed
+    old_opt <- base::options(saferMake.error_text = embed_error_text)
+    base::on.exit(expr = base::options(old_opt), add = TRUE, after = TRUE)
     # default values of shiny::runApp() written explicitly, except display.mode
     output <- shiny::runApp(
         appDir = app_dir,

@@ -270,7 +270,9 @@
 #   notice : lines of the orange message of window 1 (character(0) at stage
 #            "ok")
 #   report : text printed by saferDev for that check ("" at stage "ok")
-.run_code_checks <- function(code, f, fun_name = "<anonymous>") {
+# error_text : passed to saferMake::test(), so that the error messages give the
+#              full trail (" INSIDE saferMake::make()" when run by the app)
+.run_code_checks <- function(code, f, fun_name = "<anonymous>", error_text = "") {
   .safer_dev_available <- utils::getFromNamespace(x = ".safer_dev_available", ns = "saferMake", pos = , envir = )
   .check_var_name <- utils::getFromNamespace(x = ".check_var_name", ns = "saferMake", pos = , envir = )
   .capture_msg <- utils::getFromNamespace(x = ".capture_msg", ns = "saferMake", pos = , envir = )
@@ -293,7 +295,7 @@
   env <- base::new.env(hash = TRUE, parent = base::globalenv(), size = 29L)
   base::assign(x = var_name, value = f, pos = -1, envir = env, inherits = FALSE, immediate = TRUE)
   cl <- base::call(name = "test", x = base::as.name(x = var_name), stop_at_first = TRUE,
-                   export = FALSE, out_path = ".", safer_check = FALSE, lib_path = NULL, error_text = "")
+                   export = FALSE, out_path = ".", safer_check = FALSE, lib_path = NULL, error_text = error_text)
   cl[[1]] <- base::call(name = "::", base::as.name(x = "saferMake"), base::as.name(x = "test"))
   # the summary message of test() is not displayed (the app builds its own)
   cap <- .capture_msg(fun = function() {base::eval(expr = cl, envir = env, enclos = base::baseenv())} )

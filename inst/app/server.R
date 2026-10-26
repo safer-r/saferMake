@@ -70,7 +70,7 @@ server <- function(input, output, session) {
     lib_path_arg_error_msg = base::character(length = 0L), # lib-path validation message(s)
     graphic_dev      = FALSE,     # "Graphic device management" tick box state
     scroll_to        = NULL,      # html id of the block to scroll to (or NULL)
-    # NEW: orange message of window 1 (staged code checks, see .run_code_checks):
+    # NEW: orange (red for errors) message of window 1 (staged code checks, see .run_code_checks):
     # NULL (no message) or list(text = lines of the message, report = text
     # printed by saferDev). The modified code itself is put in rv$code.
     input_notice     = NULL
@@ -392,7 +392,10 @@ server <- function(input, output, session) {
     # orange message, and the user clicks on Run again. The progression to
     # window 2 (settings) happens only when the seven checks return no
     # modification.
-    checks <- .run_code_checks(code = code, f = f, fun_name = rv$fun_name)
+    # error trail of saferMake::make() (option set by make(); the app is
+    # always launched by make(), hence the default)
+    checks <- .run_code_checks(code = code, f = f, fun_name = rv$fun_name,
+                               error_text = getOption("saferMake.error_text", default = " INSIDE saferMake::make()"))
     # current saferDev not available: blocking (red message) only while
     # .safer_dev_required is TRUE (temporary switch, see R/intern_.code_checks.R)
     skip_blocks <- (checks$stage == "skip") && base::isTRUE(x = .safer_dev_required)
@@ -404,9 +407,10 @@ server <- function(input, output, session) {
       if (checks$stage == "modified") {
         rv$code <- checks$code
       }
-      # red (error like) message when the app is blocked by the missing saferDev
+      # red message for errors (saferDev error, superassignment, ...) and when
+      # the app is blocked by the missing saferDev; orange otherwise
       rv$input_notice <- list(text = checks$notice, report = checks$report,
-                              level = if (skip_blocks) {"danger"} else {"warning"})
+                              level = if (skip_blocks || checks$stage == "error") {"danger"} else {"warning"})
       rv$scroll_to <- "input_check_notice"
       rv$screen <- "input"
       return(invisible())
@@ -807,7 +811,7 @@ server <- function(input, output, session) {
                intro(),
                h4(id = "sec_code", "Code of your function"),
                code_instructions(),
-               # NEW: orange message of the staged code checks. The code of the
+               # NEW: orange (red for errors) message of the staged code checks. The code of the
                # box below is then the code modified by the check (or the
                # unchanged code if the check reports findings to complete).
                if (!is.null(rv$input_notice)) {

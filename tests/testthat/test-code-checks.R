@@ -183,6 +183,17 @@ testthat::test_that(desc = ".run_code_checks() stops at check 1 on a superassign
   testthat::expect_identical(object = res2$step, expected = 1L)
 })
 
+testthat::test_that(desc = ".run_code_checks() passes error_text to saferMake::test(): the error trail goes up to saferMake::make()", code = {
+  skip_if_no_checks()
+  code <- "my_fun <- function(x){
+    y <<- x
+}"
+  f <- mk_fun(code = code)
+  res <- saferMake:::.run_code_checks(code = code, f = f, fun_name = "my_fun", error_text = " INSIDE saferMake::make()")
+  testthat::expect_identical(object = res$stage, expected = "error")
+  testthat::expect_match(object = res$report, regexp = "INSIDE saferMake::test() INSIDE saferMake::make()", fixed = TRUE)
+})
+
 testthat::test_that(desc = ".run_code_checks() adds the checking line of a for() loop at check 5", code = {
   skip_if_no_checks()
   code <- "my_fun <- function(x){\n    for(i in 1:base::length(x = x)){\n        base::print(x = i)\n    }\n}"
