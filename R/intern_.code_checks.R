@@ -243,9 +243,13 @@
     base::return(res)
   }
   # nothing modified: clean unless saferDev reports findings that it cannot
-  # correct itself (other functions without package, calls on several lines, ...)
-  res$clean <- base::grepl(pattern = "EVERYTHING SEEMS CLEAN", x = report, ignore.case = FALSE,
-                           perl = FALSE, fixed = TRUE, useBytes = FALSE) &&
+  # correct itself (other functions without package, calls on several lines, ...).
+  # "NOTHING TO CHECK" (warning of colons_check() and all_args_here() when the
+  # function contains no function call, e.g. function(){y <- 1}) is also clean
+  res$clean <- (base::grepl(pattern = "EVERYTHING SEEMS CLEAN", x = report, ignore.case = FALSE,
+                            perl = FALSE, fixed = TRUE, useBytes = FALSE) ||
+                base::grepl(pattern = "NOTHING TO CHECK", x = report, ignore.case = FALSE,
+                            perl = FALSE, fixed = TRUE, useBytes = FALSE)) &&
                ! base::grepl(pattern = "ARE MISSING", x = report, ignore.case = FALSE,
                              perl = FALSE, fixed = TRUE, useBytes = FALSE)
   res

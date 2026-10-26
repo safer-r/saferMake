@@ -183,6 +183,14 @@ testthat::test_that(desc = ".run_code_checks() stops at check 1 on a superassign
   testthat::expect_identical(object = res2$step, expected = 1L)
 })
 
+testthat::test_that(desc = ".run_code_checks() returns ok on a function without any function call (NOTHING TO CHECK of colons_check() and all_args_here())", code = {
+  skip_if_no_checks()
+  code <- "a <- function(){y<- 1}"
+  res <- run_checks(code = code, fun_name = "a")
+  testthat::expect_identical(object = res$stage, expected = "ok")
+  testthat::expect_identical(object = res$code, expected = code)
+})
+
 testthat::test_that(desc = ".run_code_checks() passes error_text to saferMake::test(): the error trail goes up to saferMake::make()", code = {
   skip_if_no_checks()
   code <- "my_fun <- function(x){
