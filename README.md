@@ -1,5 +1,5 @@
 
-# saferMake <a href="https://safer-r.github.io/saferMake">[<img src="man/figures/new_saferMake.png" align="right" height="140" />](https://safer-r.github.io/saferMake/)</a>
+# saferMake <a href="https://safer-r.github.io/saferMake">[<img src="man/figures/saferMake.png" align="right" height="140" />](https://safer-r.github.io/saferMake/)</a>
 
 <br />
 
