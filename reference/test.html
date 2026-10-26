@@ -206,7 +206,7 @@ These are the checks run by the Run button of the first window of the saferMake:
 <span class="r-out co"><span class="r-pr">#&gt;</span> 7 INSIDE fun1(), ARGUMENTS ARE MISSING.\n\nLINE_NB FUN_NAME                                    FUN_ARGS FUN_POS\n1       1      sum                                      sum(x)      36\n2       1   sapply sapply(X = 1:3, FUN = function(y){ y * 2 })      58\n                                        DEF_ARGS   MISSING_ARG_NAMES\n1                             ..., na.rm = FALSE               na.rm\n2 X, FUN, ..., simplify = TRUE, USE.NAMES = TRUE simplify, USE.NAMES\n                       MISSING_ARGS\n1                     na.rm = FALSE\n2 simplify = TRUE, USE.NAMES = TRUE\n                                                                          STATUS\n1                                                          sum(x, na.rm = FALSE)\n2 sapply(X = 1:3, FUN = function(y){ y * 2 }, simplify = TRUE, USE.NAMES = TRUE)</span>
 <span class="r-in"><span><span class="va">res</span><span class="op">$</span><span class="va">fun</span> <span class="co"># function corrected by the seven checks</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> function(x){ if(x == TRUE) { base::sum(x, na.rm = FALSE) } else { base::sapply(X = 1:3, FUN = function(y){ y * 2 }, simplify = TRUE, USE.NAMES = TRUE) } }</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> &lt;environment: 0x55596a248680&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> &lt;environment: 0x55d0293790c0&gt;</span>
 <span class="r-in"><span><span class="va">res2</span> <span class="op">&lt;-</span> <span class="fu">saferMake</span><span class="fu">::</span><span class="fu">test</span><span class="op">(</span>x <span class="op">=</span> <span class="va">fun1</span>, stop_at_first <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="co"># stops at check 2 (lambda)</span></span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
@@ -288,7 +288,7 @@ These are the checks run by the Run button of the first window of the saferMake:
 <span class="r-msg co"><span class="r-pr">#&gt;</span> 2 sapply(X = 1:3, FUN = function(y){ y * 2 }, simplify = TRUE, USE.NAMES = TRUE)</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> MODIFIED CODE EXPORTED IN:</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> /tmp/Rtmpvr8qdq/direb027adc950/fun1_safer.R</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> /tmp/RtmpxAVrDP/dira045f9cf9c9/fun1_safer.R</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $stage</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] "modified"</span>
@@ -298,7 +298,7 @@ These are the checks run by the Run button of the first window of the saferMake:
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $fun</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> function(x){ if(x == TRUE) { base::sum(x, na.rm = FALSE) } else { base::sapply(X = 1:3, FUN = function(y){ y * 2 }, simplify = TRUE, USE.NAMES = TRUE) } }</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> &lt;environment: 0x55596a248680&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> &lt;environment: 0x55d0293790c0&gt;</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $code</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] "function(x){ if(x == TRUE) { base::sum(x, na.rm = FALSE) } else { base::sapply(X = 1:3, FUN = function(y){ y * 2 }, simplify = TRUE, USE.NAMES = TRUE) } }"</span>
