@@ -385,13 +385,14 @@ server <- function(input, output, session) {
     # (curly_bracket_check), 4) TRUE/FALSE written in full (true_false_check),
     # 5) checking of the for() loop sequences (for_loop_nb_check), 6) package
     # attribution (colons_check), 7) all the arguments written (all_args_here).
-    # They run one by one on the function evaluated above (so the pasted code
-    # is run only once per Run). The first check that modifies the code (or
-    # reports something the user must complete, or stops with an error) stops
-    # the loop: the code of window 1 is replaced by the modified code, with an
-    # orange message, and the user clicks on Run again. The progression to
-    # window 2 (settings) happens only when the seven checks return no
-    # modification.
+    # They are chained by saferMake::test() on the function evaluated above
+    # (each check on the code corrected by the previous ones; the pasted code
+    # is run only once per Run). The run stops only on a check that reports
+    # something the user must complete, or that stops with an error. The code
+    # of window 1 is then replaced by the code corrected by all the checks
+    # run, with an orange (red for errors) message and the full report of
+    # test(), and the user clicks on Run again. The progression to window 2
+    # (settings) happens only when the seven checks return no modification.
     # error trail of saferMake::make() (option set by make(); the app is
     # always launched by make(), hence the default)
     checks <- .run_code_checks(code = code, f = f, fun_name = rv$fun_name,
@@ -404,9 +405,8 @@ server <- function(input, output, session) {
                     domain = NULL, appendLF = TRUE)
     }
     if (checks$stage %in% base::c("modified", "findings", "error") || skip_blocks) {
-      if (checks$stage == "modified") {
-        rv$code <- checks$code
-      }
+      # code corrected by the checks run (unchanged code if none modified it)
+      rv$code <- checks$code
       # red message for errors (saferDev error, superassignment, ...) and when
       # the app is blocked by the missing saferDev; orange otherwise
       rv$input_notice <- list(text = checks$notice, report = checks$report,
@@ -811,9 +811,10 @@ server <- function(input, output, session) {
                intro(),
                h4(id = "sec_code", "Code of your function"),
                code_instructions(),
-               # NEW: orange (red for errors) message of the staged code checks. The code of the
-               # box below is then the code modified by the check (or the
-               # unchanged code if the check reports findings to complete).
+               # NEW: orange (red for errors) message of the staged code checks, followed
+               # by the full report of saferMake::test(). The code of the box below
+               # is then the code corrected by the chained checks (or the unchanged
+               # code if no check modified it).
                if (!is.null(rv$input_notice)) {
                  div(id = "input_check_notice",
                      class = paste0("alert alert-", rv$input_notice$level), role = "alert",

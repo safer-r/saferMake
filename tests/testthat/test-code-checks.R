@@ -128,12 +128,16 @@ testthat::test_that(desc = ".run_check_step() returns the modified function text
 
 # --- the loop of the seven checks ------------------------------------------------------
 
-testthat::test_that(desc = ".run_code_checks() stops at check 2 on a lambda function and returns the modified code", code = {
+testthat::test_that(desc = ".run_code_checks() corrects a lambda function at check 2 and returns the modified code", code = {
   skip_if_no_checks()
   code <- "#' header\nmy_fun <- function(x){ # keep this comment\n    base::sapply(X = x, FUN = \\(i){ i * 2 }, simplify = TRUE, USE.NAMES = TRUE)\n}\n"
   res <- run_checks(code = code)
   testthat::expect_identical(object = res$stage, expected = "modified")
-  testthat::expect_identical(object = res$step, expected = 2L)
+  testthat::expect_null(object = res$step)
+  testthat::expect_true(object = 2L %in% res$modified)
+  # the full report of saferMake::test() is given to the user
+  testthat::expect_match(object = res$report, regexp = "CHECK 1/7 saferDev::super_assign_check(): CLEAN", fixed = TRUE)
+  testthat::expect_match(object = res$report, regexp = "CHECK 2/7 saferDev::lambda_check(): MODIFIED", fixed = TRUE)
   testthat::expect_match(object = res$code, regexp = "FUN = function(i)", fixed = TRUE)
   testthat::expect_false(object = base::grepl(pattern = "\\(i)", x = res$code, fixed = TRUE))
   # lambda_check() keeps the comments and the header of the code
@@ -146,24 +150,24 @@ testthat::test_that(desc = ".run_code_checks() handles a function written as a l
   skip_if_no_checks()
   res <- run_checks(code = "my_fun <- \\(x){ base::sum(x, na.rm = FALSE) }", fun_name = "my_fun")
   testthat::expect_identical(object = res$stage, expected = "modified")
-  testthat::expect_identical(object = res$step, expected = 2L)
+  testthat::expect_identical(object = res$modified, expected = 2L)
   testthat::expect_identical(object = res$code, expected = "my_fun <- function(x){ base::sum(x, na.rm = FALSE) }")
 })
 
-testthat::test_that(desc = ".run_code_checks() runs the checks in order: curly brackets, then TRUE/FALSE", code = {
+testthat::test_that(desc = ".run_code_checks() chains the checks in one Run: curly brackets, then TRUE/FALSE", code = {
   skip_if_no_checks()
   code <- "my_fun <- function(x){\n    # keep this comment\n    if(x == T) base::return(x)   # and this one\n}"
   res <- run_checks(code = code)
   testthat::expect_identical(object = res$stage, expected = "modified")
-  testthat::expect_identical(object = res$step, expected = 3L)
-  # curly_bracket_check() keeps the comments and the indentation of the code
-  testthat::expect_identical(object = res$code, expected = "my_fun <- function(x){\n    # keep this comment\n    if(x == T) { base::return(x) }   # and this one\n}")
-  testthat::expect_false(object = base::any(base::grepl(pattern = "removes the comments", x = res$notice, fixed = TRUE)))
-  res2 <- run_checks(code = res$code)
-  testthat::expect_identical(object = res2$stage, expected = "modified")
-  testthat::expect_identical(object = res2$step, expected = 4L)
-  testthat::expect_match(object = res2$code, regexp = "x == TRUE", fixed = TRUE)
-  testthat::expect_match(object = res2$code, regexp = "# keep this comment", fixed = TRUE)
+  testthat::expect_identical(object = res$modified, expected = base::c(3L, 4L))
+  # curly_bracket_check() and true_false_check() keep the comments and the indentation of the code
+  testthat::expect_identical(object = res$code, expected = "my_fun <- function(x){\n    # keep this comment\n    if(x == TRUE) { base::return(x) }   # and this one\n}")
+  notice <- base::paste(res$notice, collapse = "\n")
+  testthat::expect_match(object = notice, regexp = "Check 3/7: ", fixed = TRUE)
+  testthat::expect_match(object = notice, regexp = "Check 4/7: ", fixed = TRUE)
+  testthat::expect_match(object = notice, regexp = "click on the Run button again", fixed = TRUE)
+  # the next Run is clean
+  testthat::expect_identical(object = run_checks(code = res$code)$stage, expected = "ok")
 })
 
 testthat::test_that(desc = ".run_code_checks() stops at check 1 on a superassignment, without modifying the code", code = {
@@ -207,20 +211,21 @@ testthat::test_that(desc = ".run_code_checks() adds the checking line of a for()
   code <- "my_fun <- function(x){\n    for(i in 1:base::length(x = x)){\n        base::print(x = i)\n    }\n}"
   res <- run_checks(code = code)
   testthat::expect_identical(object = res$stage, expected = "modified")
-  testthat::expect_identical(object = res$step, expected = 5L)
+  testthat::expect_true(object = 5L %in% res$modified)
   testthat::expect_match(object = res$code, regexp = "tempo_for_seq1", fixed = TRUE)
   testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "Check 5/7: ", fixed = TRUE)
   # the inserted checking line passes the next checks (colons_check() and all_args_here())
-  out <- run_until_stop(code = res$code)
-  testthat::expect_identical(object = out$res$stage, expected = "ok")
+  testthat::expect_identical(object = run_checks(code = res$code)$stage, expected = "ok")
 })
 
-testthat::test_that(desc = ".run_code_checks() adds the package attribution at check 6, then the arguments at check 7", code = {
+testthat::test_that(desc = ".run_code_checks() adds the package attribution at check 6, then the arguments at check 7, in one Run", code = {
   skip_if_no_checks()
   code <- "my_fun <- function(x){\n    sum(x)\n}"
+  res <- run_checks(code = code)
+  testthat::expect_identical(object = res$modified, expected = base::c(6L, 7L))
   out <- run_until_stop(code = code)
-  testthat::expect_identical(object = out$stages, expected = base::c("modified", "modified", "ok"))
-  testthat::expect_identical(object = out$steps, expected = base::c(6L, 7L))
+  testthat::expect_identical(object = out$stages, expected = base::c("modified", "ok"))
+  testthat::expect_identical(object = out$steps, expected = base::integer(length = 0L))
   testthat::expect_match(object = out$res$code, regexp = "base::sum(x, na.rm = FALSE)", fixed = TRUE)
   testthat::expect_identical(object = out$res$notice, expected = base::character(length = 0L))
   testthat::expect_identical(object = out$res$report, expected = "")
@@ -245,6 +250,20 @@ testthat::test_that(desc = ".run_code_checks() stops on findings it cannot corre
   testthat::expect_match(object = res$report, regexp = "my_helper", fixed = TRUE)
   testthat::expect_match(object = res$report, regexp = "ARE MISSING", fixed = TRUE)
   testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "Check 6/7", fixed = TRUE)
+})
+
+testthat::test_that(desc = ".run_code_checks() keeps the corrections of the checks run before the one that reports findings", code = {
+  skip_if_no_checks()
+  code <- "my_fun <- function(x){\n    if(x == T) my_helper(x)\n}"
+  res <- run_checks(code = code)
+  testthat::expect_identical(object = res$stage, expected = "findings")
+  testthat::expect_identical(object = res$step, expected = 6L)
+  testthat::expect_identical(object = res$modified, expected = base::c(3L, 4L))
+  testthat::expect_match(object = res$code, regexp = "if(x == TRUE) { my_helper(x) }", fixed = TRUE)
+  notice <- base::paste(res$notice, collapse = "\n")
+  testthat::expect_match(object = notice, regexp = "already in the code of the box below", fixed = TRUE)
+  testthat::expect_match(object = notice, regexp = "Check 6/7: the check reported", fixed = TRUE)
+  testthat::expect_match(object = res$report, regexp = "CHECK 7/7 saferDev::all_args_here(): NOT RUN", fixed = TRUE)
 })
 
 testthat::test_that(desc = ".run_code_checks() stops on findings of all_args_here() for calls written on several lines", code = {
@@ -279,7 +298,7 @@ testthat::test_that(desc = ".run_code_checks() works on a bare (anonymous) funct
   skip_if_no_checks()
   res <- run_checks(code = "function(x){\n    base::sum(x)\n}", fun_name = "<anonymous>")
   testthat::expect_identical(object = res$stage, expected = "modified")
-  testthat::expect_identical(object = res$step, expected = 7L)
+  testthat::expect_identical(object = res$modified, expected = 7L)
   testthat::expect_match(object = res$code, regexp = "^function\\(x\\)")
   testthat::expect_match(object = res$code, regexp = "base::sum(x, na.rm = FALSE)", fixed = TRUE)
 })

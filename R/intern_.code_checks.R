@@ -18,9 +18,12 @@
 # checking lines that it inserts must also be checked by these two functions.
 # The seven checks are run by the exported saferMake::test() (R/test.R), that
 # can also be used on its own. In the app, .run_code_checks() calls test() with
-# stop_at_first = TRUE: when a check modifies the code, the loop stops, the
-# modified code is handed back to window 1 (orange message), and the user
-# clicks on Run again, which restarts the seven checks on the modified code.
+# stop_at_first = FALSE: the checks are chained (each one on the code corrected
+# by the previous ones) and the run only stops on findings or on an error. All
+# the corrections are handed back at once to window 1 (orange message, with the
+# full report of test()), and the user clicks on Run again, which restarts the
+# seven checks on the modified code (window 2 is reached only after a Run
+# without any modification, finding or error).
 
 # Run a zero-argument function, capture every message and warning (muffled) and
 # any error.
@@ -266,21 +269,26 @@
 # code     : the pasted code (character), already evaluated without error
 # f        : the function evaluated from code with keep.source = TRUE
 # fun_name : the function name ("<anonymous>" when the code is a bare function)
-# Returns list(stage, code, step, notice, report) with:
-#   stage  : "ok" (the seven checks are clean), "modified" (the check number
-#            step modified the code), "findings" (the check number step
-#            reports something that it cannot correct itself: the user must
-#            complete the code), "error" (the saferDev function stopped), or
-#            "skip" (the saferDev of the R session does not provide the seven
-#            checks: no check can be done, the user is told to load the
-#            current saferDev)
-#   code   : the code to display in window 1 (modified code at stage
-#            "modified", otherwise the unchanged pasted code)
-#   step   : number (1 to 7) of the check that stopped the loop, NULL at stage
-#            "ok" and "skip"
-#   notice : lines of the orange message of window 1 (character(0) at stage
-#            "ok")
-#   report : text printed by saferDev for that check ("" at stage "ok")
+# Returns list(stage, code, step, modified, notice, report) with:
+#   stage    : "ok" (the seven checks are clean), "modified" (at least one
+#              check modified the code, none reports findings), "findings"
+#              (the check number step reports something that it cannot
+#              correct itself: the user must complete the code), "error" (the
+#              saferDev function number step stopped), or "skip" (the saferDev
+#              of the R session does not provide the seven checks: no check can
+#              be done, the user is told to load the current saferDev)
+#   code     : the code to display in window 1: the code corrected by the
+#              chained checks (also at stages "findings" and "error" when the
+#              checks before the stopping one modified it), otherwise the
+#              unchanged pasted code
+#   step     : number (1 to 7) of the check that stopped the run (findings or
+#              error), NULL at stages "ok", "modified" and "skip"
+#   modified : numbers of the checks that modified the code (integer(0) if none)
+#   notice   : lines of the orange message of window 1 (character(0) at stage
+#              "ok")
+#   report   : full report printed by saferMake::test() (status of the seven
+#              checks and report of each check that modified the code,
+#              reported findings or stopped; "" at stage "ok")
 # error_text : passed to saferMake::test(), so that the error messages give the
 #              full trail (" INSIDE saferMake::make()" when run by the app)
 .run_code_checks <- function(code, f, fun_name = "<anonymous>", error_text = "") {
@@ -288,7 +296,7 @@
   .check_var_name <- utils::getFromNamespace(x = ".check_var_name", ns = "saferMake", pos = , envir = )
   .capture_msg <- utils::getFromNamespace(x = ".capture_msg", ns = "saferMake", pos = , envir = )
   .splice_function <- utils::getFromNamespace(x = ".splice_function", ns = "saferMake", pos = , envir = )
-  res <- base::list(stage = "ok", code = code, step = NULL,
+  res <- base::list(stage = "ok", code = code, step = NULL, modified = base::integer(length = 0L),
                     notice = base::character(length = 0L), report = "")
   if (! .safer_dev_available()) {
     # the seven checks cannot be run: never go on silently to window 2
@@ -305,10 +313,10 @@
   # in env
   env <- base::new.env(hash = TRUE, parent = base::globalenv(), size = 29L)
   base::assign(x = var_name, value = f, pos = -1, envir = env, inherits = FALSE, immediate = TRUE)
-  cl <- base::call(name = "test", x = base::as.name(x = var_name), stop_at_first = TRUE,
+  cl <- base::call(name = "test", x = base::as.name(x = var_name), stop_at_first = FALSE,
                    export = FALSE, out_path = ".", safer_check = FALSE, lib_path = NULL, error_text = error_text)
   cl[[1]] <- base::call(name = "::", base::as.name(x = "saferMake"), base::as.name(x = "test"))
-  # the summary message of test() is not displayed (the app builds its own)
+  # the summary message of test() is captured: it is the report shown to the user
   cap <- .capture_msg(fun = function() {base::eval(expr = cl, envir = env, enclos = base::baseenv())} )
   n_steps <- base::length(x = .code_check_steps)
   if (! base::is.null(x = cap$err)) {
@@ -323,37 +331,55 @@
   if (base::identical(x = out$stage, y = "ok", num.eq = TRUE, single.NA = TRUE, attrib.as.set = TRUE, ignore.bytecode = TRUE, ignore.environment = FALSE, ignore.srcref = TRUE, extptr.as.ref = FALSE)) {
     base::return(res)
   }
-  i <- out$step
-  step <- .code_check_steps[[i]]
-  head_txt <- base::paste0("Check ", i, "/", n_steps, ": ", collapse = NULL, recycle0 = FALSE)
-  res$step <- i
-  res$report <- out$checks$report[i]
-  findings_txt <- base::paste0(head_txt, "the check reported the findings below, that could not be corrected automatically. Please, complete your code in the box below, then click on the Run button again.",
-                               if (step$key == "args") {" The calls listed under CORRECTIONS NOT APPLIED (often calls written on several lines) must be completed by hand, with the missing arguments proposed (e.g., EXPR = method in a switch()); otherwise this check stops again at each Run."} else {""},
-                               collapse = NULL, recycle0 = FALSE)
-  if (out$stage == "error") {
-    res$stage <- "error"
-    res$notice <- base::paste0(head_txt, "saferDev stopped with the message below. Please, correct your code in the box below, then click on the Run button again.",
-                               collapse = NULL, recycle0 = FALSE)
-    base::return(res)
+  # full report of test(): status of the seven checks, then the report of each
+  # check that modified the code, reported findings or stopped
+  res$report <- base::trimws(x = base::paste(cap$msgs, sep = " ", collapse = "\n", recycle0 = FALSE), which = "both", whitespace = "[ \t\r\n]")
+  # corrections of the chained checks: put back in the code (also when a later
+  # check stops on findings or on an error, so that no correction is lost and
+  # the report of the stopping check matches the code of the box)
+  res$modified <- base::which(x = out$checks$status == "modified", arr.ind = FALSE, useNames = FALSE)
+  if (! base::is.null(x = out$code)) {
+    new_code <- .splice_function(code = code, f = f, fun_txt_new = out$code, fun_name = fun_name)
+    if (base::identical(x = new_code, y = code, num.eq = TRUE, single.NA = TRUE, attrib.as.set = TRUE, ignore.bytecode = TRUE, ignore.environment = FALSE, ignore.srcref = TRUE, extptr.as.ref = FALSE)) {
+      # handing back the same code as "modified" would loop without end
+      res$modified <- base::integer(length = 0L)
+    } else {
+      res$code <- new_code
+    }
   }
-  if (out$stage == "findings") {
-    res$stage <- "findings"
-    res$notice <- findings_txt
+  modif_txt <- base::vapply(X = res$modified, FUN = function(i) {
+    base::paste0("Check ", i, "/", n_steps, ": ", .code_check_steps[[i]]$what, collapse = NULL, recycle0 = FALSE)
+  } , FUN.VALUE = base::character(length = 1L), USE.NAMES = FALSE)
+  if (out$stage %in% base::c("error", "findings")) {
+    i <- out$step
+    res$stage <- out$stage
+    res$step <- i
+    head_txt <- base::paste0("Check ", i, "/", n_steps, ": ", collapse = NULL, recycle0 = FALSE)
+    stop_txt <- if (out$stage == "error") {
+      base::paste0(head_txt, "saferDev stopped with the message given in the report below. Please, correct your code in the box below, then click on the Run button again.",
+                   collapse = NULL, recycle0 = FALSE)
+    } else {
+      base::paste0(head_txt, "the check reported the findings given in the report below, that could not be corrected automatically. Please, complete your code in the box below, then click on the Run button again.",
+                   if (.code_check_steps[[i]]$key == "args") {" The calls listed under CORRECTIONS NOT APPLIED (often calls written on several lines) must be completed by hand, with the missing arguments proposed (e.g., EXPR = method in a switch()); otherwise this check stops again at each Run."} else {""},
+                   collapse = NULL, recycle0 = FALSE)
+    }
+    res$notice <- base::c(
+      modif_txt,
+      if (base::length(x = modif_txt) > 0L) {"These corrections are already in the code of the box below."} else {base::character(length = 0L)},
+      stop_txt
+    )
     base::return(res)
   }
   # stage "modified"
-  new_code <- .splice_function(code = code, f = f, fun_txt_new = out$code, fun_name = fun_name)
-  if (base::identical(x = new_code, y = code, num.eq = TRUE, single.NA = TRUE, attrib.as.set = TRUE, ignore.bytecode = TRUE, ignore.environment = FALSE, ignore.srcref = TRUE, extptr.as.ref = FALSE)) {
-    # handing back the same code as "modified" would loop without end
+  if (base::length(x = res$modified) == 0L) {
+    # saferDev reported a modification that leaves the code unchanged
     res$stage <- "findings"
-    res$notice <- findings_txt
+    res$notice <- "The checks reported the findings given in the report below, that could not be corrected automatically. Please, complete your code in the box below, then click on the Run button again."
     base::return(res)
   }
   res$stage <- "modified"
-  res$code <- new_code
   res$notice <- base::c(
-    base::paste0(head_txt, step$what, collapse = NULL, recycle0 = FALSE),
+    modif_txt,
     "The modified code is now in the box below. Please, check it, then click on the Run button again."
   )
   res
