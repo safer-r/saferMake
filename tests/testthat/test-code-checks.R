@@ -144,6 +144,23 @@ testthat::test_that(desc = ".run_code_checks() corrects a lambda function at che
   testthat::expect_true(object = base::startsWith(x = res$code, prefix = "#' header\nmy_fun <- function(x){ # keep this comment"))
   testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "Check 2/7", fixed = TRUE)
   testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "click on the Run button again", fixed = TRUE)
+  # the full report goes to the report file (without its first line), followed by the modified code; nothing to correct by hand in the message
+  testthat::expect_identical(object = res$report_msg, expected = "")
+  testthat::expect_true(object = base::startsWith(x = res$report_file, prefix = "INSIDE my_fun():\n\nCHECK 1/7 saferDev::super_assign_check(): CLEAN"))
+  testthat::expect_match(object = res$report_file, regexp = "\n\n\nMODIFIED CODE:\n\nmy_fun_safer <- function(x){ # keep this comment", fixed = TRUE)
+  testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "Download report", fixed = TRUE)
+})
+
+testthat::test_that(desc = ".run_code_checks() keeps only the CORRECTIONS NOT APPLIED of all_args_here() in the message when the code is modified", code = {
+  skip_if_no_checks()
+  code <- "my_fun <- function(p, nm){\n    base::sum(p)\n    stats::setNames(p, nm)\n}"
+  res <- run_checks(code = code)
+  testthat::expect_true(object = 7L %in% res$modified)
+  testthat::expect_true(object = base::startsWith(x = res$report_msg, prefix = "CORRECTIONS NOT APPLIED:"))
+  testthat::expect_match(object = res$report_msg, regexp = "setNames(object = p, nm =  nm)", fixed = TRUE)
+  testthat::expect_false(object = base::grepl(pattern = "CHECK 1/7", x = res$report_msg, fixed = TRUE))
+  testthat::expect_match(object = res$report_file, regexp = "REPORT OF CHECK 7 (saferDev::all_args_here()):", fixed = TRUE)
+  testthat::expect_match(object = res$report_file, regexp = "MODIFIED CODE:\n\nmy_fun_safer <- function(p, nm){", fixed = TRUE)
 })
 
 testthat::test_that(desc = ".run_code_checks() handles a function written as a lambda from its first character", code = {
@@ -250,6 +267,10 @@ testthat::test_that(desc = ".run_code_checks() stops on findings it cannot corre
   testthat::expect_match(object = res$report, regexp = "my_helper", fixed = TRUE)
   testthat::expect_match(object = res$report, regexp = "ARE MISSING", fixed = TRUE)
   testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "Check 6/7", fixed = TRUE)
+  # the report of the stopping check stays in the message; no modified code in the report file
+  testthat::expect_true(object = base::startsWith(x = res$report_msg, prefix = "REPORT OF CHECK 6 (saferDev::colons_check()):"))
+  testthat::expect_match(object = res$report_msg, regexp = "my_helper", fixed = TRUE)
+  testthat::expect_false(object = base::grepl(pattern = "MODIFIED CODE", x = res$report_file, fixed = TRUE))
 })
 
 testthat::test_that(desc = ".run_code_checks() keeps the corrections of the checks run before the one that reports findings", code = {
@@ -266,9 +287,20 @@ testthat::test_that(desc = ".run_code_checks() keeps the corrections of the chec
   testthat::expect_match(object = res$report, regexp = "CHECK 7/7 saferDev::all_args_here(): NOT RUN", fixed = TRUE)
 })
 
-testthat::test_that(desc = ".run_code_checks() stops on findings of all_args_here() for calls written on several lines", code = {
+testthat::test_that(desc = ".run_code_checks() completes the calls written on several lines at check 7", code = {
   skip_if_no_checks()
+  # the current saferDev inserts the missing arguments into the original lines
   code <- "my_fun <- function(x){\n    base::paste0(x,\n        collapse = NULL)\n}"
+  res <- run_checks(code = code)
+  testthat::expect_identical(object = res$stage, expected = "modified")
+  testthat::expect_identical(object = res$modified, expected = 7L)
+  testthat::expect_identical(object = res$code, expected = "my_fun <- function(x){\n    base::paste0(x,\n        collapse = NULL, recycle0 = FALSE)\n}")
+  testthat::expect_identical(object = run_checks(code = res$code)$stage, expected = "ok")
+})
+
+testthat::test_that(desc = ".run_code_checks() stops on findings of all_args_here() for a value written without its argument name", code = {
+  skip_if_no_checks()
+  code <- "my_fun <- function(p, nm){\n    stats::setNames(p, nm)\n}"
   res <- run_checks(code = code)
   testthat::expect_identical(object = res$stage, expected = "findings")
   testthat::expect_identical(object = res$step, expected = 7L)
@@ -282,6 +314,10 @@ testthat::test_that(desc = ".run_code_checks() stops on findings of all_args_her
   testthat::expect_false(object = base::grepl(pattern = "LINE_NB", x = res$report, fixed = TRUE), info = NULL, label = NULL)
   testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "Check 7/7: the check reported", fixed = TRUE)
   testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "must be completed by hand", fixed = TRUE)
+  # the CORRECTIONS NOT APPLIED section is shown once in the message (report of the stopping check)
+  testthat::expect_identical(object = base::lengths(x = base::regmatches(x = res$report_msg, m = base::gregexpr(pattern = "CORRECTIONS NOT APPLIED", text = res$report_msg, fixed = TRUE))),
+                             expected = 1L)
+  testthat::expect_match(object = res$report_msg, regexp = "setNames(object = p, nm =  nm)", fixed = TRUE)
 })
 
 testthat::test_that(desc = ".run_code_checks() reports a saferDev error", code = {

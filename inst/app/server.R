@@ -25,6 +25,7 @@ server <- function(input, output, session) {
   .build_rebuilt        <- saferMake:::.build_rebuilt
   .run_code_checks      <- saferMake:::.run_code_checks
   .safer_dev_required   <- saferMake:::.safer_dev_required
+  .check_var_name       <- saferMake:::.check_var_name
 
   # ---- Constants ------------------------------------------------------------
   # ERROR_TEXT / INTERNAL_ERROR_TEXT: user-facing texts of the two error channels
@@ -409,7 +410,11 @@ server <- function(input, output, session) {
       rv$code <- checks$code
       # red message for errors (saferDev error, superassignment, ...) and when
       # the app is blocked by the missing saferDev; orange otherwise
-      rv$input_notice <- list(text = checks$notice, report = checks$report,
+      # only the part of the report the user must act on is shown (report_msg);
+      # the full report (and the modified code) goes to the report file
+      rv$input_notice <- list(text = checks$notice, report = checks$report_msg,
+                              file_txt = checks$report_file,
+                              file_name = paste0(.check_var_name(fun_name = rv$fun_name), "_check_report.txt"),
                               level = if (skip_blocks || checks$stage == "error") {"danger"} else {"warning"})
       rv$scroll_to <- "input_check_notice"
       rv$screen <- "input"
@@ -634,6 +639,18 @@ server <- function(input, output, session) {
     rv$screen <- if (!is.null(rv$prev_screen)) {rv$prev_screen} else {"input"}
   })
 
+  # ---- DOWNLOAD: report of the code checks (message of window 1) -------------
+  # Full report of saferMake::test() followed by the modified code (see
+  # report_file in .run_code_checks()).
+  output$download_check_report <- downloadHandler(
+    filename = function() {
+      rv$input_notice$file_name
+    },
+    content = function(file) {
+      writeLines(text = rv$input_notice$file_txt, con = file, sep = "\n", useBytes = FALSE)
+    }
+  )
+
   # ---- DOWNLOAD: the modified (safer) function -------------------------------
   output$download_safer <- downloadHandler(
     filename = function() {
@@ -823,6 +840,11 @@ server <- function(input, output, session) {
                      if (base::nzchar(x = rv$input_notice$report, keepNA = FALSE)) {
                        tags$pre(style = "margin-top: 10px; margin-bottom: 0; padding: 0; background: transparent; border: none; color: inherit; white-space: pre-wrap;",
                                 rv$input_notice$report)
+                     },
+                     # full report of saferMake::test() + modified code
+                     if (base::nzchar(x = rv$input_notice$file_txt, keepNA = FALSE)) {
+                       div(style = "margin-top: 10px;",
+                           downloadButton(outputId = "download_check_report", label = "Download report"))
                      })
                },
                textAreaInput(inputId = "user_ini_fun", label = NULL,

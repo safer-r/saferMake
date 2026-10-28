@@ -34,7 +34,7 @@ A message is always printed, with the result of each check and the reports of th
 
 A list, returned invisibly when nothing has been corrected, made of:
 
-- \code{$stage}: single character string. \code{"ok"} (the seven checks report nothing), \code{"modified"} (at least one check has corrected the code, and no check reports findings), \code{"findings"} (a check reports something that it cannot correct itself, like a non basic function written without its package, or a call written on several lines for \code{all_args_here()}: the code must be completed by the user), or \code{"error"} (a saferDev function stopped with an error, which is the expected result of \code{saferDev::super_assign_check()} when a superassignment is detected). The next checks are not run after \code{"findings"} or \code{"error"}.
+- \code{$stage}: single character string. \code{"ok"} (the seven checks report nothing), \code{"modified"} (at least one check has corrected the code, and no check reports findings), \code{"findings"} (a check reports something that it cannot correct itself, like a non basic function written without its package, or a value written without its argument name for \code{all_args_here()}: the code must be completed by the user), or \code{"error"} (a saferDev function stopped with an error, which is the expected result of \code{saferDev::super_assign_check()} when a superassignment is detected). The next checks are not run after \code{"findings"} or \code{"error"}.
 
 - \code{$step}: single integer. Number (1 to 7) of the check that stopped the run (findings, error, or modification with \code{stop_at_first = TRUE}), \code{NULL} otherwise.
 

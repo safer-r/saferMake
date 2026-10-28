@@ -253,7 +253,7 @@
     base::return(res)
   }
   # nothing modified: clean unless saferDev reports findings that it cannot
-  # correct itself (other functions without package, calls on several lines, ...).
+  # correct itself (other functions without package, values written without their argument name, ...).
   # "NOTHING TO CHECK" (warning of colons_check() and all_args_here() when the
   # function contains no function call, e.g. function(){y <- 1}) is also clean
   res$clean <- (base::grepl(pattern = "EVERYTHING SEEMS CLEAN", x = report, ignore.case = FALSE,
@@ -269,7 +269,8 @@
 # code     : the pasted code (character), already evaluated without error
 # f        : the function evaluated from code with keep.source = TRUE
 # fun_name : the function name ("<anonymous>" when the code is a bare function)
-# Returns list(stage, code, step, modified, notice, report) with:
+# Returns list(stage, code, step, modified, notice, report, report_msg,
+# report_file) with:
 #   stage    : "ok" (the seven checks are clean), "modified" (at least one
 #              check modified the code, none reports findings), "findings"
 #              (the check number step reports something that it cannot
@@ -289,6 +290,16 @@
 #   report   : full report printed by saferMake::test() (status of the seven
 #              checks and report of each check that modified the code,
 #              reported findings or stopped; "" at stage "ok")
+#   report_msg : part of report shown in the message of window 1: the report
+#              of the check that stopped the run (stages "findings" and
+#              "error"), and the CORRECTIONS NOT APPLIED section of
+#              all_args_here() ("" if none)
+#   report_file : text of the report file downloaded from the message of
+#              window 1: report without its first line ("AFTER RUNNING
+#              saferMake::test()."), followed by the code of the modified
+#              function written as exported by saferMake::test(export = TRUE)
+#              (<name>_safer <- function...) when the code has been modified
+#              ("" at stages "ok" and "skip")
 # error_text : passed to saferMake::test(), so that the error messages give the
 #              full trail (" INSIDE saferMake::make()" when run by the app)
 .run_code_checks <- function(code, f, fun_name = "<anonymous>", error_text = "") {
@@ -297,7 +308,7 @@
   .capture_msg <- utils::getFromNamespace(x = ".capture_msg", ns = "saferMake", pos = , envir = )
   .splice_function <- utils::getFromNamespace(x = ".splice_function", ns = "saferMake", pos = , envir = )
   res <- base::list(stage = "ok", code = code, step = NULL, modified = base::integer(length = 0L),
-                    notice = base::character(length = 0L), report = "")
+                    notice = base::character(length = 0L), report = "", report_msg = "", report_file = "")
   if (! .safer_dev_available()) {
     # the seven checks cannot be run: never go on silently to window 2
     res$stage <- "skip"
@@ -324,6 +335,7 @@
     # saferDev functions are returned in its output)
     res$stage <- "error"
     res$report <- base::trimws(x = cap$err, which = "both", whitespace = "[ \t\r\n=]")
+    res$report_msg <- res$report
     res$notice <- "saferMake::test() stopped with the message below. Please, correct your code in the box below, then click on the Run button again."
     base::return(res)
   }
@@ -347,6 +359,24 @@
       res$code <- new_code
     }
   }
+  # report file: the report of test() without its first line, followed by the
+  # modified code (as exported by test(export = TRUE))
+  res$report_file <- base::sub(pattern = "^AFTER RUNNING [^\n]*\n", replacement = "", x = res$report, ignore.case = FALSE, perl = TRUE, fixed = FALSE, useBytes = FALSE)
+  if (base::length(x = res$modified) > 0L) {
+    res$report_file <- base::paste0(res$report_file, "\n\n\nMODIFIED CODE:\n\n", var_name, "_safer <- ", out$code, "\n", collapse = NULL, recycle0 = FALSE)
+  }
+  # message of window 1: only what the user must correct by hand (the full
+  # report is in the report file), i.e., the report of the check that stopped
+  # the run and the calls that all_args_here() could not correct
+  stop_report <- base::character(length = 0L)
+  na_reports <- out$checks$report
+  if (out$stage %in% base::c("error", "findings")) {
+    stop_report <- base::paste0("REPORT OF CHECK ", out$step, " (saferDev::", .code_check_steps[[out$step]]$fun, "()):\n", out$checks$report[out$step], collapse = NULL, recycle0 = FALSE)
+    na_reports <- out$checks$report[- out$step] # already in stop_report
+  }
+  na_txt <- base::regmatches(x = na_reports, m = base::regexpr(pattern = "CORRECTIONS NOT APPLIED:[\\s\\S]*$", text = na_reports, ignore.case = FALSE, perl = TRUE, fixed = FALSE, useBytes = FALSE), invert = FALSE)
+  res$report_msg <- base::trimws(x = base::paste(base::c(stop_report, na_txt), sep = " ", collapse = "\n\n", recycle0 = FALSE), which = "both", whitespace = "[ \t\r\n]")
+  dl_txt <- "The full report of the checks (followed by the modified code, if any) can be downloaded with the Download report button below."
   modif_txt <- base::vapply(X = res$modified, FUN = function(i) {
     base::paste0("Check ", i, "/", n_steps, ": ", .code_check_steps[[i]]$what, collapse = NULL, recycle0 = FALSE)
   } , FUN.VALUE = base::character(length = 1L), USE.NAMES = FALSE)
@@ -360,13 +390,14 @@
                    collapse = NULL, recycle0 = FALSE)
     } else {
       base::paste0(head_txt, "the check reported the findings given in the report below, that could not be corrected automatically. Please, complete your code in the box below, then click on the Run button again.",
-                   if (.code_check_steps[[i]]$key == "args") {" The calls listed under CORRECTIONS NOT APPLIED (often calls written on several lines) must be completed by hand, with the missing arguments proposed (e.g., EXPR = method in a switch()); otherwise this check stops again at each Run."} else {""},
+                   if (.code_check_steps[[i]]$key == "args") {" The calls listed under CORRECTIONS NOT APPLIED must be completed by hand, as explained by the REASON given for each of them (e.g., a value written without its argument name); otherwise this check stops again at each Run."} else {""},
                    collapse = NULL, recycle0 = FALSE)
     }
     res$notice <- base::c(
       modif_txt,
       if (base::length(x = modif_txt) > 0L) {"These corrections are already in the code of the box below."} else {base::character(length = 0L)},
-      stop_txt
+      stop_txt,
+      dl_txt
     )
     base::return(res)
   }
@@ -374,13 +405,15 @@
   if (base::length(x = res$modified) == 0L) {
     # saferDev reported a modification that leaves the code unchanged
     res$stage <- "findings"
-    res$notice <- "The checks reported the findings given in the report below, that could not be corrected automatically. Please, complete your code in the box below, then click on the Run button again."
+    res$notice <- base::c("The checks reported the findings given in the report below, that could not be corrected automatically. Please, complete your code in the box below, then click on the Run button again.", dl_txt)
+    res$report_msg <- res$report
     base::return(res)
   }
   res$stage <- "modified"
   res$notice <- base::c(
     modif_txt,
-    "The modified code is now in the box below. Please, check it, then click on the Run button again."
+    "The modified code is now in the box below. Please, check it, then click on the Run button again.",
+    dl_txt
   )
   res
 }
