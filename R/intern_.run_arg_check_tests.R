@@ -384,9 +384,15 @@
       st  <- arg_check_settings[[aid]]
       if (base::is.null(x = st)) {st <- .arg_check_defaults}
       val_code <- .ac_test_value_code(st = st, lib_path = lib_path, error_text = embed_error_text)
+      # the test value is bound to the name of the argument (data = <nm>, as in
+      # the converted function), so that the messages of arg_check() name the
+      # argument and not the test value (e.g., "THE 1L ARGUMENT"). Not when the
+      # name is one of the objects of the collection machinery below.
+      bind_name <- ! base::any(nm == base::c("tempo", "ee", "argum_check", "text_check", "checked_arg_names"), na.rm = TRUE)
+      data_txt <- if (bind_name) {base::paste0("`", nm, "`", collapse = NULL, recycle0 = FALSE)} else {val_code}
       line_txt <- base::paste0(
         "tempo <- ",
-        .arg_check_call_core(data_txt = val_code, st = st,
+        .arg_check_call_core(data_txt = data_txt, st = st,
                              lib_path_txt = "NULL", error_text_txt = "\"\"", lib_path = lib_path, error_text = embed_error_text),
         " ; base::eval(expr = ee, envir = base::environment(fun = NULL), enclos = base::environment(fun = NULL))",
         collapse = NULL,
@@ -400,6 +406,21 @@
         base::tryCatch(
           expr = {
             env <- base::new.env(hash = TRUE, parent = base::globalenv(), size = 29L)
+            if (bind_name) {
+              base::assign(
+                x = nm,
+                value = base::eval(
+                  expr = base::parse(file = "", n = NULL, text = val_code, prompt = "?",
+                                     keep.source = FALSE, srcfile = NULL, encoding = "unknown"),
+                  envir = env,
+                  enclos = base::environment(fun = NULL)
+                ),
+                pos = -1L,
+                envir = env,
+                inherits = FALSE,
+                immediate = TRUE
+              )
+            }
             # same collection machinery as in the generated code header
             env$argum_check       <- NULL
             env$text_check        <- NULL

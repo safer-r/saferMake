@@ -1,9 +1,10 @@
 # Build the R code (as text) of a test value consistent with the settings:
 # kind from class, else typeof, else mode (default "numeric");
-# length from the length field (default 1); options used when provided.
+# length from the length field (default 1); options used when provided;
+# decimal values between 0 and 1 (0.5 for a single value) when prop is TRUE.
 #' @title Arg Check Test Value Code
 #' @description
-#' Build the R code (as text) of a test value consistent with the arg_check() settings of an argument: kind from class, else typeof, else mode (default \code{"numeric"}); length from the length field (default 1); options used when provided.
+#' Build the R code (as text) of a test value consistent with the arg_check() settings of an argument: kind from class, else typeof, else mode (default \code{"numeric"}); length from the length field (default 1); options used when provided; decimal values between 0 and 1 (\code{0.5} for a single value) for the numeric kinds when \code{prop} is \code{TRUE}.
 #' @param st List of the arg_check() settings of the argument (same structure as \code{.arg_check_defaults}).
 #' @param lib_path Vector of characters specifying the absolute pathways of the directories containing the required packages for the function, if not in the default directories. Useful when R packages are not installed in the default directories because of lack of admin rights. More precisely, \code{lib_path} is passed through the \code{new} argument of \code{.libPaths()} so that the new library paths are \code{unique(c(new, .Library.site, .Library))}. Warning: \code{.libPaths()} is restored to the initial paths, after function execution. Ignored if \code{NULL} (default) or if the \code{safer_check} argument is \code{FALSE}: only the pathways specified by the current \code{.libPaths()} are used for package calling.
 #' @param error_text Single character string used to add information in error messages returned by the function, notably if the function is inside other functions, which is practical for debugging. Example: \code{error_text = " INSIDE <PACKAGE_1>::<FUNCTION_1> INSIDE <PACKAGE_2>::<FUNCTION_2>."}. If \code{NULL}, converted into \code{""}.
@@ -355,7 +356,13 @@
     char_code <- if (n == 1L) {base::paste0("\"", vals, "\"", collapse = NULL, recycle0 = FALSE)} else
       {base::paste0("c(", base::paste0("\"", vals, "\"", collapse = ", ", recycle0 = FALSE), ")",
                    collapse = NULL, recycle0 = FALSE)}
-    num_code <- if (n == 1L) {"1.5"} else
+    num_code <- if (base::isTRUE(x = st$prop)) {
+        # proportions: decimal values between 0 and 1 (0.5 for a single value)
+        base::deparse(expr = base::round(x = base::seq_len(length.out = n) / (n + 1L), digits = 3L),
+                      width.cutoff = 500L, backtick = FALSE,
+                      control = base::c("keepNA", "keepInteger", "niceNames", "showAttributes"),
+                      nlines = -1L)
+    } else if (n == 1L) {"1.5"} else
       {base::paste0(
         "c(",
         base::paste(base::format(x = base::seq(from = 1.5, to = , by = 1, length.out = n, along.with = ),
@@ -412,11 +419,11 @@
                                                 sep = " ", collapse = ", ", recycle0 = FALSE),
                                     ")",
                                     collapse = NULL, recycle0 = FALSE),
-      "matrix"      = base::paste0("matrix(1:", n, ", nrow = ", n, ")",
+      "matrix"      = base::paste0("matrix(", if (base::isTRUE(x = st$prop)) {num_code} else {base::paste0("1:", n, collapse = NULL, recycle0 = FALSE)}, ", nrow = ", n, ")",
                                    collapse = NULL, recycle0 = FALSE),
       "data.frame"  = base::paste0("as.data.frame(matrix(1:", n, ", nrow = 1))",
                                    collapse = NULL, recycle0 = FALSE),
-      "array"       = base::paste0("array(1:", n, ", dim = c(", n, ", 1))",
+      "array"       = base::paste0("array(", if (base::isTRUE(x = st$prop)) {num_code} else {base::paste0("1:", n, collapse = NULL, recycle0 = FALSE)}, ", dim = c(", n, ", 1))",
                                    collapse = NULL, recycle0 = FALSE),
       "table"       = base::paste0("table(factor(1:", n, "))",
                                    collapse = NULL, recycle0 = FALSE),

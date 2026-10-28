@@ -17,7 +17,7 @@
 A single string of R code of the test value.
 }
 \description{
-Build the R code (as text) of a test value consistent with the arg_check() settings of an argument: kind from class, else typeof, else mode (default \code{"numeric"}); length from the length field (default 1); options used when provided.
+Build the R code (as text) of a test value consistent with the arg_check() settings of an argument: kind from class, else typeof, else mode (default \code{"numeric"}); length from the length field (default 1); options used when provided; decimal values between 0 and 1 (\code{0.5} for a single value) for the numeric kinds when \code{prop} is \code{TRUE}.
 }
 \details{
 Warnings:
