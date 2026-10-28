@@ -141,6 +141,10 @@ make <- function(
     }
     ######## end mandatory arg of safer-r functions
 
+    ######## arg with no default values
+    # not used here: all the arguments have a default value
+    ######## end arg with no default values
+
     ######## management of NULL arguments
     # before NA checking because is.na(NULL) return logical(0) and all(logical(0)) is TRUE (but secured with & base::length(x = x) > 0)
     tempo_arg <- base::c(
@@ -292,28 +296,12 @@ make <- function(
     }
     ######## end check of lib_path
 
-    ######## check of the saferDev package
-    # saferDev is in the Suggests field of the DESCRIPTION file of saferMake: its presence is checked before any saferDev:: calling, which only happens when safer_check = TRUE (the app itself degrades gracefully without saferDev)
-    if(safer_check == TRUE){
-        if( ! base::requireNamespace(package = "saferDev", lib.loc = lib_path, quietly = TRUE)){
-            tempo_cat <- base::paste0(
-                error_text_start,
-                "THE saferDev PACKAGE IS REQUIRED WHEN THE safer_check ARGUMENT IS TRUE (https://github.com/safer-r/saferDev).\nPLEASE, INSTALL IT, INDICATE ITS LIBRARY PATH IN THE lib_path ARGUMENT, OR SET safer_check TO FALSE.",
-                collapse = NULL,
-                recycle0 = FALSE
-            )
-            base::stop(base::paste0("\n\n================\n\n", tempo_cat, "\n\n================\n\n", collapse = NULL, recycle0 = FALSE), call. = FALSE, domain = NULL)
-        }
-    }
-    ######## end check of the saferDev package
-
     ######## check of the required functions from the required packages
     if(safer_check == TRUE){
         .pack_and_function_check <- utils::getFromNamespace(x = ".pack_and_function_check", ns = "saferDev", pos = , envir = )
         .pack_and_function_check(
             fun = base::c(
                 # functions required in this code
-                "bslib::bs_theme",
                 "shiny::runApp",
                 # end functions required in this code
                 # internal functions required in this code
@@ -325,6 +313,10 @@ make <- function(
         )
     }
     ######## end check of the required functions from the required packages
+
+    ######## escaping CRAN submission NOTE for internal functions
+    # not used here: no internal function of saferMake in this code
+    ######## end escaping CRAN submission NOTE for internal functions
 
     ######## critical operator checking
     if(safer_check == TRUE){
@@ -338,12 +330,33 @@ make <- function(
     #### end environment checking
 
     #### argument secondary checking
+
+    ######## argument checking with arg_check()
+    # not used here: no argument other than the safer-r ones
     # lib_path already checked above
     # safer_check already checked above
     # error_text converted to single string above
+    ######## end argument checking with arg_check()
+
+    ######## management of "" in arguments of mode character
+    # not required
+    ######## end management of "" in arguments of mode character
+
     #### end argument secondary checking
 
     #### second round of checking and data preparation
+
+    ######## reserved words
+    ######## end reserved words
+
+    ######## code that protects set.seed() in the global environment
+    ######## end code that protects set.seed() in the global environment
+
+    ######## warning initiation
+    ######## end warning initiation
+
+    ######## graphic device checking
+    ######## end graphic device checking
 
     ######## other checkings
     # location of the shiny app files inside the installed package (inside the source package with pkgload::load_all(), that shims base::system.file())
@@ -369,9 +382,9 @@ make <- function(
     #### main code
     # nocov start
     # codecov inactivated because the app blocks the R session until it is closed
-    # error trail of make() handed to the app (error messages of the code checks
-    # end with " INSIDE saferMake::make()"), restored when the app is closed
-    old_opt <- base::options(saferMake.error_text = embed_error_text)
+    # error trail and library paths of make() handed to the app (error messages of the code checks
+    # end with " INSIDE saferMake::make()"; lib_path passed to the internal functions), restored when the app is closed
+    old_opt <- base::options(saferMake.error_text = embed_error_text, saferMake.lib_path = lib_path)
     base::on.exit(expr = base::options(old_opt), add = TRUE, after = TRUE)
     # default values of shiny::runApp() written explicitly, except display.mode
     output <- shiny::runApp(
@@ -386,6 +399,9 @@ make <- function(
     )
     # nocov end
     #### end main code
+
+    #### warning output
+    #### end warning output
 
     #### output
     base::return(base::invisible(x = output)) # nocov

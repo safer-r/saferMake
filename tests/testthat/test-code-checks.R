@@ -16,14 +16,14 @@ mk_fun <- function(code) {
 # Skip the test if saferDev does not provide the seven checks
 skip_if_no_checks <- function() {
   testthat::skip_if_not_installed(pkg = "saferDev")
-  testthat::skip_if_not(condition = saferMake:::.safer_dev_available(),
+  testthat::skip_if_not(condition = saferMake:::.safer_dev_available(lib_path = NULL, error_text = ""),
                         message = "the current (development) saferDev is needed")
 }
 
 # Run the checks like the Run button does: evaluate the code, then check it
 run_checks <- function(code, fun_name = "my_fun") {
   f <- mk_fun(code = code)
-  saferMake:::.run_code_checks(code = code, f = f, fun_name = fun_name)
+  saferMake:::.run_code_checks(code = code, f = f, fun_name = fun_name, lib_path = NULL, error_text = "")
 }
 
 # Click on Run again and again until the loop stops on something else than a
@@ -48,12 +48,12 @@ testthat::test_that(desc = ".capture_msg() captures messages, warnings and error
     base::message("m1")
     base::warning("w1")
     "value"
-  })
+  }, lib_path = NULL, error_text = "")
   testthat::expect_identical(object = out$value, expected = "value")
   testthat::expect_identical(object = out$msgs, expected = "m1\n")
   testthat::expect_identical(object = out$warns, expected = "w1")
   testthat::expect_null(object = out$err)
-  out2 <- saferMake:::.capture_msg(fun = function() {base::stop("boom")} )
+  out2 <- saferMake:::.capture_msg(fun = function() {base::stop("boom")} , lib_path = NULL, error_text = "")
   testthat::expect_null(object = out2$value)
   testthat::expect_identical(object = out2$err, expected = "boom")
 })
@@ -61,11 +61,11 @@ testthat::test_that(desc = ".capture_msg() captures messages, warnings and error
 # --- helpers ---------------------------------------------------------------------
 
 testthat::test_that(desc = ".check_var_name() keeps syntactic names only", code = {
-  testthat::expect_identical(object = saferMake:::.check_var_name(fun_name = "p.adjust"), expected = "p.adjust")
-  testthat::expect_identical(object = saferMake:::.check_var_name(fun_name = "<anonymous>"), expected = "fun_to_check")
-  testthat::expect_identical(object = saferMake:::.check_var_name(fun_name = "my fun"), expected = "fun_to_check")
-  testthat::expect_identical(object = saferMake:::.check_var_name(fun_name = "if"), expected = "fun_to_check")
-  testthat::expect_identical(object = saferMake:::.check_var_name(fun_name = ""), expected = "fun_to_check")
+  testthat::expect_identical(object = saferMake:::.check_var_name(fun_name = "p.adjust", lib_path = NULL, error_text = ""), expected = "p.adjust")
+  testthat::expect_identical(object = saferMake:::.check_var_name(fun_name = "<anonymous>", lib_path = NULL, error_text = ""), expected = "fun_to_check")
+  testthat::expect_identical(object = saferMake:::.check_var_name(fun_name = "my fun", lib_path = NULL, error_text = ""), expected = "fun_to_check")
+  testthat::expect_identical(object = saferMake:::.check_var_name(fun_name = "if", lib_path = NULL, error_text = ""), expected = "fun_to_check")
+  testthat::expect_identical(object = saferMake:::.check_var_name(fun_name = "", lib_path = NULL, error_text = ""), expected = "fun_to_check")
 })
 
 testthat::test_that(desc = ".safer_dev_required is a single logical value (temporary switch)", code = {
@@ -85,23 +85,23 @@ testthat::test_that(desc = ".code_check_steps lists the seven checks in the requ
 testthat::test_that(desc = ".function_span() locates the function in the code, also with a header and a trailer", code = {
   code <- "#' header\nmy_fun <- function(x){\n    x + 1\n}\n# trailer\n"
   f <- mk_fun(code = code)
-  span <- saferMake:::.function_span(code = code, f = f)
+  span <- saferMake:::.function_span(code = code, f = f, lib_path = NULL, error_text = "")
   testthat::expect_identical(object = base::substring(text = code, first = span[1], last = span[2]),
                              expected = "function(x){\n    x + 1\n}")
   # a function without source references cannot be located
-  testthat::expect_null(object = saferMake:::.function_span(code = code, f = base::eval(expr = base::parse(text = "function(x) x", keep.source = FALSE))))
+  testthat::expect_null(object = saferMake:::.function_span(code = code, f = base::eval(expr = base::parse(text = "function(x) x", keep.source = FALSE)), lib_path = NULL, error_text = ""))
 })
 
 testthat::test_that(desc = ".splice_function() keeps what is written around the function", code = {
   code <- "#' header\nmy_fun <- function(x){\n    x + 1\n}\n# trailer\n"
   f <- mk_fun(code = code)
-  out <- saferMake:::.splice_function(code = code, f = f, fun_txt_new = "function(x){ x + 2 }", fun_name = "my_fun")
+  out <- saferMake:::.splice_function(code = code, f = f, fun_txt_new = "function(x){ x + 2 }", fun_name = "my_fun", lib_path = NULL, error_text = "")
   testthat::expect_identical(object = out, expected = "#' header\nmy_fun <- function(x){ x + 2 }\n# trailer\n")
   # function not locatable: the whole code is rebuilt from the function name
   f2 <- base::eval(expr = base::parse(text = "function(x) x", keep.source = FALSE))
-  testthat::expect_identical(object = saferMake:::.splice_function(code = code, f = f2, fun_txt_new = "function(x) x", fun_name = "my_fun"),
+  testthat::expect_identical(object = saferMake:::.splice_function(code = code, f = f2, fun_txt_new = "function(x) x", fun_name = "my_fun", lib_path = NULL, error_text = ""),
                              expected = "my_fun <- function(x) x")
-  testthat::expect_identical(object = saferMake:::.splice_function(code = code, f = f2, fun_txt_new = "function(x) x", fun_name = "<anonymous>"),
+  testthat::expect_identical(object = saferMake:::.splice_function(code = code, f = f2, fun_txt_new = "function(x) x", fun_name = "<anonymous>", lib_path = NULL, error_text = ""),
                              expected = "function(x) x")
 })
 
@@ -111,7 +111,7 @@ testthat::test_that(desc = ".run_check_step() returns the modified function text
   skip_if_no_checks()
   steps <- saferMake:::.code_check_steps
   f <- mk_fun(code = "my_fun <- function(x){\n    if(x == T) base::return(x)\n}")
-  out <- saferMake:::.run_check_step(step = steps[[4]], f = f, var_name = "my_fun")
+  out <- saferMake:::.run_check_step(step = steps[[4]], f = f, var_name = "my_fun", lib_path = NULL, error_text = "")
   testthat::expect_null(object = out$err)
   testthat::expect_false(object = out$clean)
   testthat::expect_match(object = out$fun_txt, regexp = "^function\\(x\\)\\{")
@@ -121,7 +121,7 @@ testthat::test_that(desc = ".run_check_step() returns the modified function text
   testthat::expect_match(object = out$report, regexp = "INSIDE my_fun()", fixed = TRUE)
   # nothing to modify
   f2 <- mk_fun(code = "my_fun <- function(x){\n    if(x == TRUE){ base::return(x) }\n}")
-  out2 <- saferMake:::.run_check_step(step = steps[[4]], f = f2, var_name = "my_fun")
+  out2 <- saferMake:::.run_check_step(step = steps[[4]], f = f2, var_name = "my_fun", lib_path = NULL, error_text = "")
   testthat::expect_null(object = out2$fun_txt)
   testthat::expect_true(object = out2$clean)
 })
@@ -218,7 +218,7 @@ testthat::test_that(desc = ".run_code_checks() passes error_text to saferMake::t
     y <<- x
 }"
   f <- mk_fun(code = code)
-  res <- saferMake:::.run_code_checks(code = code, f = f, fun_name = "my_fun", error_text = " INSIDE saferMake::make()")
+  res <- saferMake:::.run_code_checks(code = code, f = f, fun_name = "my_fun", lib_path = NULL, error_text = " INSIDE saferMake::make()")
   testthat::expect_identical(object = res$stage, expected = "error")
   testthat::expect_match(object = res$report, regexp = "INSIDE saferMake::test() INSIDE saferMake::make()", fixed = TRUE)
 })
@@ -344,9 +344,9 @@ testthat::test_that(desc = ".run_code_checks() stops with a message when the cur
   f <- mk_fun(code = code)
   res <- testthat::with_mocked_bindings(
     .package = "saferMake",
-    .safer_dev_available = function() {FALSE} ,
+    .safer_dev_available = function(lib_path, error_text) {FALSE} ,
     {
-      saferMake:::.run_code_checks(code = code, f = f, fun_name = "my_fun")
+      saferMake:::.run_code_checks(code = code, f = f, fun_name = "my_fun", lib_path = NULL, error_text = "")
     }
   )
   testthat::expect_identical(object = res$stage, expected = "skip")

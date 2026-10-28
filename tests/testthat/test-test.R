@@ -12,7 +12,7 @@ testthat::test_that("test()", {
 
     ## initialization of tests
     testthat::skip_if_not_installed(pkg = "saferDev")
-    testthat::skip_if_not(condition = saferMake:::.safer_dev_available(), message = "the current (development) saferDev is needed")
+    testthat::skip_if_not(condition = saferMake:::.safer_dev_available(lib_path = NULL, error_text = ""), message = "the current (development) saferDev is needed")
     ## end initialization of tests
 
     ## tests (ordered by arg appearance and conditions in the code)
@@ -40,7 +40,7 @@ testthat::test_that("test()", {
     testthat::expect_error(
         object = testthat::with_mocked_bindings(
             .package = "saferMake",
-            .safer_dev_available = function(){FALSE},
+            .safer_dev_available = function(lib_path, error_text){FALSE},
             code = {saferMake::test(x = fun1, stop_at_first = FALSE, export = FALSE, out_path = ".", safer_check = FALSE, lib_path = NULL, error_text = "")}
         ),
         regexp = "DOES NOT PROVIDE THE SEVEN FUNCTIONS"

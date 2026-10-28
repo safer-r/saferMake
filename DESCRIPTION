@@ -16,10 +16,10 @@ Depends:
     R (>= 4.6.0)
 Imports:
     bslib,
+    saferDev,
     shiny,
     utils
 Suggests:
-    saferDev,
     knitr,
     rmarkdown,
     testthat (>= 3.0.0)

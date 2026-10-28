@@ -10,22 +10,67 @@ server <- function(input, output, session) {
   # devtools::load_all() (or an installed package) so that the saferMake
   # namespace is available.
 
+  # The internal functions carry the safer-r backbone: their lib_path and
+  # error_text arguments (no default values) are added by the wrappers below,
+  # with the values handed by saferMake::make() through options (the app is
+  # always launched by make(), hence the defaults). Wrappers with named
+  # arguments (not the internal functions themselves) are passed to vapply()
+  # and co, because the backbone reads the call with base::match.call().
+  app_lib_path   <- getOption("saferMake.lib_path", default = NULL)
+  app_error_text <- getOption("saferMake.error_text", default = " INSIDE saferMake::make()")
+
   .safer_args           <- saferMake:::.safer_args
   .arg_check_defaults   <- saferMake:::.arg_check_defaults
-  .arg_id               <- saferMake:::.arg_id
-  .null_cb_id           <- saferMake:::.null_cb_id
-  .empty_cb_id          <- saferMake:::.empty_cb_id
-  .arg_check_field_ids  <- saferMake:::.arg_check_field_ids
-  .no_empty_cb_id       <- saferMake:::.no_empty_cb_id
-  .field_blank          <- saferMake:::.field_blank
-  .arg_check_settings_errors <- saferMake:::.arg_check_settings_errors
-  .run_arg_check_tests  <- saferMake:::.run_arg_check_tests
-  .args_without_default <- saferMake:::.args_without_default
-  .extract_aa_body      <- saferMake:::.extract_aa_body
-  .build_rebuilt        <- saferMake:::.build_rebuilt
-  .run_code_checks      <- saferMake:::.run_code_checks
   .safer_dev_required   <- saferMake:::.safer_dev_required
-  .check_var_name       <- saferMake:::.check_var_name
+  .arg_id <- function(nm) {
+    saferMake:::.arg_id(nm = nm, lib_path = app_lib_path, error_text = app_error_text)
+  }
+  .null_cb_id <- function(nm) {
+    saferMake:::.null_cb_id(nm = nm, lib_path = app_lib_path, error_text = app_error_text)
+  }
+  .empty_cb_id <- function(nm) {
+    saferMake:::.empty_cb_id(nm = nm, lib_path = app_lib_path, error_text = app_error_text)
+  }
+  .arg_check_field_ids <- function(id) {
+    saferMake:::.arg_check_field_ids(id = id, lib_path = app_lib_path, error_text = app_error_text)
+  }
+  .no_empty_cb_id <- function(nm) {
+    saferMake:::.no_empty_cb_id(nm = nm, lib_path = app_lib_path, error_text = app_error_text)
+  }
+  .field_blank <- function(v) {
+    saferMake:::.field_blank(v = v, lib_path = app_lib_path, error_text = app_error_text)
+  }
+  .arg_check_settings_errors <- function(fun_args, arg_check_settings) {
+    saferMake:::.arg_check_settings_errors(fun_args = fun_args, arg_check_settings = arg_check_settings, lib_path = app_lib_path, error_text = app_error_text)
+  }
+  .run_arg_check_tests <- function(fun_args, arg_check_settings) {
+    saferMake:::.run_arg_check_tests(fun_args = fun_args, arg_check_settings = arg_check_settings, lib_path = app_lib_path, error_text = app_error_text)
+  }
+  .args_without_default <- function(f) {
+    saferMake:::.args_without_default(f = f, lib_path = app_lib_path, error_text = app_error_text)
+  }
+  .extract_aa_body <- function(code) {
+    saferMake:::.extract_aa_body(code = code, lib_path = app_lib_path, error_text = app_error_text)
+  }
+  .rename_lib_path_arg <- function(aa, body, name, has_no_default = FALSE) {
+    saferMake:::.rename_lib_path_arg(aa = aa, body = body, name = name, has_no_default = has_no_default, lib_path = app_lib_path, error_text = app_error_text)
+  }
+  .build_rebuilt <- function(aa, body, pkg, link, null_args = character(0), non_null_args = character(0),
+                             empty_args = character(0), non_empty_args = character(0), no_default_args = character(0),
+                             fun_args = character(0), arg_check_settings = list(), no_empty_string_args = character(0),
+                             seed_arg = NULL, graphic_dev = FALSE, user_lib_path = FALSE) {
+    saferMake:::.build_rebuilt(aa = aa, body = body, pkg = pkg, link = link, null_args = null_args, non_null_args = non_null_args,
+                               empty_args = empty_args, non_empty_args = non_empty_args, no_default_args = no_default_args,
+                               fun_args = fun_args, arg_check_settings = arg_check_settings, no_empty_string_args = no_empty_string_args,
+                               seed_arg = seed_arg, graphic_dev = graphic_dev, user_lib_path = user_lib_path,
+                               lib_path = app_lib_path, error_text = app_error_text)
+  }
+  .run_code_checks <- function(code, f, fun_name) {
+    saferMake:::.run_code_checks(code = code, f = f, fun_name = fun_name, lib_path = app_lib_path, error_text = app_error_text)
+  }
+  .check_var_name <- function(fun_name) {
+    saferMake:::.check_var_name(fun_name = fun_name, lib_path = app_lib_path, error_text = app_error_text)
+  }
 
   # ---- Constants ------------------------------------------------------------
   # ERROR_TEXT / INTERNAL_ERROR_TEXT: user-facing texts of the two error channels
@@ -34,7 +79,12 @@ server <- function(input, output, session) {
   ERROR_TEXT <- "The code provided returned an error. Please, click on the back button and provide a function that runs well."
 
   # Channel 3: internal errors of the interface
-  INTERNAL_ERROR_TEXT <- "An internal error occurred in the interface. This is not related to your function. Please report here https://github.com/safer-r/saferMake/issues/new."
+  # internal error report link (the internal_error_report_link of the backbone of the saferMake functions)
+  INTERNAL_ERROR_REPORT_LINK <- "https://github.com/safer-r/saferMake/issues/new"
+  INTERNAL_ERROR_TEXT <- paste0("An internal error occurred in the interface. This is not related to your function. Please report here ", INTERNAL_ERROR_REPORT_LINK, ".")
+  # code modified by saferMake (code checks of window 1, or converted function
+  # of the export) that does not run: internal error, never a user error
+  MODIFIED_CODE_ERROR_TEXT <- paste0("INTERNAL ERROR: the code modified by saferMake returned an error when run, whereas your code runs well. This is not related to your function. Please report here ", INTERNAL_ERROR_REPORT_LINK, ".")
 
   # ---- App state ----------------------------------------------------------
   rv <- reactiveValues(
@@ -173,6 +223,24 @@ server <- function(input, output, session) {
   }
   user_code_error <- function(detail) {set_error(detail, ERROR_TEXT)}
   internal_error  <- function(detail) {set_error(detail, INTERNAL_ERROR_TEXT)}
+
+  # Runnability of a code modified by saferMake (end of window 1 and export):
+  # the same test as for the pasted code on submission (parse with the source
+  # references, then evaluation in a new environment). Returns NULL if the
+  # code runs, the error message otherwise.
+  code_run_error <- function(code) {
+    env_run <- new.env(parent = globalenv())
+    tryCatch(
+      {
+        eval(parse(text = code, keep.source = TRUE), envir = env_run)
+        NULL
+      },
+      error = function(e) {conditionMessage(e)}
+    )
+  }
+  modified_code_error <- function(where, detail) {
+    set_error(paste0("The code modified by saferMake (", where, ") does not run: ", detail), MODIFIED_CODE_ERROR_TEXT)
+  }
 
   # ---- Shared UI fragments (used on input and error screens) --------------
   # NEW: render a character string containing markdown-style `code` spans as a
@@ -396,8 +464,7 @@ server <- function(input, output, session) {
     # (settings) happens only when the seven checks return no modification.
     # error trail of saferMake::make() (option set by make(); the app is
     # always launched by make(), hence the default)
-    checks <- .run_code_checks(code = code, f = f, fun_name = rv$fun_name,
-                               error_text = getOption("saferMake.error_text", default = " INSIDE saferMake::make()"))
+    checks <- .run_code_checks(code = code, f = f, fun_name = rv$fun_name)
     # current saferDev not available: blocking (red message) only while
     # .safer_dev_required is TRUE (temporary switch, see R/intern_.code_checks.R)
     skip_blocks <- (checks$stage == "skip") && base::isTRUE(x = .safer_dev_required)
@@ -406,6 +473,15 @@ server <- function(input, output, session) {
                     domain = NULL, appendLF = TRUE)
     }
     if (checks$stage %in% base::c("modified", "findings", "error") || skip_blocks) {
+      # end of window 1: the code modified by the checks must run as the
+      # pasted code does (internal error otherwise, with the report link)
+      if (!identical(checks$code, code)) {
+        run_err <- code_run_error(checks$code)
+        if (!is.null(run_err)) {
+          modified_code_error(where = "safer-r code checks of window 1", detail = run_err)
+          return(invisible())
+        }
+      }
       # code corrected by the checks run (unchanged code if none modified it)
       rv$code <- checks$code
       # red message for errors (saferDev error, superassignment, ...) and when
@@ -521,6 +597,13 @@ server <- function(input, output, session) {
       if (length(failed) == 0L) {
         rv$check_failed <- character(0)
         rv$scroll_to    <- NULL
+        # export: the converted function must run as the pasted code does
+        # (internal error otherwise, with the report link)
+        run_err <- code_run_error(build_export_code())
+        if (!is.null(run_err)) {
+          modified_code_error(where = "converted function of the export", detail = run_err)
+          return(invisible())
+        }
         # trigger the (hidden) downloadButton programmatically -> save pop-up
         session$sendCustomMessage("safer_trigger_download", "download_safer")
       } else {
@@ -652,11 +735,10 @@ server <- function(input, output, session) {
   )
 
   # ---- DOWNLOAD: the modified (safer) function -------------------------------
-  output$download_safer <- downloadHandler(
-    filename = function() {
-      paste0(rv$fun_name, "_safer.R")
-    },
-    content = function(file) {
+  # Code of the converted function, built from the settings page. Used by the
+  # check_and_save observer (runnability check before the download) and by
+  # the download handler.
+  build_export_code <- function() {
       # NEW: fallback to rv values if the inputs are not currently rendered
       pkg  <- if (is.null(input$pkg_name)) {rv$pkg_name} else {trimws(input$pkg_name)}
       link <- if (is.null(input$link_name)) {rv$link_name} else {trimws(input$link_name)}
@@ -670,9 +752,9 @@ server <- function(input, output, session) {
       lp  <- if (is.null(input$lib_path_arg_name)) {rv$lib_path_arg_name} else {trimws(input$lib_path_arg_name)}
       lp  <- if (is.null(lp)) {""} else {lp}
       rv$lib_path_arg_name <- lp                 # kept in sync for "Back"
-      # seed_arg for .build_rebuilt(): NULL = no section, NA = blank field
+      # seed_arg for .build_rebuilt(): NULL = no section, "" = blank field
       # (only the delimiters), otherwise the argument name.
-      seed_arg <- if (!base::nzchar(x = sd)) {NA_character_} else {sd}
+      seed_arg <- sd
 
       if (length(rv$fun_args) > 0L) {
         checked <- vapply(rv$fun_args, function(nm) {
@@ -761,14 +843,20 @@ server <- function(input, output, session) {
                             graphic_dev = gd,
                             user_lib_path = user_lib_path)
       rv$rebuilt <- code
+      code
+  }
 
-      # Guard: never write a file that does not parse
-      if (!tryCatch({ parse(text = code); TRUE },
-                    error = function(e) {
-                      message("Download blocked (rebuilt code does not parse): ",
-                              conditionMessage(e))
-                      FALSE
-                    })) {
+  output$download_safer <- downloadHandler(
+    filename = function() {
+      paste0(rv$fun_name, "_safer.R")
+    },
+    content = function(file) {
+      code <- build_export_code()
+      # Guard: never write a file that does not run (already checked by the
+      # check_and_save observer before the download is triggered)
+      run_err <- code_run_error(code)
+      if (!is.null(run_err)) {
+        message("Download blocked (converted function does not run): ", run_err)
         return(invisible())
       }
       writeLines(code, file)

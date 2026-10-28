@@ -31,7 +31,7 @@ st_vec <- function() {base::list(
 
 # Rebuild a pasted code into its safer version, using the app's own flow
 rebuild <- function(code, settings = base::list(), ...) {
-  parts <- saferMake:::.extract_aa_body(code = code)
+  parts <- saferMake:::.extract_aa_body(code = code, lib_path = NULL, error_text = "")
   base::stopifnot(! base::is.null(x = parts), exprs = , exprObject = , local = TRUE)
   # NOTE: eval() is called with its lazy default envir (parent.frame()
   # evaluated inside eval), i.e., with no envir argument written: writing
@@ -42,24 +42,36 @@ rebuild <- function(code, settings = base::list(), ...) {
                                      srcfile = NULL, encoding = "unknown"))
   fun_args <- base::names(x = base::formals(fun = f, envir = base::parent.frame(n = 1)))
   if (base::is.null(x = fun_args)) {fun_args <- base::character(length = 0L)}
-  saferMake:::.build_rebuilt(aa = parts$aa, body = parts$body, pkg = "", link = "",
-                             fun_args = fun_args,
-                             no_default_args = saferMake:::.args_without_default(f = f),
-                             arg_check_settings = settings, ...)
+  # do.call() with the function name and the evaluated arguments, instead of
+  # forwarding ...: the backbone of .build_rebuilt() reads its call with
+  # base::match.call(), which cannot expand the ... of this test helper
+  base::do.call(
+    what = ".build_rebuilt",
+    args = base::c(
+      base::list(aa = parts$aa, body = parts$body, pkg = "", link = "",
+                 fun_args = fun_args,
+                 no_default_args = saferMake:::.args_without_default(f = f, lib_path = NULL, error_text = ""),
+                 arg_check_settings = settings),
+      base::list(...),
+      base::list(lib_path = NULL, error_text = "")
+    ),
+    quote = FALSE,
+    envir = base::asNamespace(ns = "saferMake")
+  )
 }
 
 # --- R/intern_.app_helpers.R --------------------------------------------------
 
 testthat::test_that(desc = ".arg_id() builds valid HTML ids and the checkbox ids are stable", code = {
-  testthat::expect_identical(object = saferMake:::.arg_id(nm = "x"), expected = "arg_x")
-  testthat::expect_identical(object = saferMake:::.arg_id(nm = "a b"), expected = "arg_a_b")
-  testthat::expect_identical(object = saferMake:::.arg_id(nm = "a-b"), expected = "arg_a_b")
-  testthat::expect_identical(object = saferMake:::.null_cb_id(nm = "x"), expected = "null_arg_x")
-  testthat::expect_identical(object = saferMake:::.empty_cb_id(nm = "x"), expected = "empty_arg_x")
+  testthat::expect_identical(object = saferMake:::.arg_id(nm = "x", lib_path = NULL, error_text = ""), expected = "arg_x")
+  testthat::expect_identical(object = saferMake:::.arg_id(nm = "a b", lib_path = NULL, error_text = ""), expected = "arg_a_b")
+  testthat::expect_identical(object = saferMake:::.arg_id(nm = "a-b", lib_path = NULL, error_text = ""), expected = "arg_a_b")
+  testthat::expect_identical(object = saferMake:::.null_cb_id(nm = "x", lib_path = NULL, error_text = ""), expected = "null_arg_x")
+  testthat::expect_identical(object = saferMake:::.empty_cb_id(nm = "x", lib_path = NULL, error_text = ""), expected = "empty_arg_x")
 })
 
 testthat::test_that(desc = ".arg_check_field_ids() covers all 12 arg_check() settings", code = {
-  ids <- saferMake:::.arg_check_field_ids(id = "arg_x")
+  ids <- saferMake:::.arg_check_field_ids(id = "arg_x", lib_path = NULL, error_text = "")
   testthat::expect_setequal(
     object = base::names(x = ids),
     expected = base::c("class", "typeof", "mode", "length", "prop",
@@ -73,10 +85,10 @@ testthat::test_that(desc = ".arg_check_field_ids() covers all 12 arg_check() set
 })
 
 testthat::test_that(desc = ".field_blank() detects NULL and whitespace-only values", code = {
-  testthat::expect_true(object = saferMake:::.field_blank(v = NULL))
-  testthat::expect_true(object = saferMake:::.field_blank(v = ""))
-  testthat::expect_true(object = saferMake:::.field_blank(v = "   "))
-  testthat::expect_false(object = saferMake:::.field_blank(v = "numeric"))
+  testthat::expect_true(object = saferMake:::.field_blank(v = NULL, lib_path = NULL, error_text = ""))
+  testthat::expect_true(object = saferMake:::.field_blank(v = "", lib_path = NULL, error_text = ""))
+  testthat::expect_true(object = saferMake:::.field_blank(v = "   ", lib_path = NULL, error_text = ""))
+  testthat::expect_false(object = saferMake:::.field_blank(v = "numeric", lib_path = NULL, error_text = ""))
 })
 
 # --- .arg_check_settings_errors() ---------------------------------------------
@@ -86,7 +98,7 @@ testthat::test_that(desc = ".arg_check_settings_errors() is silent for the defau
     fun_args = base::c("x", "y"),
     arg_check_settings = base::list(arg_x = saferMake:::.arg_check_defaults,
                                     arg_y = saferMake:::.arg_check_defaults)
-  )
+  , lib_path = NULL, error_text = "")
   testthat::expect_identical(object = res$arg_x, expected = base::character(length = 0L))
   testthat::expect_identical(object = res$arg_y, expected = base::character(length = 0L))
 })
@@ -99,20 +111,20 @@ testthat::test_that(desc = ".arg_check_settings_errors() accepts character in cl
   st_mod <- utils::modifyList(x = saferMake:::.arg_check_defaults,
                               val = base::list(no_empty_string = TRUE, mode = "character"), keep.null = FALSE)
   testthat::expect_identical(
-    object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_cls))$arg_x,
+    object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_cls), lib_path = NULL, error_text = "")$arg_x,
     expected = base::character(length = 0L))
   testthat::expect_identical(
-    object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_typ))$arg_x,
+    object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_typ), lib_path = NULL, error_text = "")$arg_x,
     expected = base::character(length = 0L))
   testthat::expect_identical(
-    object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_mod))$arg_x,
+    object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_mod), lib_path = NULL, error_text = "")$arg_x,
     expected = base::character(length = 0L))
 })
 
 testthat::test_that(desc = ".arg_check_settings_errors() reports the missing character error", code = {
   st <- utils::modifyList(x = saferMake:::.arg_check_defaults,
                           val = base::list(no_empty_string = TRUE), keep.null = FALSE)
-  res <- saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st))
+  res <- saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st), lib_path = NULL, error_text = "")
   testthat::expect_length(object = res$arg_x, n = 1L)
   testthat::expect_match(object = res$arg_x, regexp = "empty strings", fixed = TRUE)
   testthat::expect_match(object = res$arg_x,
@@ -128,20 +140,20 @@ testthat::test_that(desc = ".arg_check_settings_errors() accepts numeric/double 
   st_mod <- utils::modifyList(x = saferMake:::.arg_check_defaults,
                               val = base::list(neg_values = FALSE, inf_values = FALSE, mode = "numeric"), keep.null = FALSE)
   testthat::expect_identical(
-    object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_cls))$arg_x,
+    object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_cls), lib_path = NULL, error_text = "")$arg_x,
     expected = base::character(length = 0L))
   testthat::expect_identical(
-    object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_typ))$arg_x,
+    object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_typ), lib_path = NULL, error_text = "")$arg_x,
     expected = base::character(length = 0L))
   testthat::expect_identical(
-    object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_mod))$arg_x,
+    object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_mod), lib_path = NULL, error_text = "")$arg_x,
     expected = base::character(length = 0L))
 })
 
 testthat::test_that(desc = ".arg_check_settings_errors() reports the missing numeric errors for both boxes", code = {
   st <- utils::modifyList(x = saferMake:::.arg_check_defaults,
                           val = base::list(neg_values = FALSE, inf_values = FALSE), keep.null = FALSE)
-  res <- saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st))
+  res <- saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st), lib_path = NULL, error_text = "")
   testthat::expect_length(object = res$arg_x, n = 2L)
   testthat::expect_match(object = res$arg_x[1],
                          regexp = "Values can be negative if they are numeric", fixed = TRUE)
@@ -152,24 +164,24 @@ testthat::test_that(desc = ".arg_check_settings_errors() reports the missing num
 testthat::test_that(desc = ".arg_check_settings_errors() is silent when the numeric boxes are ticked (default)", code = {
   # defaults: neg_values = TRUE and inf_values = TRUE -> no error, even with
   # blank Class/typeof/mode fields
-  res <- saferMake:::.arg_check_settings_errors("x", base::list(arg_x = saferMake:::.arg_check_defaults))
+  res <- saferMake:::.arg_check_settings_errors("x", base::list(arg_x = saferMake:::.arg_check_defaults), lib_path = NULL, error_text = "")
   testthat::expect_identical(object = res$arg_x, expected = base::character(length = 0L))
 })
 
 testthat::test_that(desc = ".arg_check_settings_errors() uses the default settings when an argument has none", code = {
-  res <- saferMake:::.arg_check_settings_errors("x", arg_check_settings = base::list())
+  res <- saferMake:::.arg_check_settings_errors("x", arg_check_settings = base::list(), lib_path = NULL, error_text = "")
   testthat::expect_identical(object = res$arg_x, expected = base::character(length = 0L))
 })
 
 testthat::test_that(desc = ".arg_check_settings_errors() handles empty fun_args", code = {
-  res <- saferMake:::.arg_check_settings_errors(base::character(length = 0L), base::list())
+  res <- saferMake:::.arg_check_settings_errors(base::character(length = 0L), base::list(), lib_path = NULL, error_text = "")
   testthat::expect_identical(object = res, expected = base::list())
 })
 
 testthat::test_that(desc = ".arg_check_settings_errors() reports a single neg_values error", code = {
   st <- utils::modifyList(x = saferMake:::.arg_check_defaults,
                           val = base::list(neg_values = FALSE), keep.null = FALSE)
-  res <- saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st))
+  res <- saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st), lib_path = NULL, error_text = "")
   testthat::expect_length(object = res$arg_x, n = 1L)
   testthat::expect_match(object = res$arg_x[1],
                          regexp = "Values can be negative if they are numeric", fixed = TRUE)
@@ -184,7 +196,7 @@ testthat::test_that(desc = ".arg_check_settings_errors() checks the two boxes in
                           val = base::list(no_empty_string = TRUE, neg_values = FALSE,
                                            class = "character"),
                           keep.null = FALSE)
-  res <- saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st))
+  res <- saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st), lib_path = NULL, error_text = "")
   testthat::expect_length(object = res$arg_x, n = 1L)
   testthat::expect_match(object = res$arg_x[1],
                          regexp = "Values can be negative if they are numeric", fixed = TRUE)
@@ -195,26 +207,26 @@ testthat::test_that(desc = ".arg_check_settings_errors() drops NA kind values", 
   st <- utils::modifyList(x = saferMake:::.arg_check_defaults,
                           val = base::list(neg_values = FALSE, class = NA_character_),
                           keep.null = FALSE)
-  res <- saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st))
+  res <- saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st), lib_path = NULL, error_text = "")
   testthat::expect_length(object = res$arg_x, n = 1L)
 })
 
 testthat::test_that(desc = ".arg_check_parse_options() splits and detects numeric sets", code = {
-  testthat::expect_null(object = saferMake:::.arg_check_parse_options(txt = ""))
-  testthat::expect_identical(object = saferMake:::.arg_check_parse_options(txt = "a, b 2 c"),
+  testthat::expect_null(object = saferMake:::.arg_check_parse_options(txt = "", lib_path = NULL, error_text = ""))
+  testthat::expect_identical(object = saferMake:::.arg_check_parse_options(txt = "a, b 2 c", lib_path = NULL, error_text = ""),
                              expected = base::c("a", "b", "2", "c"))
-  testthat::expect_identical(object = saferMake:::.arg_check_parse_options(txt = "1, 2, 3"),
+  testthat::expect_identical(object = saferMake:::.arg_check_parse_options(txt = "1, 2, 3", lib_path = NULL, error_text = ""),
                              expected = base::c(1, 2, 3))
-  testthat::expect_identical(object = saferMake:::.arg_check_parse_options(txt = "1;2"),
+  testthat::expect_identical(object = saferMake:::.arg_check_parse_options(txt = "1;2", lib_path = NULL, error_text = ""),
                              expected = base::c(1, 2))
 })
 
 testthat::test_that(desc = ".arg_check_parse_length() accepts integers only", code = {
-  testthat::expect_identical(object = saferMake:::.arg_check_parse_length(txt = "3"), expected = 3L)
-  testthat::expect_identical(object = saferMake:::.arg_check_parse_length(txt = "  7  "), expected = 7L)
-  testthat::expect_null(object = saferMake:::.arg_check_parse_length(txt = "2.5"))
-  testthat::expect_null(object = saferMake:::.arg_check_parse_length(txt = "abc"))
-  testthat::expect_null(object = saferMake:::.arg_check_parse_length(txt = ""))
+  testthat::expect_identical(object = saferMake:::.arg_check_parse_length(txt = "3", lib_path = NULL, error_text = ""), expected = 3L)
+  testthat::expect_identical(object = saferMake:::.arg_check_parse_length(txt = "  7  ", lib_path = NULL, error_text = ""), expected = 7L)
+  testthat::expect_null(object = saferMake:::.arg_check_parse_length(txt = "2.5", lib_path = NULL, error_text = ""))
+  testthat::expect_null(object = saferMake:::.arg_check_parse_length(txt = "abc", lib_path = NULL, error_text = ""))
+  testthat::expect_null(object = saferMake:::.arg_check_parse_length(txt = "", lib_path = NULL, error_text = ""))
 })
 
 testthat::test_that(desc = ".safer_args are exactly the three safer-r mandatory arguments", code = {
@@ -227,13 +239,13 @@ testthat::test_that(desc = ".safer_args are exactly the three safer-r mandatory 
 testthat::test_that(desc = ".extract_aa_body() captures the signature WITHOUT the closing paren", code = {
   # aa holds everything before the final ')': .build_rebuilt() re-appends
   # the safer-r arguments and the closing brace itself
-  parts <- saferMake:::.extract_aa_body(code = code_1)
+  parts <- saferMake:::.extract_aa_body(code = code_1, lib_path = NULL, error_text = "")
   testthat::expect_identical(object = parts$aa, expected = "my_fun <- function(x, y = 1")
   testthat::expect_identical(object = parts$body, expected = "\n    x + y\n")
 })
 
 testthat::test_that(desc = ".extract_aa_body() captures single-expression bodies", code = {
-  parts <- saferMake:::.extract_aa_body(code = code_3)
+  parts <- saferMake:::.extract_aa_body(code = code_3, lib_path = NULL, error_text = "")
   testthat::expect_identical(object = parts$aa, expected = "my_fun <- function(x")
   testthat::expect_identical(object = parts$body, expected = "x + 1")
 })
@@ -249,14 +261,14 @@ testthat::test_that(desc = ".args_without_default() only flags truly default-les
   f1 <- base::eval(expr = base::parse(file = "", n = NULL, text = code_1, prompt = "?",
                                       keep.source = base::getOption(x = "keep.source", default = NULL),
                                       srcfile = NULL, encoding = "unknown"))  # x has no default, y = 1 has
-  testthat::expect_identical(object = saferMake:::.args_without_default(f = f1), expected = "x")
+  testthat::expect_identical(object = saferMake:::.args_without_default(f = f1, lib_path = NULL, error_text = ""), expected = "x")
   f2 <- base::eval(expr = base::parse(file = "", n = NULL, text = code_2, prompt = "?",
                                       keep.source = base::getOption(x = "keep.source", default = NULL),
                                       srcfile = NULL, encoding = "unknown"))
-  testthat::expect_setequal(object = saferMake:::.args_without_default(f = f2), expected = base::c("x", "y"))
+  testthat::expect_setequal(object = saferMake:::.args_without_default(f = f2, lib_path = NULL, error_text = ""), expected = base::c("x", "y"))
   # explicit NULL default is NOT "no default"
   f3 <- function(x = NULL, y = 1) {x}
-  testthat::expect_identical(object = saferMake:::.args_without_default(f = f3),
+  testthat::expect_identical(object = saferMake:::.args_without_default(f = f3, lib_path = NULL, error_text = ""),
                              expected = base::character(length = 0L))
 })
 
@@ -391,7 +403,7 @@ testthat::test_that(desc = ".build_rebuilt() treats an empty seed_arg name like 
 })
 
 testthat::test_that(desc = ".build_rebuilt() emits only the seed section delimiters when seed_arg is NA", code = {
-  out <- rebuild(code = code_1, seed_arg = NA_character_)
+  out <- rebuild(code = code_1, seed_arg = "")
   testthat::expect_match(object = out, regexp = "######## code that protects set.seed() in the global environment", fixed = TRUE)
   testthat::expect_match(object = out, regexp = "######## end code that protects set.seed() in the global environment", fixed = TRUE)
   # no set.seed() call inside the delimiters
@@ -529,11 +541,11 @@ testthat::test_that(desc = ".build_rebuilt() pkg/link fields are handled when em
   out <- rebuild(code = code_1)
   testthat::expect_match(object = out, regexp = "package_name <- NULL", fixed = TRUE)
   testthat::expect_match(object = out, regexp = "internal_error_report_link <- NULL", fixed = TRUE)
-  parts <- saferMake:::.extract_aa_body(code = code_1)
+  parts <- saferMake:::.extract_aa_body(code = code_1, lib_path = NULL, error_text = "")
   out2 <- saferMake:::.build_rebuilt(
     aa = parts$aa, body = parts$body,
     pkg = "mypkg", link = "https://example.com/issues",
-    fun_args = base::c("x", "y"), no_default_args = "x")
+    fun_args = base::c("x", "y"), no_default_args = "x", lib_path = NULL, error_text = "")
   testthat::expect_match(object = out2, regexp = 'package_name <- "mypkg"', fixed = TRUE)
   testthat::expect_match(object = out2, regexp = '"https://example.com/issues"', fixed = TRUE)
 })
@@ -635,7 +647,7 @@ testthat::test_that(desc = "generated function blocks empty non-NULL arguments (
 
 testthat::test_that(desc = ".arg_check_call_core() writes the full saferDev::arg_check call", code = {
   st <- saferMake:::.arg_check_defaults
-  txt <- saferMake:::.arg_check_call_core(data_txt = "x", st = st)
+  txt <- saferMake:::.arg_check_call_core(data_txt = "x", st = st, lib_path_txt = "lib_path", error_text_txt = "embed_error_text", lib_path = NULL, error_text = "")
   testthat::expect_match(object = txt, regexp = "^saferDev::arg_check\\(data = x,")
   testthat::expect_match(object = txt, regexp = "class = NULL,")          # "NULL" string -> bare NULL
   testthat::expect_match(object = txt, regexp = "typeof = NULL,")
@@ -652,7 +664,7 @@ testthat::test_that(desc = ".arg_check_call_core() writes the full saferDev::arg
 testthat::test_that(desc = ".arg_check_call_core() renders numeric options as numbers", code = {
   st <- utils::modifyList(x = saferMake:::.arg_check_defaults,
                            val = base::list(length = "2", options = "1, 2"), keep.null = FALSE)
-  txt <- saferMake:::.arg_check_call_core(data_txt = "x", st = st)
+  txt <- saferMake:::.arg_check_call_core(data_txt = "x", st = st, lib_path_txt = "lib_path", error_text_txt = "embed_error_text", lib_path = NULL, error_text = "")
   testthat::expect_match(object = txt, regexp = "length = 2L,")
   testthat::expect_match(object = txt, regexp = "options = c\\(1, 2\\),")
 })
@@ -660,42 +672,42 @@ testthat::test_that(desc = ".arg_check_call_core() renders numeric options as nu
 testthat::test_that(desc = ".arg_check_call_core() renders character options as strings", code = {
   st <- utils::modifyList(x = saferMake:::.arg_check_defaults,
                            val = base::list(class = "character", options = "a, b"), keep.null = FALSE)
-  txt <- saferMake:::.arg_check_call_core(data_txt = "x", st = st)
+  txt <- saferMake:::.arg_check_call_core(data_txt = "x", st = st, lib_path_txt = "lib_path", error_text_txt = "embed_error_text", lib_path = NULL, error_text = "")
   testthat::expect_match(object = txt, regexp = 'options = c\\("a", "b"\\),')
 })
 
 testthat::test_that(desc = ".ac_test_value_code() builds a value consistent with the settings", code = {
   st <- saferMake:::.arg_check_defaults  # numeric, length 1
-  testthat::expect_identical(object = saferMake:::.ac_test_value_code(st = st), expected = "1.5")
+  testthat::expect_identical(object = saferMake:::.ac_test_value_code(st = st, lib_path = NULL, error_text = ""), expected = "1.5")
   # NOTE: the default options field is the string "NULL", which
   # .arg_check_parse_options() returns as a character option set. With
   # class = "character", the test value is therefore the string "NULL"
   # (verified identical to the pre-refactor behaviour).
   st2 <- utils::modifyList(x = saferMake:::.arg_check_defaults,
                            val = base::list(class = "character"), keep.null = FALSE)
-  testthat::expect_identical(object = saferMake:::.ac_test_value_code(st = st2), expected = '"NULL"')
+  testthat::expect_identical(object = saferMake:::.ac_test_value_code(st = st2, lib_path = NULL, error_text = ""), expected = '"NULL"')
   st3 <- utils::modifyList(x = saferMake:::.arg_check_defaults,
                            val = base::list(length = "2"), keep.null = FALSE)
-  testthat::expect_identical(object = saferMake:::.ac_test_value_code(st = st3),
+  testthat::expect_identical(object = saferMake:::.ac_test_value_code(st = st3, lib_path = NULL, error_text = ""),
                              expected = "c(1.5, 2.5)")
   # options override the kind, truncated to the length (1 by default)
   st4 <- utils::modifyList(x = saferMake:::.arg_check_defaults,
                            val = base::list(options = "1, 2"), keep.null = FALSE)
-  testthat::expect_identical(object = saferMake:::.ac_test_value_code(st = st4), expected = "1")
+  testthat::expect_identical(object = saferMake:::.ac_test_value_code(st = st4, lib_path = NULL, error_text = ""), expected = "1")
   # regression test (reviewer finding): blank options field with a character/factor
   # kind takes the default char_code maker, which MUST produce a correctly
   # quoted string ("\"a\"" for length 1), so that the emitted
   # saferDev::arg_check(data = "a", ...) line still parses
   st5 <- utils::modifyList(x = saferMake:::.arg_check_defaults,
                            val = base::list(class = "character", options = ""), keep.null = FALSE)
-  testthat::expect_identical(object = saferMake:::.ac_test_value_code(st = st5), expected = "\"a\"")
+  testthat::expect_identical(object = saferMake:::.ac_test_value_code(st = st5, lib_path = NULL, error_text = ""), expected = "\"a\"")
   st6 <- utils::modifyList(x = saferMake:::.arg_check_defaults,
                            val = base::list(class = "factor", options = "  "), keep.null = FALSE)
-  testthat::expect_identical(object = saferMake:::.ac_test_value_code(st = st6),
+  testthat::expect_identical(object = saferMake:::.ac_test_value_code(st = st6, lib_path = NULL, error_text = ""),
                              expected = "factor(\"a\")")
   # and the arg_check line built from that value must parse
-  txt6 <- saferMake:::.arg_check_call_core(data_txt = saferMake:::.ac_test_value_code(st = st6),
-                                           st = st6, lib_path_txt = "NULL", error_text_txt = "\"\"")
+  txt6 <- saferMake:::.arg_check_call_core(data_txt = saferMake:::.ac_test_value_code(st = st6, lib_path = NULL, error_text = ""),
+                                           st = st6, lib_path_txt = "NULL", error_text_txt = "\"\"", lib_path = NULL, error_text = "")
   testthat::expect_error(object = base::parse(file = "", n = NULL, text = base::paste0("tempo <- ",
                                                                                         txt6),
                                               prompt = "?",
@@ -711,7 +723,7 @@ testthat::test_that(desc = ".run_arg_check_tests() returns ok=TRUE for consisten
   res <- saferMake:::.run_arg_check_tests(
     fun_args = "x",
     arg_check_settings = base::list(arg_x = st_vec())
-  )
+  , lib_path = NULL, error_text = "")
   testthat::expect_true(object = res$arg_x$ok)
   testthat::expect_null(object = res$arg_x$message)
 })
@@ -724,7 +736,7 @@ testthat::test_that(desc = ".run_arg_check_tests() reports a failure for inconsi
   res <- saferMake:::.run_arg_check_tests(
     fun_args = "x",
     arg_check_settings = base::list(arg_x = st)
-  )
+  , lib_path = NULL, error_text = "")
   testthat::expect_false(object = res$arg_x$ok)
   testthat::expect_true(object = base::nzchar(x = res$arg_x$message, keepNA = FALSE))
 })
@@ -733,8 +745,8 @@ testthat::test_that(desc = ".run_arg_check_tests() reports a failure for inconsi
 
 testthat::test_that(desc = ".rename_lib_path_arg() renames the argument in the signature and the body", code = {
   code <- "my_fun <- function(lib_paths, dir = 1){\n    base::.libPaths(new = lib_paths)\n    dir\n}"
-  parts <- saferMake:::.extract_aa_body(code = code)
-  ren <- saferMake:::.rename_lib_path_arg(aa = parts$aa, body = parts$body, name = "lib_paths")
+  parts <- saferMake:::.extract_aa_body(code = code, lib_path = NULL, error_text = "")
+  ren <- saferMake:::.rename_lib_path_arg(aa = parts$aa, body = parts$body, name = "lib_paths", lib_path = NULL, error_text = "")
   testthat::expect_match(object = ren$aa, regexp = "function(lib_path, dir = 1", fixed = TRUE)
   testthat::expect_match(object = ren$body, regexp = "base::.libPaths(new = lib_path)", fixed = TRUE)
   testthat::expect_no_match(object = ren$aa, regexp = "lib_paths", fixed = TRUE)
@@ -743,8 +755,8 @@ testthat::test_that(desc = ".rename_lib_path_arg() renames the argument in the s
 
 testthat::test_that(desc = ".rename_lib_path_arg() respects word boundaries", code = {
   code <- "my_fun <- function(lib_paths){\n    my_lib_paths <- 1\n    lib_paths2 <- 2\n    base::paste0(prefix_lib_paths, lib_paths)\n}"
-  parts <- saferMake:::.extract_aa_body(code = code)
-  ren <- saferMake:::.rename_lib_path_arg(aa = parts$aa, body = parts$body, name = "lib_paths")
+  parts <- saferMake:::.extract_aa_body(code = code, lib_path = NULL, error_text = "")
+  ren <- saferMake:::.rename_lib_path_arg(aa = parts$aa, body = parts$body, name = "lib_paths", lib_path = NULL, error_text = "")
   # unrelated identifiers are NOT touched
   testthat::expect_match(object = ren$body, regexp = "my_lib_paths <- 1", fixed = TRUE)
   testthat::expect_match(object = ren$body, regexp = "lib_paths2 <- 2", fixed = TRUE)
@@ -755,25 +767,25 @@ testthat::test_that(desc = ".rename_lib_path_arg() respects word boundaries", co
 
 testthat::test_that(desc = ".rename_lib_path_arg() inserts = NULL when the formal has no default", code = {
   code <- "my_fun <- function(lib_paths, dir){\n    dir\n}"
-  parts <- saferMake:::.extract_aa_body(code = code)
+  parts <- saferMake:::.extract_aa_body(code = code, lib_path = NULL, error_text = "")
   ren <- saferMake:::.rename_lib_path_arg(aa = parts$aa, body = parts$body, name = "lib_paths",
-                                          has_no_default = TRUE)
+                                          has_no_default = TRUE, lib_path = NULL, error_text = "")
   testthat::expect_match(object = ren$aa, regexp = "function(lib_path = NULL, dir", fixed = TRUE)
   # body untouched by the = NULL insertion
   testthat::expect_no_match(object = ren$body, regexp = "= NULL", fixed = TRUE)
   # no = NULL insertion when the argument already has a default
   code2 <- "my_fun <- function(lib_paths = \"~/R\", dir){\n    dir\n}"
-  parts2 <- saferMake:::.extract_aa_body(code = code2)
+  parts2 <- saferMake:::.extract_aa_body(code = code2, lib_path = NULL, error_text = "")
   ren2 <- saferMake:::.rename_lib_path_arg(aa = parts2$aa, body = parts2$body, name = "lib_paths",
-                                           has_no_default = FALSE)
+                                           has_no_default = FALSE, lib_path = NULL, error_text = "")
   testthat::expect_match(object = ren2$aa, regexp = 'function(lib_path = "~/R", dir', fixed = TRUE)
 })
 
 testthat::test_that(desc = ".rename_lib_path_arg() does not corrupt the signature when the function name equals the argument name", code = {
   code <- "lib_paths <- function(x, lib_paths){\n    x\n}"
-  parts <- saferMake:::.extract_aa_body(code = code)
+  parts <- saferMake:::.extract_aa_body(code = code, lib_path = NULL, error_text = "")
   ren <- saferMake:::.rename_lib_path_arg(aa = parts$aa, body = parts$body, name = "lib_paths",
-                                          has_no_default = TRUE)
+                                          has_no_default = TRUE, lib_path = NULL, error_text = "")
   # the function name is renamed (documented limitation) but the "= NULL"
   # insertion MUST hit the formal declaration, not the function name
   testthat::expect_match(object = ren$aa,
@@ -790,11 +802,11 @@ testthat::test_that(desc = ".rename_lib_path_arg() does not corrupt the signatur
 
 testthat::test_that(desc = ".build_rebuilt(user_lib_path = TRUE) does not duplicate lib_path in the signature", code = {
   code <- "my_fun <- function(lib_paths = NULL, dir = 1){\n    dir\n}"
-  parts <- saferMake:::.extract_aa_body(code = code)
-  ren <- saferMake:::.rename_lib_path_arg(aa = parts$aa, body = parts$body, name = "lib_paths")
+  parts <- saferMake:::.extract_aa_body(code = code, lib_path = NULL, error_text = "")
+  ren <- saferMake:::.rename_lib_path_arg(aa = parts$aa, body = parts$body, name = "lib_paths", lib_path = NULL, error_text = "")
   out <- saferMake:::.build_rebuilt(aa = ren$aa, body = ren$body, pkg = "", link = "",
                                     fun_args = c("lib_path", "dir"),
-                                    user_lib_path = TRUE)
+                                    user_lib_path = TRUE, lib_path = NULL, error_text = "")
   # exactly one lib_path formal (the renamed user one), then the two remaining
   # safer-r args; the appended lib_path = NULL is NOT present
   testthat::expect_match(object = out, regexp = "function(lib_path = NULL, dir = 1,", fixed = TRUE)
@@ -809,8 +821,8 @@ testthat::test_that(desc = ".build_rebuilt(user_lib_path = TRUE) does not duplic
 
 testthat::test_that(desc = ".build_rebuilt(user_lib_path = TRUE) excludes lib_path from the per-argument checks", code = {
   code <- "my_fun <- function(lib_paths = NULL, dir = 1){\n    dir\n}"
-  parts <- saferMake:::.extract_aa_body(code = code)
-  ren <- saferMake:::.rename_lib_path_arg(aa = parts$aa, body = parts$body, name = "lib_paths")
+  parts <- saferMake:::.extract_aa_body(code = code, lib_path = NULL, error_text = "")
+  ren <- saferMake:::.rename_lib_path_arg(aa = parts$aa, body = parts$body, name = "lib_paths", lib_path = NULL, error_text = "")
   out <- saferMake:::.build_rebuilt(aa = ren$aa, body = ren$body, pkg = "", link = "",
                                     null_args = character(0),
                                     non_null_args = "dir",
@@ -818,7 +830,7 @@ testthat::test_that(desc = ".build_rebuilt(user_lib_path = TRUE) excludes lib_pa
                                     non_empty_args = "dir",
                                     fun_args = c("lib_path", "dir"),
                                     no_empty_string_args = character(0),
-                                    user_lib_path = TRUE)
+                                    user_lib_path = TRUE, lib_path = NULL, error_text = "")
   # the tempo_arg blocks list only the regular user arg + the safer-r args:
   # no ACTIVE "lib_path" line (only the commented safer-r line "inactivated
   # because can be NULL", which starts with "# ")

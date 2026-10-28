@@ -365,19 +365,6 @@ test <- function(
     }
     ######## end check of lib_path
 
-    ######## check of the saferDev package
-    # saferDev is in the Suggests field of the DESCRIPTION file of saferMake (only make() and test() need it): its presence is checked before any saferDev:: calling
-    if( ! base::requireNamespace(package = "saferDev", lib.loc = lib_path, quietly = TRUE)){
-        tempo_cat <- base::paste0(
-            error_text_start,
-            "THE saferDev PACKAGE IS REQUIRED (https://github.com/safer-r/saferDev).\nPLEASE, INSTALL IT, OR INDICATE ITS LIBRARY PATH IN THE lib_path ARGUMENT.",
-            collapse = NULL,
-            recycle0 = FALSE
-        )
-        base::stop(base::paste0("\n\n================\n\n", tempo_cat, "\n\n================\n\n", collapse = NULL, recycle0 = FALSE), call. = FALSE, domain = NULL)
-    }
-    ######## end check of the saferDev package
-
     ######## check of the required functions from the required packages
     if(safer_check == TRUE){
         .pack_and_function_check <- utils::getFromNamespace(x = ".pack_and_function_check", ns = "saferDev", pos = , envir = )
@@ -385,16 +372,13 @@ test <- function(
             fun = base::c(
                 # functions required in this code
                 "saferDev::arg_check",
-                "saferDev::super_assign_check",
-                "saferDev::lambda_check",
-                "saferDev::curly_bracket_check",
-                "saferDev::true_false_check",
-                "saferDev::for_loop_nb_check",
-                "saferDev::colons_check",
-                "saferDev::all_args_here",
                 # end functions required in this code
                 # internal functions required in this code
-                "saferDev:::.base_op_check" # also in internal functions
+                "saferDev:::.base_op_check", # also in internal functions
+                "saferMake:::.safer_dev_available",
+                "saferMake:::.check_var_name",
+                "saferMake:::.fun_text",
+                "saferMake:::.run_check_step"
                 # end internal functions required in this code
             ),
             lib_path = lib_path, # write NULL if your function does not have any lib_path argument
@@ -520,7 +504,7 @@ test <- function(
         base::stop(base::paste0("\n\n================\n\n", tempo_cat, "\n\n================\n\n", collapse = NULL, recycle0 = FALSE), call. = FALSE, domain = NULL)
     }
     # the saferDev of the R session must provide the seven checks (current version of saferDev). Warning: base::requireNamespace() is used instead of saferDev::is_package_here() because the released saferDev version does not provide the seven checks: the presence of the functions themselves is tested by .safer_dev_available()
-    if( ! .safer_dev_available()){
+    if( ! .safer_dev_available(lib_path = lib_path, error_text = embed_error_text)){
         tempo_cat <- base::paste0(
             error_text_start,
             "THE saferDev PACKAGE OF THE R SESSION DOES NOT PROVIDE THE SEVEN FUNCTIONS REQUIRED:\n",
@@ -542,7 +526,7 @@ test <- function(
         tempo_fun_name <- "fun_to_check"
         tempo_name_ok <- FALSE
     }
-    var_name <- .check_var_name(fun_name = tempo_fun_name) # "fun_to_check" if not a syntactic name
+    var_name <- .check_var_name(fun_name = tempo_fun_name, lib_path = lib_path, error_text = embed_error_text) # "fun_to_check" if not a syntactic name
     if(export == TRUE){
         # removal of trailing / or \\ in the path
         if(base::grepl(x = out_path, pattern = "/$", ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)){
@@ -600,7 +584,7 @@ test <- function(
     stop_step <- NULL
     for(i1 in base::seq_len(length.out = n_steps)){
         step <- .code_check_steps[[i1]]
-        out <- .run_check_step(step = step, f = current_fun, var_name = var_name, safer_check = FALSE, lib_path = lib_path, error_text = embed_error_text)
+        out <- .run_check_step(step = step, f = current_fun, var_name = var_name, lib_path = lib_path, error_text = embed_error_text)
         if( ! base::is.null(x = out$err)){
             # the saferDev function stopped: the next checks cannot be run on a code that the current check cannot analyse
             check_status[i1] <- "error"
@@ -610,7 +594,7 @@ test <- function(
         }
         check_report[i1] <- out$report
         if( ! base::is.null(x = out$fun_txt)){
-            if(base::identical(x = out$fun_txt, y = .fun_text(f = current_fun), num.eq = TRUE, single.NA = TRUE, attrib.as.set = TRUE, ignore.bytecode = TRUE, ignore.environment = FALSE, ignore.srcref = TRUE, extptr.as.ref = FALSE)){
+            if(base::identical(x = out$fun_txt, y = .fun_text(f = current_fun, lib_path = lib_path, error_text = embed_error_text), num.eq = TRUE, single.NA = TRUE, attrib.as.set = TRUE, ignore.bytecode = TRUE, ignore.environment = FALSE, ignore.srcref = TRUE, extptr.as.ref = FALSE)){
                 # saferDev reported something but the code is unchanged: considered as findings (otherwise make() would loop without end)
                 check_status[i1] <- "findings"
             }else{
