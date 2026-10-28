@@ -1,4 +1,4 @@
-# Unit tests of the staged code checks (R/intern_.code_checks.R): the seven
+# Unit tests of the staged code checks (.run_code_checks() and helpers): the seven
 # saferDev checks of the Run button of window 1. All helpers are internal
 # (dot-prefixed): access them via ::: (normal for internal testing).
 # The tests that run a saferDev function need the current (development) saferDev (super_assign_check(), lambda_check(),

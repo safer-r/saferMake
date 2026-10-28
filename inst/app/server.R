@@ -3,8 +3,8 @@ library(shiny)
 server <- function(input, output, session) {
 
   # ---- Internal logic (package namespace, aliased for local use) ----------
-  # The pure code-generation logic lives in R/ (intern_.app_helpers.R,
-  # intern_.arg_check_lines.R, intern_.rebuild.R) so that it can be unit tested
+  # The pure code-generation logic lives in R/ (one file per internal
+  # function, R/intern_.<name>.R) so that it can be unit tested
   # in tests/testthat/. The aliases below keep the call sites in this file
   # unchanged. Consequently, running the app from source requires
   # devtools::load_all() (or an installed package) so that the saferMake
@@ -466,10 +466,10 @@ server <- function(input, output, session) {
     # always launched by make(), hence the default)
     checks <- .run_code_checks(code = code, f = f, fun_name = rv$fun_name)
     # current saferDev not available: blocking (red message) only while
-    # .safer_dev_required is TRUE (temporary switch, see R/intern_.code_checks.R)
+    # .safer_dev_required is TRUE (temporary switch, see R/intern_.constants.R)
     skip_blocks <- (checks$stage == "skip") && base::isTRUE(x = .safer_dev_required)
     if (checks$stage == "skip" && ! skip_blocks) {
-      base::message("The current (development) saferDev is not available: the safer-r code verifications were skipped (temporary, see .safer_dev_required in R/intern_.code_checks.R).",
+      base::message("The current (development) saferDev is not available: the safer-r code verifications were skipped (temporary, see .safer_dev_required in R/intern_.constants.R).",
                     domain = NULL, appendLF = TRUE)
     }
     if (checks$stage %in% base::c("modified", "findings", "error") || skip_blocks) {
@@ -522,7 +522,7 @@ server <- function(input, output, session) {
       FALSE
     })
     if (!ok) {
-      internal_error("The rebuilt function does not parse - check .build_rebuilt() (R/intern_.rebuild.R).")
+      internal_error("The rebuilt function does not parse - check .build_rebuilt() (R/intern_.build_rebuilt.R).")
       return(invisible())
     }
 

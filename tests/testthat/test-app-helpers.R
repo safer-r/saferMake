@@ -1,5 +1,5 @@
-# Unit tests of the internal app helpers (R/intern_.app_helpers.R,
-# R/intern_.arg_check_lines.R, R/intern_.rebuild.R) extracted from
+# Unit tests of the internal app helpers (R/intern_.<name>.R files, one per
+# internal function, and R/intern_.constants.R) extracted from
 # inst/app/server.R. All helpers are internal (dot-prefixed): access them
 # via ::: (normal for internal testing).
 
@@ -60,7 +60,7 @@ rebuild <- function(code, settings = base::list(), ...) {
   )
 }
 
-# --- R/intern_.app_helpers.R --------------------------------------------------
+# --- app helpers (.arg_id(), ..., .arg_check_parse_length()) ----------------
 
 testthat::test_that(desc = ".arg_id() builds valid HTML ids and the checkbox ids are stable", code = {
   testthat::expect_identical(object = saferMake:::.arg_id(nm = "x", lib_path = NULL, error_text = ""), expected = "arg_x")
@@ -234,7 +234,7 @@ testthat::test_that(desc = ".safer_args are exactly the three safer-r mandatory 
                             expected = base::c("lib_path", "safer_check", "error_text"))
 })
 
-# --- R/intern_.rebuild.R -------------------------------------------------------
+# --- rebuild (.args_without_default(), ..., .build_rebuilt()) ----------------
 
 testthat::test_that(desc = ".extract_aa_body() captures the signature WITHOUT the closing paren", code = {
   # aa holds everything before the final ')': .build_rebuilt() re-appends
@@ -643,7 +643,7 @@ testthat::test_that(desc = "generated function blocks empty non-NULL arguments (
   testthat::expect_match(object = txt, regexp = "CANNOT BE AN EMPTY NON NULL OBJECT", fixed = TRUE)
 })
 
-# --- R/intern_.arg_check_lines.R -----------------------------------------------
+# --- arg_check() lines (.arg_check_call_core(), ...) -------------------------
 
 testthat::test_that(desc = ".arg_check_call_core() writes the full saferDev::arg_check call", code = {
   st <- saferMake:::.arg_check_defaults
