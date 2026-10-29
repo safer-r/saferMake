@@ -767,6 +767,22 @@ testthat::test_that(desc = ".arg_check_settings_errors() leaves the settings inc
   testthat::expect_length(object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_cls), lib_path = NULL, error_text = "")$arg_x, n = 0L)
   st_bad <- utils::modifyList(x = st, val = base::list(typeof = "integer", mode = "character", options = "a, b"), keep.null = FALSE)
   testthat::expect_length(object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_bad), lib_path = NULL, error_text = "")$arg_x, n = 0L)
+  # "Values can be negative" box unticked: allowed with proportions (range 0 to 1), still an error without
+  st_neg <- utils::modifyList(x = st, val = base::list(neg_values = FALSE), keep.null = FALSE)
+  testthat::expect_length(object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_neg), lib_path = NULL, error_text = "")$arg_x, n = 0L)
+  st_neg_no_prop <- utils::modifyList(x = st_neg, val = base::list(prop = FALSE), keep.null = FALSE)
+  testthat::expect_match(object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_neg_no_prop), lib_path = NULL, error_text = "")$arg_x, regexp = "Values can be negative if they are numeric", fixed = TRUE)
+  # "Values can be Inf or -Inf" box unticked: still an error with proportions
+  st_inf <- utils::modifyList(x = st, val = base::list(inf_values = FALSE), keep.null = FALSE)
+  testthat::expect_match(object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_inf), lib_path = NULL, error_text = "")$arg_x, regexp = "Values can be Inf or -Inf if they are numeric", fixed = TRUE)
+})
+
+testthat::test_that(desc = ".run_arg_check_tests() passes for proportions with the \"Values can be negative\" box unticked", code = {
+  testthat::skip_if_not_installed(pkg = "saferDev")
+  st <- utils::modifyList(x = saferMake:::.arg_check_defaults, val = base::list(prop = TRUE, neg_values = FALSE), keep.null = FALSE)
+  res <- saferMake:::.run_arg_check_tests(fun_args = "p", arg_check_settings = base::list(arg_p = st), lib_path = NULL, error_text = "")
+  testthat::expect_true(object = res$arg_p$ok)
+  testthat::expect_identical(object = res$arg_p$value_code, expected = "0.5")
 })
 
 testthat::test_that(desc = ".run_arg_check_tests() shows the saferDev::arg_check() error for the settings incompatible with proportions", code = {

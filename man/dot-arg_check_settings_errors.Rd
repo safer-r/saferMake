@@ -19,7 +19,7 @@
 A named list (key = \code{.arg_id(nm)}) of character vectors: zero-length when the settings of the argument are consistent, otherwise the error messages to display. Empty list if \code{fun_args} is empty.
 }
 \description{
-Consistency errors of the \code{saferDev::arg_check()} settings of each argument, detected before the \code{saferDev::arg_check()} lines are tested: "cannot contain empty strings" box ticked without any character value in the Class, typeof or mode fields; "Values can be negative" or "Values can be Inf or -Inf" box unticked without any numeric/double value in these fields. The settings incompatible with the "Argument values are proportions." box are not checked here: they are reported by \code{saferDev::arg_check()} itself when the \code{saferDev::arg_check()} lines are tested.
+Consistency errors of the \code{saferDev::arg_check()} settings of each argument, detected before the \code{saferDev::arg_check()} lines are tested: "cannot contain empty strings" box ticked without any character value in the Class, typeof or mode fields; "Values can be negative" box unticked without any numeric/double value in these fields and without the "Argument values are proportions." box ticked; "Values can be Inf or -Inf" box unticked without any numeric/double value in these fields. The settings incompatible with the "Argument values are proportions." box are not checked here: they are reported by \code{saferDev::arg_check()} itself when the \code{saferDev::arg_check()} lines are tested.
 }
 \details{
 Warnings:

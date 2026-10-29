@@ -1219,7 +1219,7 @@ server <- function(input, output, session) {
                                      value = isTRUE(st$na_contain),
                                      width = "100%"),
                        checkboxInput(inputId = ids$neg_values,
-                                     label = "Values can be negative if they are numeric. Evaluated only if unticked, meaning no negative values authorized.",
+                                     label = "Values can be negative if they are numeric. Evaluated only if unticked, meaning no negative values authorized. With proportions, ticked means values between -1 and 1, unticked between 0 and 1.",
                                      value = isTRUE(st$neg_values),
                                      width = "100%"),
                        checkboxInput(inputId = ids$inf_values,

@@ -6,7 +6,10 @@
 #   mode fields;
 # - the "Values can be negative if they are numeric" box is unticked but no
 #   numeric/double value has been used in any of the Class, typeof or mode
-#   fields (same for the "Values can be Inf or -Inf if they are numeric" box);
+#   fields, and the "Argument values are proportions." box is not ticked
+#   (with prop = TRUE, neg_values = FALSE sets the range of saferDev::arg_check()
+#   to 0 and 1 instead of -1 and 1); same for the "Values can be Inf or -Inf if
+#   they are numeric" box, but without the proportion exception;
 # - the "Argument values are proportions." box is not checked here: with
 #   prop = TRUE, saferDev::arg_check() requires empty Class, typeof, mode and
 #   Options fields and reports itself any other setting when the arg_check()
@@ -18,7 +21,7 @@
 # messages to display.
 #' @title Consistency Errors of the arg_check() Settings
 #' @description
-#' Consistency errors of the \code{saferDev::arg_check()} settings of each argument, detected before the \code{saferDev::arg_check()} lines are tested: "cannot contain empty strings" box ticked without any character value in the Class, typeof or mode fields; "Values can be negative" or "Values can be Inf or -Inf" box unticked without any numeric/double value in these fields. The settings incompatible with the "Argument values are proportions." box are not checked here: they are reported by \code{saferDev::arg_check()} itself when the \code{saferDev::arg_check()} lines are tested.
+#' Consistency errors of the \code{saferDev::arg_check()} settings of each argument, detected before the \code{saferDev::arg_check()} lines are tested: "cannot contain empty strings" box ticked without any character value in the Class, typeof or mode fields; "Values can be negative" box unticked without any numeric/double value in these fields and without the "Argument values are proportions." box ticked; "Values can be Inf or -Inf" box unticked without any numeric/double value in these fields. The settings incompatible with the "Argument values are proportions." box are not checked here: they are reported by \code{saferDev::arg_check()} itself when the \code{saferDev::arg_check()} lines are tested.
 #' @param fun_args Vector of character strings. Names of the arguments of the function pasted by the user. Can be empty (function without arguments).
 #' @param arg_check_settings Named list (key = \code{.arg_id(nm)}) of the \code{saferDev::arg_check()} settings of each argument (see \code{.arg_check_defaults}). An argument without settings uses \code{.arg_check_defaults}. Can be empty.
 #' @param lib_path Vector of characters specifying the absolute pathways of the directories containing the required packages for the function, if not in the default directories. Useful when R packages are not installed in the default directories because of lack of admin rights. More precisely, \code{lib_path} is passed through the \code{new} argument of \code{.libPaths()} so that the new library paths are \code{unique(c(new, .Library.site, .Library))}. Warning: \code{.libPaths()} is restored to the initial paths, after function execution. Ignored if \code{NULL} (default) or if the \code{safer_check} argument is \code{FALSE}: only the pathways specified by the current \code{.libPaths()} are used for package calling.
@@ -357,7 +360,8 @@
     msg_neg <- base::paste0(
         "The \"Values can be negative if they are numeric\" box is unticked ",
         "but class \"numeric\", mode \"numeric\", typeof \"double\" has not been used ",
-        "in any of the Class, typeof or mode field.",
+        "in any of the Class, typeof or mode field, ",
+        "and the \"Argument values are proportions.\" box is not ticked.",
         collapse = NULL,
         recycle0 = FALSE
     )
@@ -385,7 +389,7 @@
         if (base::isTRUE(x = st$no_empty_string) && ! char_used) {
             errs <- base::c(errs, msg_char)
         }
-        if (! base::isTRUE(x = st$neg_values) && ! num_used) {
+        if (! base::isTRUE(x = st$neg_values) && ! num_used && ! base::isTRUE(x = st$prop)) { # with prop = TRUE, neg_values = FALSE is allowed by saferDev::arg_check() (range 0 to 1 instead of -1 to 1)
             errs <- base::c(errs, msg_neg)
         }
         if (! base::isTRUE(x = st$inf_values) && ! num_used) {
