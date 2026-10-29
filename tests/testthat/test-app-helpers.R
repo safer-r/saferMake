@@ -743,7 +743,7 @@ testthat::test_that(desc = ".run_arg_check_tests() reports a failure for inconsi
 
 testthat::test_that(desc = ".run_arg_check_tests() passes for proportions and names the argument in the messages", code = {
   testthat::skip_if_not_installed(pkg = "saferDev")
-  st <- utils::modifyList(x = st_vec(), val = base::list(prop = TRUE), keep.null = FALSE)
+  st <- utils::modifyList(x = st_vec(), val = base::list(class = "NULL", prop = TRUE), keep.null = FALSE) # prop = TRUE requires empty Class, typeof and mode fields
   res <- saferMake:::.run_arg_check_tests(fun_args = "p", arg_check_settings = base::list(arg_p = st), lib_path = NULL, error_text = "")
   testthat::expect_true(object = res$arg_p$ok)
   testthat::expect_identical(object = res$arg_p$value_code, expected = "0.5")
@@ -760,17 +760,28 @@ testthat::test_that(desc = ".ac_test_value_code() builds decimal values between 
   testthat::expect_identical(object = saferMake:::.ac_test_value_code(st = st3, lib_path = NULL, error_text = ""), expected = "c(0.25, 0.5, 0.75)")
 })
 
-testthat::test_that(desc = ".arg_check_settings_errors() reports the settings incompatible with proportions", code = {
+testthat::test_that(desc = ".arg_check_settings_errors() leaves the settings incompatible with proportions to saferDev::arg_check()", code = {
   st <- utils::modifyList(x = saferMake:::.arg_check_defaults, val = base::list(prop = TRUE), keep.null = FALSE)
   testthat::expect_length(object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st), lib_path = NULL, error_text = "")$arg_x, n = 0L)
-  st_ok <- utils::modifyList(x = st, val = base::list(class = "numeric", typeof = "double", mode = "numeric"), keep.null = FALSE)
-  testthat::expect_length(object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_ok), lib_path = NULL, error_text = "")$arg_x, n = 0L)
-  st_int <- utils::modifyList(x = st, val = base::list(class = "integer"), keep.null = FALSE)
-  res <- saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_int), lib_path = NULL, error_text = "")$arg_x
-  testthat::expect_length(object = res, n = 1L)
-  testthat::expect_match(object = res, regexp = "proportions", fixed = TRUE)
+  st_cls <- utils::modifyList(x = st, val = base::list(class = "numeric"), keep.null = FALSE)
+  testthat::expect_length(object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_cls), lib_path = NULL, error_text = "")$arg_x, n = 0L)
   st_bad <- utils::modifyList(x = st, val = base::list(typeof = "integer", mode = "character", options = "a, b"), keep.null = FALSE)
-  testthat::expect_length(object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_bad), lib_path = NULL, error_text = "")$arg_x, n = 3L)
+  testthat::expect_length(object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_bad), lib_path = NULL, error_text = "")$arg_x, n = 0L)
+})
+
+testthat::test_that(desc = ".run_arg_check_tests() shows the saferDev::arg_check() error for the settings incompatible with proportions", code = {
+  testthat::skip_if_not_installed(pkg = "saferDev")
+  st <- utils::modifyList(x = saferMake:::.arg_check_defaults, val = base::list(prop = TRUE), keep.null = FALSE)
+  for (kind in base::list(base::list(class = "numeric"), base::list(typeof = "double"), base::list(mode = "numeric"), base::list(class = "matrix"))) {
+    st_kind <- utils::modifyList(x = st, val = kind, keep.null = FALSE)
+    res <- saferMake:::.run_arg_check_tests(fun_args = "p", arg_check_settings = base::list(arg_p = st_kind), lib_path = NULL, error_text = "")
+    testthat::expect_false(object = res$arg_p$ok)
+    testthat::expect_match(object = res$arg_p$message, regexp = "THE class, typeof AND mode ARGUMENTS MUST BE NULL IF THE prop ARGUMENT IS TRUE", fixed = TRUE)
+  }
+  st_opt <- utils::modifyList(x = st, val = base::list(options = "a, b"), keep.null = FALSE)
+  res <- saferMake:::.run_arg_check_tests(fun_args = "p", arg_check_settings = base::list(arg_p = st_opt), lib_path = NULL, error_text = "")
+  testthat::expect_false(object = res$arg_p$ok)
+  testthat::expect_match(object = res$arg_p$message, regexp = "IF THE options ARGUMENT IS SPECIFIED", fixed = TRUE)
 })
 
 # --- .rename_lib_path_arg() ----------------------------------------------------
