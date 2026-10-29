@@ -453,25 +453,37 @@
     na_txt <- base::regmatches(x = na_reports, m = base::regexpr(pattern = "CORRECTIONS NOT APPLIED:[\\s\\S]*$", text = na_reports, ignore.case = FALSE, perl = TRUE, fixed = FALSE, useBytes = FALSE), invert = FALSE)
     res$report_msg <- base::trimws(x = base::paste(base::c(stop_report, na_txt), sep = " ", collapse = "\n\n", recycle0 = FALSE), which = "both", whitespace = "[ \t\r\n]")
     dl_txt <- "The full report of the checks (followed by the modified code, if any) can be downloaded with the Download report button below."
-    modif_txt <- base::vapply(X = res$modified, FUN = function(i) {
-      base::paste0("Check ", i, "/", n_steps, ": ", .code_check_steps[[i]]$what, collapse = NULL, recycle0 = FALSE)
+    # one line per check, in the order of execution: "clear", the modification
+    # made, the findings or the error that stopped the run, or "not run"
+    step_txt <- base::vapply(X = base::seq_len(length.out = n_steps), FUN = function(i) {
+      tempo_status <- out$checks$status[i]
+      tempo_txt <- if (tempo_status == "modified" & i %in% res$modified) {
+        .code_check_steps[[i]]$what
+      } else if (tempo_status %in% base::c("clean", "modified")) {
+        "clear."
+      } else if (tempo_status == "error") {
+        "saferDev stopped with the message given in the report below."
+      } else if (tempo_status == "findings") {
+        "the check reported the findings given in the report below, that could not be corrected automatically."
+      } else {
+        base::paste0("not run (the run stopped at check ", out$step, "/", n_steps, ").", collapse = NULL, recycle0 = FALSE)
+      }
+      base::paste0("Check ", i, "/", n_steps, ": ", tempo_txt, collapse = NULL, recycle0 = FALSE)
     } , FUN.VALUE = base::character(length = 1L), USE.NAMES = FALSE)
     if (out$stage %in% base::c("error", "findings")) {
       i <- out$step
       res$stage <- out$stage
       res$step <- i
-      head_txt <- base::paste0("Check ", i, "/", n_steps, ": ", collapse = NULL, recycle0 = FALSE)
       stop_txt <- if (out$stage == "error") {
-        base::paste0(head_txt, "saferDev stopped with the message given in the report below. Please, correct your code in the box below, then click on the Run button again.",
-                     collapse = NULL, recycle0 = FALSE)
+        "Please, correct your code in the box below, then click on the Run button again."
       } else {
-        base::paste0(head_txt, "the check reported the findings given in the report below, that could not be corrected automatically. Please, complete your code in the box below, then click on the Run button again.",
+        base::paste0("Please, complete your code in the box below, then click on the Run button again.",
                      if (.code_check_steps[[i]]$key == "args") {" The calls listed under CORRECTIONS NOT APPLIED must be completed by hand, as explained by the REASON given for each of them (e.g., a value written without its argument name); otherwise this check stops again at each Run."} else {""},
                      collapse = NULL, recycle0 = FALSE)
       }
       res$notice <- base::c(
-        modif_txt,
-        if (base::length(x = modif_txt) > 0L) {"These corrections are already in the code of the box below."} else {base::character(length = 0L)},
+        step_txt,
+        if (base::length(x = res$modified) > 0L) {"The corrections above are already in the code of the box below."} else {base::character(length = 0L)},
         stop_txt,
         dl_txt
       )
@@ -487,7 +499,7 @@
     }
     res$stage <- "modified"
     res$notice <- base::c(
-      modif_txt,
+      step_txt,
       "The modified code is now in the box below. Please, check it, then click on the Run button again.",
       dl_txt
     )

@@ -184,6 +184,7 @@ testthat::test_that(desc = ".run_code_checks() chains the checks in one Run: cur
   testthat::expect_match(object = notice, regexp = "Check 3/7: ", fixed = TRUE)
   testthat::expect_match(object = notice, regexp = "Check 4/7: ", fixed = TRUE)
   testthat::expect_match(object = notice, regexp = "click on the Run button again", fixed = TRUE)
+  testthat::expect_identical(object = res$notice[base::c(1L, 2L, 5L, 6L, 7L)], expected = base::paste0("Check ", base::c(1L, 2L, 5L, 6L, 7L), "/7: clear.", collapse = NULL, recycle0 = FALSE))
   # the next Run is clean
   testthat::expect_identical(object = run_checks(code = res$code)$stage, expected = "ok")
 })
@@ -286,6 +287,10 @@ testthat::test_that(desc = ".run_code_checks() keeps the corrections of the chec
   testthat::expect_match(object = notice, regexp = "already in the code of the box below", fixed = TRUE)
   testthat::expect_match(object = notice, regexp = "Check 6/7: the check reported", fixed = TRUE)
   testthat::expect_match(object = res$report, regexp = "CHECK 7/7 saferDev::all_args_here(): NOT RUN", fixed = TRUE)
+  # one line per check, in the order of execution
+  testthat::expect_identical(object = base::substr(x = res$notice[1:7], start = 1L, stop = 11L), expected = base::paste0("Check ", 1:7, "/7: ", collapse = NULL, recycle0 = FALSE))
+  testthat::expect_identical(object = res$notice[base::c(1L, 2L, 5L)], expected = base::paste0("Check ", base::c(1L, 2L, 5L), "/7: clear.", collapse = NULL, recycle0 = FALSE))
+  testthat::expect_identical(object = res$notice[7L], expected = "Check 7/7: not run (the run stopped at check 6/7).")
 })
 
 testthat::test_that(desc = ".run_code_checks() completes the calls written on several lines at check 7", code = {
