@@ -153,14 +153,15 @@ testthat::test_that(desc = ".run_code_checks() corrects a lambda function at che
 
 testthat::test_that(desc = ".run_code_checks() keeps only the CORRECTIONS NOT APPLIED of all_args_here() in the message when the code is modified", code = {
   skip_if_no_checks()
-  code <- "my_fun <- function(p, nm){\n    base::sum(p)\n    stats::setNames(p, nm)\n}"
+  # base::sum(p, na.rm): na.rm written positionally and also proposed with its name, a correction not applied by all_args_here() (stats::setNames(p, nm) is corrected by the current saferDev)
+  code <- "my_fun <- function(p, na.rm){\n    base::paste0(p)\n    base::sum(p, na.rm)\n}"
   res <- run_checks(code = code)
   testthat::expect_true(object = 7L %in% res$modified)
   testthat::expect_true(object = base::startsWith(x = res$report_msg, prefix = "CORRECTIONS NOT APPLIED:"))
-  testthat::expect_match(object = res$report_msg, regexp = "setNames(object = p, nm =  nm)", fixed = TRUE)
+  testthat::expect_match(object = res$report_msg, regexp = "sum(p, na.rm, na.rm = FALSE)", fixed = TRUE)
   testthat::expect_false(object = base::grepl(pattern = "CHECK 1/7", x = res$report_msg, fixed = TRUE))
   testthat::expect_match(object = res$report_file, regexp = "REPORT OF CHECK 7 (saferDev::all_args_here()):", fixed = TRUE)
-  testthat::expect_match(object = res$report_file, regexp = "MODIFIED CODE:\n\nmy_fun_safer <- function(p, nm){", fixed = TRUE)
+  testthat::expect_match(object = res$report_file, regexp = "MODIFIED CODE:\n\nmy_fun_safer <- function(p, na.rm){", fixed = TRUE)
 })
 
 testthat::test_that(desc = ".run_code_checks() handles a function written as a lambda from its first character", code = {
@@ -300,7 +301,8 @@ testthat::test_that(desc = ".run_code_checks() completes the calls written on se
 
 testthat::test_that(desc = ".run_code_checks() stops on findings of all_args_here() for a value written without its argument name", code = {
   skip_if_no_checks()
-  code <- "my_fun <- function(p, nm){\n    stats::setNames(p, nm)\n}"
+  # na.rm written positionally and also proposed with its name (stats::setNames(p, nm) is corrected by the current saferDev)
+  code <- "my_fun <- function(p, na.rm){\n    base::sum(p, na.rm)\n}"
   res <- run_checks(code = code)
   testthat::expect_identical(object = res$stage, expected = "findings")
   testthat::expect_identical(object = res$step, expected = 7L)
@@ -317,7 +319,7 @@ testthat::test_that(desc = ".run_code_checks() stops on findings of all_args_her
   # the CORRECTIONS NOT APPLIED section is shown once in the message (report of the stopping check)
   testthat::expect_identical(object = base::lengths(x = base::regmatches(x = res$report_msg, m = base::gregexpr(pattern = "CORRECTIONS NOT APPLIED", text = res$report_msg, fixed = TRUE))),
                              expected = 1L)
-  testthat::expect_match(object = res$report_msg, regexp = "setNames(object = p, nm =  nm)", fixed = TRUE)
+  testthat::expect_match(object = res$report_msg, regexp = "sum(p, na.rm, na.rm = FALSE)", fixed = TRUE)
 })
 
 testthat::test_that(desc = ".run_code_checks() reports a saferDev error", code = {
