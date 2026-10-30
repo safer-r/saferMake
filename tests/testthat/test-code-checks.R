@@ -181,10 +181,10 @@ testthat::test_that(desc = ".run_code_checks() chains the checks in one Run: cur
   # curly_bracket_check() and true_false_check() keep the comments and the indentation of the code
   testthat::expect_identical(object = res$code, expected = "my_fun <- function(x){\n    # keep this comment\n    if(x == TRUE) { base::return(x) }   # and this one\n}")
   notice <- base::paste(res$notice, collapse = "\n")
-  testthat::expect_match(object = notice, regexp = "Check 3/7: ", fixed = TRUE)
-  testthat::expect_match(object = notice, regexp = "Check 4/7: ", fixed = TRUE)
+  testthat::expect_match(object = notice, regexp = "Check 3/7 (", fixed = TRUE)
+  testthat::expect_match(object = notice, regexp = "Check 4/7 (", fixed = TRUE)
   testthat::expect_match(object = notice, regexp = "click on the Run button again", fixed = TRUE)
-  testthat::expect_identical(object = res$notice[base::c(1L, 2L, 5L, 6L, 7L)], expected = base::paste0("Check ", base::c(1L, 2L, 5L, 6L, 7L), "/7: clear.", collapse = NULL, recycle0 = FALSE))
+  testthat::expect_identical(object = res$notice[1:7], expected = base::c("Check 1/7 (superassignments `<<-` `->>`): clear.", "Check 2/7 (lambda functions `\\(x)`): clear.", "Check 3/7 (curly brackets `{ }`): added.", "Check 4/7 (`T` and `F`): rewritten `TRUE` and `FALSE`.", "Check 5/7 (`for()` loops): clear.", "Check 6/7 (package attribution `<package>::<function>`): clear.", "Check 7/7 (all arguments written): clear."))
   # the next Run is clean
   testthat::expect_identical(object = run_checks(code = res$code)$stage, expected = "ok")
 })
@@ -199,7 +199,7 @@ testthat::test_that(desc = ".run_code_checks() stops at check 1 on a superassign
   testthat::expect_identical(object = res$code, expected = code)
   testthat::expect_match(object = res$report, regexp = "THE SUPERASSIGNMENT OPERATORS <<- AND ->> ARE NOT ALLOWED", fixed = TRUE)
   testthat::expect_match(object = res$report, regexp = "y <<- x", fixed = TRUE)
-  testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "Check 1/7: ", fixed = TRUE)
+  testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "Check 1/7 (", fixed = TRUE)
   # ->> is also reported
   res2 <- run_checks(code = "my_fun <- function(x){\n    x ->> y\n}")
   testthat::expect_identical(object = res2$stage, expected = "error")
@@ -232,7 +232,7 @@ testthat::test_that(desc = ".run_code_checks() adds the checking line of a for()
   testthat::expect_identical(object = res$stage, expected = "modified")
   testthat::expect_true(object = 5L %in% res$modified)
   testthat::expect_match(object = res$code, regexp = "tempo_for_seq1", fixed = TRUE)
-  testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "Check 5/7: ", fixed = TRUE)
+  testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "Check 5/7 (", fixed = TRUE)
   # the inserted checking line passes the next checks (colons_check() and all_args_here())
   testthat::expect_identical(object = run_checks(code = res$code)$stage, expected = "ok")
 })
@@ -285,12 +285,12 @@ testthat::test_that(desc = ".run_code_checks() keeps the corrections of the chec
   testthat::expect_match(object = res$code, regexp = "if(x == TRUE) { my_helper(x) }", fixed = TRUE)
   notice <- base::paste(res$notice, collapse = "\n")
   testthat::expect_match(object = notice, regexp = "already in the code of the box below", fixed = TRUE)
-  testthat::expect_match(object = notice, regexp = "Check 6/7: the check reported", fixed = TRUE)
+  testthat::expect_match(object = notice, regexp = "Check 6/7 (package attribution `<package>::<function>`): the check reported", fixed = TRUE)
   testthat::expect_match(object = res$report, regexp = "CHECK 7/7 saferDev::all_args_here(): NOT RUN", fixed = TRUE)
   # one line per check, in the order of execution
-  testthat::expect_identical(object = base::substr(x = res$notice[1:7], start = 1L, stop = 11L), expected = base::paste0("Check ", 1:7, "/7: ", collapse = NULL, recycle0 = FALSE))
-  testthat::expect_identical(object = res$notice[base::c(1L, 2L, 5L)], expected = base::paste0("Check ", base::c(1L, 2L, 5L), "/7: clear.", collapse = NULL, recycle0 = FALSE))
-  testthat::expect_identical(object = res$notice[7L], expected = "Check 7/7: not run (the run stopped at check 6/7).")
+  testthat::expect_identical(object = base::substr(x = res$notice[1:7], start = 1L, stop = 11L), expected = base::paste0("Check ", 1:7, "/7 (", collapse = NULL, recycle0 = FALSE))
+  testthat::expect_identical(object = res$notice[base::c(1L, 2L, 5L)], expected = base::c("Check 1/7 (superassignments `<<-` `->>`): clear.", "Check 2/7 (lambda functions `\\(x)`): clear.", "Check 5/7 (`for()` loops): clear."))
+  testthat::expect_identical(object = res$notice[7L], expected = "Check 7/7 (all arguments written): not run (the run stopped at check 6/7).")
 })
 
 testthat::test_that(desc = ".run_code_checks() completes the calls written on several lines at check 7", code = {
@@ -319,7 +319,7 @@ testthat::test_that(desc = ".run_code_checks() stops on findings of all_args_her
   # the table of all the calls printed by all_args_here() is not kept in the
   # report (very large and slow to process), and the notice tells what to do
   testthat::expect_false(object = base::grepl(pattern = "LINE_NB", x = res$report, fixed = TRUE), info = NULL, label = NULL)
-  testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "Check 7/7: the check reported", fixed = TRUE)
+  testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "Check 7/7 (all arguments written): the check reported", fixed = TRUE)
   testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "must be completed by hand", fixed = TRUE)
   # the CORRECTIONS NOT APPLIED section is shown once in the message (report of the stopping check)
   testthat::expect_identical(object = base::lengths(x = base::regmatches(x = res$report_msg, m = base::gregexpr(pattern = "CORRECTIONS NOT APPLIED", text = res$report_msg, fixed = TRUE))),

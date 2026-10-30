@@ -59,25 +59,38 @@
 #              arguments: table_export for the table, fun_export for the code).
 #              NULL for super_assign_check(), that never modifies the code (it
 #              returns an error when a superassignment is detected)
-# what       : sentence explaining the modification, displayed in window 1
+# what       : sentence explaining the modification, written in the report of
+#              saferMake::test()
+# label      : topic of the check, displayed in brackets after "Check i/7" in
+#              the message of window 1 (text between backticks shown as code)
+# done       : short text of the modification, displayed after the label in
+#              the message of window 1 (NULL for super_assign_check(), that
+#              never modifies the code)
 # The saferDev functions keep the comments and the indentation of the
 # submitted code (the function evaluated with keep.source = TRUE carries its
 # source references).
 .code_check_steps <- base::list(
   base::list(key = "super_assign", fun = "super_assign_check", export_arg = NULL,
-             what = "no modification (the superassignments <<- and ->> must be rewritten by the user)."),
+             what = "no modification (the superassignments <<- and ->> must be rewritten by the user).",
+             label = "superassignments `<<-` `->>`", done = NULL),
   base::list(key = "lambda", fun = "lambda_check", export_arg = "export",
-             what = "the lambda functions written \\(x) have been rewritten function(x)."),
+             what = "the lambda functions written \\(x) have been rewritten function(x).",
+             label = "lambda functions `\\(x)`", done = "rewritten `function(x)`."),
   base::list(key = "curly", fun = "curly_bracket_check", export_arg = "export",
-             what = "curly brackets { } have been added to the bodies of the if, else, for, while, repeat and function that had none."),
+             what = "curly brackets { } have been added to the bodies of the if, else, for, while, repeat and function that had none.",
+             label = "curly brackets `{ }`", done = "added."),
   base::list(key = "true_false", fun = "true_false_check", export_arg = "export",
-             what = "the T and F written as values have been rewritten TRUE and FALSE."),
+             what = "the T and F written as values have been rewritten TRUE and FALSE.",
+             label = "`T` and `F`", done = "rewritten `TRUE` and `FALSE`."),
   base::list(key = "for_loop", fun = "for_loop_nb_check", export_arg = "export",
-             what = "a checking line of the sequence has been added before the for() loops whose number of iterations is not fixed by the writing itself (like 1:length(x))."),
+             what = "a checking line of the sequence has been added before the for() loops whose number of iterations is not fixed by the writing itself (like 1:length(x)).",
+             label = "`for()` loops", done = "checking line(s) added."),
   base::list(key = "colons", fun = "colons_check", export_arg = "export",
-             what = "the package attribution (<package>::) of the basic R functions has been added."),
+             what = "the package attribution (<package>::) of the basic R functions has been added.",
+             label = "package attribution `<package>::<function>`", done = "added for basic R functions."),
   base::list(key = "args", fun = "all_args_here", export_arg = "fun_export",
-             what = "the missing arguments of the called functions have been added.")
+             what = "the missing arguments of the called functions have been added.",
+             label = "all arguments written", done = "added.")
 )
 
 # TEMPORARY SWITCH (set to FALSE on 2026-10-22 so that the rest of the app can be

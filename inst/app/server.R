@@ -921,10 +921,13 @@ server <- function(input, output, session) {
                # is then the code corrected by the chained checks (or the unchanged
                # code if no check modified it).
                if (!is.null(rv$input_notice)) {
+                 # text between backticks shown as code (labels of the checks)
+                 notice_parts <- strsplit(x = paste(rv$input_notice$text, collapse = "\n"), split = "`", fixed = TRUE)[[1]]
                  div(id = "input_check_notice",
                      class = paste0("alert alert-", rv$input_notice$level), role = "alert",
                      style = "margin-top: 10px; white-space: pre-line;",
-                     paste(rv$input_notice$text, collapse = "\n"),
+                     lapply(X = seq_along(along.with = notice_parts),
+                            FUN = function(i) {if (i %% 2 == 0) {tags$code(notice_parts[i])} else {notice_parts[i]}}),
                      if (base::nzchar(x = rv$input_notice$report, keepNA = FALSE)) {
                        tags$pre(style = "margin-top: 10px; margin-bottom: 0; padding: 0; background: transparent; border: none; color: inherit; white-space: pre-wrap;",
                                 rv$input_notice$report)

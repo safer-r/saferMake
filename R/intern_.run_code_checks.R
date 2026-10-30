@@ -458,7 +458,7 @@
     step_txt <- base::vapply(X = base::seq_len(length.out = n_steps), FUN = function(i) {
       tempo_status <- out$checks$status[i]
       tempo_txt <- if (tempo_status == "modified" & i %in% res$modified) {
-        .code_check_steps[[i]]$what
+        .code_check_steps[[i]]$done
       } else if (tempo_status %in% base::c("clean", "modified")) {
         "clear."
       } else if (tempo_status == "error") {
@@ -468,7 +468,7 @@
       } else {
         base::paste0("not run (the run stopped at check ", out$step, "/", n_steps, ").", collapse = NULL, recycle0 = FALSE)
       }
-      base::paste0("Check ", i, "/", n_steps, ": ", tempo_txt, collapse = NULL, recycle0 = FALSE)
+      base::paste0("Check ", i, "/", n_steps, " (", .code_check_steps[[i]]$label, "): ", tempo_txt, collapse = NULL, recycle0 = FALSE)
     } , FUN.VALUE = base::character(length = 1L), USE.NAMES = FALSE)
     if (out$stage %in% base::c("error", "findings")) {
       i <- out$step
