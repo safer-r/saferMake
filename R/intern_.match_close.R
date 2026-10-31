@@ -272,6 +272,9 @@
     # but check already done in the main safer function
     ######## end check of the required functions from the required packages
 
+    ######## escaping CRAN submission NOTE for internal functions
+    ######## end escaping CRAN submission NOTE for internal functions
+
     ######## critical operator checking
     # check already done in the main safer function
     ######## end critical operator checking
@@ -335,7 +338,9 @@
     open_ch <- base::substring(text = txt, first = open, last = open)
     chars   <- base::strsplit(x = txt, split = "", fixed = FALSE, perl = FALSE, useBytes = FALSE)[[1]]
     depth   <- 0L
-    for (i in open:base::nchar(x = txt, type = "chars", allowNA = FALSE, keepNA = NA)) {
+    tempo_nchar <- base::nchar(x = txt, type = "chars", allowNA = FALSE, keepNA = NA)
+    for(i0 in base::seq_len(length.out = base::max(0L, tempo_nchar - open + 1L, na.rm = FALSE))){ # i from open to the last character of txt
+        i <- open + i0 - 1L
         if (chars[i] == open_ch) {
             depth <- depth + 1L
         } else if (chars[i] == close_ch) {

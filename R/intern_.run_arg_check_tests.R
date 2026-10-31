@@ -270,9 +270,10 @@
 
     ######## check of the required functions from the required packages
     # saferDev::arg_check is required here
-    # .arg_id is required here
-    # .ac_test_value_code is required here
-    # .arg_check_call_core is required here
+    # saferMake:::.arg_id is required here
+    # saferMake:::.ac_test_value_code is required here
+    # saferMake:::.arg_check_call_core is required here
+    # saferMake:::.arg_check_defaults is required here
     # but check already done in the main safer function
     ######## end check of the required functions from the required packages
 
@@ -281,6 +282,7 @@
     .arg_id <- utils::getFromNamespace(x = ".arg_id", ns = "saferMake", pos = -1, envir = )
     .ac_test_value_code <- utils::getFromNamespace(x = ".ac_test_value_code", ns = "saferMake", pos = -1, envir = )
     .arg_check_call_core <- utils::getFromNamespace(x = ".arg_check_call_core", ns = "saferMake", pos = -1, envir = )
+    .arg_check_defaults <- utils::getFromNamespace(x = ".arg_check_defaults", ns = "saferMake", pos = -1, envir = )
 
     ######## end escaping CRAN submission NOTE for internal functions
 
@@ -379,7 +381,8 @@
     out <- base::list()
     if (base::length(x = fun_args) == 0L) {base::return(out)}
     safer_ok <- base::requireNamespace(package = "saferDev", quietly = TRUE)
-    for (nm in fun_args) {
+    for(i1 in base::seq_along(along.with = fun_args)){
+      nm <- fun_args[[i1]]
       aid <- .arg_id(nm = nm, lib_path = lib_path, error_text = embed_error_text)
       st  <- arg_check_settings[[aid]]
       if (base::is.null(x = st)) {st <- .arg_check_defaults}

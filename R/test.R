@@ -379,7 +379,8 @@ test <- function(
                 "saferMake:::.safer_dev_available",
                 "saferMake:::.check_var_name",
                 "saferMake:::.fun_text",
-                "saferMake:::.run_check_step"
+                "saferMake:::.run_check_step",
+                "saferMake:::.code_check_steps"
                 # end internal functions required in this code
             ),
             lib_path = lib_path, # write NULL if your function does not have any lib_path argument
@@ -390,6 +391,7 @@ test <- function(
 
     ######## escaping CRAN submission NOTE for internal functions
 
+    .base_op_check <- utils::getFromNamespace(x = ".base_op_check", ns = "saferDev", pos = -1, envir = )
     .code_check_steps <- utils::getFromNamespace(x = ".code_check_steps", ns = "saferMake", pos = -1, envir = )
     .safer_dev_available <- utils::getFromNamespace(x = ".safer_dev_available", ns = "saferMake", pos = -1, envir = )
     .check_var_name <- utils::getFromNamespace(x = ".check_var_name", ns = "saferMake", pos = -1, envir = )
@@ -400,7 +402,6 @@ test <- function(
 
     ######## critical operator checking
     if(safer_check == TRUE){
-        .base_op_check <- utils::getFromNamespace(x = ".base_op_check", ns = "saferDev", pos = -1, envir = )
         .base_op_check(
             error_text = embed_error_text
         )
@@ -681,5 +682,4 @@ test <- function(
     }
     #### end output
 
-    #### end of function
 }

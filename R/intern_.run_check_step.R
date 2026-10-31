@@ -451,7 +451,7 @@
         res$err <- "The modified code returned by saferDev has an unexpected format."
         base::return(res)
       }
-      lines[1] <- base::substring(text = lines[1], first = base::nchar(x = prefix, type = "chars", allowNA = FALSE, keepNA = NA) + 1L, last = )
+      lines[1] <- base::substring(text = lines[1], first = base::nchar(x = prefix, type = "chars", allowNA = FALSE, keepNA = NA) + 1L, last = 1000000L)
       res$fun_txt <- base::paste(lines, sep = " ", collapse = "\n", recycle0 = FALSE)
       base::return(res)
     }

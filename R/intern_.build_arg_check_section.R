@@ -285,8 +285,9 @@
 
     ######## check of the required functions from the required packages
     # saferDev::arg_check is required here
-    # .arg_id is required here
-    # .arg_check_call_core is required here
+    # saferMake:::.arg_id is required here
+    # saferMake:::.arg_check_call_core is required here
+    # saferMake:::.arg_check_defaults is required here
     # but check already done in the main safer function
     ######## end check of the required functions from the required packages
 
@@ -294,6 +295,7 @@
 
     .arg_id <- utils::getFromNamespace(x = ".arg_id", ns = "saferMake", pos = -1, envir = )
     .arg_check_call_core <- utils::getFromNamespace(x = ".arg_check_call_core", ns = "saferMake", pos = -1, envir = )
+    .arg_check_defaults <- utils::getFromNamespace(x = ".arg_check_defaults", ns = "saferMake", pos = -1, envir = )
 
     ######## end escaping CRAN submission NOTE for internal functions
 

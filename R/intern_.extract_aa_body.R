@@ -341,7 +341,7 @@
     # NOTE: last = (empty argument, the lazy default) is required for
     # portability: substring()'s default for last is NULL only on R >= 4.6;
     # on R <= 4.5 an explicit last = NULL is an error. Do not "fix" this.
-    rest <- base::substring(text = code, first = p_close + 1L, last = )
+    rest <- base::substring(text = code, first = p_close + 1L, last = 1000000L)
     m2   <- base::regexpr(pattern = "\\S", text = rest,
                           ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)
     if (m2 == -1) {base::return(base::list(aa = aa, body = ""))}

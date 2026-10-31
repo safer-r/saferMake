@@ -261,8 +261,8 @@
 
     ######## check of the required functions from the required packages
     # saferDev::arg_check is required here
-    # .arg_check_parse_length is required here
-    # .arg_check_parse_options is required here
+    # saferMake:::.arg_check_parse_length is required here
+    # saferMake:::.arg_check_parse_options is required here
     # but check already done in the main safer function
     ######## end check of the required functions from the required packages
 

@@ -361,7 +361,7 @@
     output <- base::paste0(
       base::substring(text = code, first = 1L, last = span[1] - 1L),
       fun_txt_new,
-      base::substring(text = code, first = span[2] + 1L, last = ),
+      base::substring(text = code, first = span[2] + 1L, last = 1000000L),
       collapse = NULL, recycle0 = FALSE
     )
     #### end main code

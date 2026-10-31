@@ -311,6 +311,7 @@
     # saferMake:::.check_var_name is required here
     # saferMake:::.capture_msg is required here
     # saferMake:::.splice_function is required here
+    # saferMake:::.code_check_steps is required here
     # but check already done in the main safer function
     ######## end check of the required functions from the required packages
 
@@ -320,6 +321,7 @@
     .check_var_name <- utils::getFromNamespace(x = ".check_var_name", ns = "saferMake", pos = -1, envir = )
     .capture_msg <- utils::getFromNamespace(x = ".capture_msg", ns = "saferMake", pos = -1, envir = )
     .splice_function <- utils::getFromNamespace(x = ".splice_function", ns = "saferMake", pos = -1, envir = )
+    .code_check_steps <- utils::getFromNamespace(x = ".code_check_steps", ns = "saferMake", pos = -1, envir = )
 
     ######## end escaping CRAN submission NOTE for internal functions
 

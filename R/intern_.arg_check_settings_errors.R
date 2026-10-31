@@ -284,12 +284,14 @@
     ######## check of the required functions from the required packages
     # saferDev::arg_check is required here
     # saferMake:::.arg_id is required here
+    # saferMake:::.arg_check_defaults is required here
     # but check already done in the main safer function
     ######## end check of the required functions from the required packages
 
     ######## escaping CRAN submission NOTE for internal functions
 
     .arg_id <- utils::getFromNamespace(x = ".arg_id", ns = "saferMake", pos = -1, envir = )
+    .arg_check_defaults <- utils::getFromNamespace(x = ".arg_check_defaults", ns = "saferMake", pos = -1, envir = )
 
     ######## end escaping CRAN submission NOTE for internal functions
 
@@ -373,7 +375,8 @@
         recycle0 = FALSE
     )
     output <- base::list()
-    for (nm in fun_args) {
+    for(i1 in base::seq_along(along.with = fun_args)){
+        nm <- fun_args[[i1]]
         aid <- .arg_id(nm = nm, lib_path = lib_path, error_text = embed_error_text)
         st  <- arg_check_settings[[aid]]
         if (base::is.null(x = st)) {st <- .arg_check_defaults}

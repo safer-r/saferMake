@@ -241,7 +241,15 @@
 
     ######## check of the required functions from the required packages
     # no function of other packages required here (saferDev::arg_check not used: no argument to check, so that the function also works when saferDev is not installed)
+    # saferMake:::.code_check_steps is required here
+    # but check already done in the main safer function
     ######## end check of the required functions from the required packages
+
+    ######## escaping CRAN submission NOTE for internal functions
+
+    .code_check_steps <- utils::getFromNamespace(x = ".code_check_steps", ns = "saferMake", pos = -1, envir = )
+
+    ######## end escaping CRAN submission NOTE for internal functions
 
     ######## critical operator checking
     # check already done in the main safer function
