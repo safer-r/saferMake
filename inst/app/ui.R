@@ -120,8 +120,8 @@ ui <- fluidPage(
               div(class = "wy-side-nav-search",
                   a(href = "#", HTML("Function -> <i>safer-r</i> Function<br>Converter")),
                   div(class = "version", 
-                      a(href = "https://github.com/safer-r/.github/blob/main/profile/backbone.R", 
-                        "Backbone v21.1", target = "_blank"))
+                      a(href = "https://github.com/safer-r/saferMake/tree/main/inst", 
+                        "Backbone v21.2", target = "_blank"))
               ),
               # Table of Contents: dynamique, adaptée à l'écran courant
               uiOutput("toc")

@@ -5,7 +5,7 @@
 #' Evaluate each generated \code{saferDev::arg_check()} line with a test value (instead of the real argument) and collect ok / message / tested value, keyed by \code{.arg_id(nm)}.
 #' @param fun_args Vector of strings of the argument names of the user function (can be empty).
 #' @param arg_check_settings List of the arg_check() settings of the arguments, with compartments named \code{.arg_id(nm)} (can be empty: \code{.arg_check_defaults} is then used).
-#' @param lib_path Vector of characters specifying the absolute pathways of the directories containing the required packages for the function, if not in the default directories. Useful when R packages are not installed in the default directories because of lack of admin rights. More precisely, \code{lib_path} is passed through the \code{new} argument of \code{.libPaths()} so that the new library paths are \code{unique(c(new, .Library.site, .Library))}. Warning: \code{.libPaths()} is restored to the initial paths, after function execution. Ignored if \code{NULL} (default) or if the \code{safer_check} argument is \code{FALSE}: only the pathways specified by the current \code{.libPaths()} are used for package calling.
+#' @param lib_path Vector of characters specifying the absolute pathways of the directories containing the required packages for the function, if not in the default directories. Useful when R packages are not installed in the default directories because of lack of admin rights. More precisely, \code{lib_path} is passed through the \code{new} argument of \code{.libPaths()} so that the new library paths are \code{unique(c(new, .Library.site, .Library))}. Warning: \code{.libPaths()} is restored to the initial paths, after function execution. Ignored if \code{NULL} (default): only the pathways specified by the current \code{.libPaths()} are used for package calling.
 #' @param error_text Single character string used to add information in error messages returned by the function, notably if the function is inside other functions, which is practical for debugging. Example: \code{error_text = " INSIDE <PACKAGE_1>::<FUNCTION_1> INSIDE <PACKAGE_2>::<FUNCTION_2>."}. If \code{NULL}, converted into \code{""}.
 #' @returns A list, with one compartment per argument named \code{.arg_id(nm)}, each being a list of three compartments:
 #' \itemize{
@@ -278,9 +278,9 @@
 
     ######## escaping CRAN submission NOTE for internal functions
 
-    .arg_id <- utils::getFromNamespace(x = ".arg_id", ns = "saferMake", pos = , envir = )
-    .ac_test_value_code <- utils::getFromNamespace(x = ".ac_test_value_code", ns = "saferMake", pos = , envir = )
-    .arg_check_call_core <- utils::getFromNamespace(x = ".arg_check_call_core", ns = "saferMake", pos = , envir = )
+    .arg_id <- utils::getFromNamespace(x = ".arg_id", ns = "saferMake", pos = -1, envir = )
+    .ac_test_value_code <- utils::getFromNamespace(x = ".ac_test_value_code", ns = "saferMake", pos = -1, envir = )
+    .arg_check_call_core <- utils::getFromNamespace(x = ".arg_check_call_core", ns = "saferMake", pos = -1, envir = )
 
     ######## end escaping CRAN submission NOTE for internal functions
 

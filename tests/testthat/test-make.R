@@ -28,6 +28,8 @@ testthat::test_that("make()", {
     ######## check of lib_path
     testthat::expect_error(object = saferMake::make(safer_check = TRUE, lib_path = 1, error_text = ""), regexp = "MUST BE A VECTOR OF CHARACTERS", fixed = TRUE)
     testthat::expect_error(object = saferMake::make(safer_check = TRUE, lib_path = "a_folder_that_does_not_exist", error_text = ""), regexp = "NOT EXIST", fixed = TRUE)
+    # lib_path is checked even when safer_check is FALSE (backbone v21.2: lib_path used outside if(safer_check == TRUE){}, so the lib_path check is always executed)
+    testthat::expect_error(object = saferMake::make(safer_check = FALSE, lib_path = "a_folder_that_does_not_exist", error_text = ""), regexp = "NOT EXIST", fixed = TRUE)
     ######## end check of lib_path
 
     ######## error_text

@@ -254,7 +254,7 @@ BACKBONE <- function(
 
     ######## check of lib_path
     # must be before any :: or ::: non basic package calling
-    # always executed: lib_path is always checked, whatever the value of safer_check
+    # if(safer_check == TRUE){ # this line must be activated if lib_path is only used inside if(safer_check == TRUE){}. Which is not the case using saferDev::arg_check()
     if( ! base::is.null(x = lib_path)){ #  is.null(NA) returns FALSE so OK.
         if( ! base::all(base::typeof(x = lib_path) == "character", na.rm = TRUE)){ # na.rm = TRUE but no NA returned with typeof (typeof(NA) == "character" returns FALSE)
             if(base::all(base::mode(x = lib_path) == "function", na.rm = TRUE)){
@@ -293,11 +293,12 @@ BACKBONE <- function(
     }else{
         lib_path <- base::.libPaths(new = , include.site = TRUE) # normal to have empty new argument # base::.libPaths(new = lib_path) # or base::.libPaths(new = base::c(base:::.libPaths(), lib_path))
     }
+    # } # this line must be activated if lib_path is only used inside if(safer_check == TRUE){}. Which is not the case using saferDev::arg_check()
     ######## end check of lib_path
 
     ######## check of the required functions from the required packages
     if(safer_check == TRUE){
-        .pack_and_function_check <- utils::getFromNamespace(x = ".pack_and_function_check", ns = "saferDev", pos = , envir = )
+        .pack_and_function_check <- utils::getFromNamespace(x = ".pack_and_function_check", ns = "saferDev", pos = -1, envir = )
         .pack_and_function_check(
             fun = base::c(
                 # functions required in this code
@@ -315,7 +316,7 @@ BACKBONE <- function(
 
     ######## escaping CRAN submission NOTE for internal functions
 
-    .base_op_check <- utils::getFromNamespace(x = ".base_op_check", ns = "saferDev", pos = , envir = )
+    .base_op_check <- utils::getFromNamespace(x = ".base_op_check", ns = "saferDev", pos = -1, envir = )
     # add here in the internal functions that are used in your main code (copy-paste the line above and replace .base_op_check by the name of the internal function
     # not mandatory if your function is not designed for submission to the CRAN
 

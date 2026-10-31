@@ -1,7 +1,7 @@
 #' @title Shiny app launcher
 #' @description
 #' Launch the shiny app that converts a user function into a safer-r function (see the \href{https://github.com/safer-r}{safer-r project}).
-#' @param safer_check Single logical value. Perform some "safer" checks? If \code{TRUE}, checkings are performed before main code running (see the \href{https://github.com/safer-r}{safer-r project}): 1) correct \code{lib_path} argument value 2) required functions and related packages effectively present in local R libraries and 3) R classical operators (like \code{"<-"}) not overwritten by another package because of the R scope. Requires the saferDev package. Must be set to \code{FALSE} if this function is used inside another "safer" function to avoid pointless multiple checkings.
+#' @param safer_check Single logical value. Perform the "safer" checks? If \code{TRUE}, checkings are performed before main code running (see the \href{https://github.com/safer-r}{safer-r project}): 1) required functions and related packages effectively present in local R libraries and 2) R classical operators (like \code{"<-"}) not overwritten by another package because of the R scope. Requires the saferDev package. Warning: must be set to \code{FALSE} if this function is used inside another "safer" function to avoid pointless multiple checkings.
 #' @param lib_path Vector of characters specifying the absolute pathways of the directories containing the required packages for the function, if not in the default directories. Useful when R packages are not installed in the default directories because of lack of admin rights. More precisely, \code{lib_path} is passed through the \code{new} argument of \code{.libPaths()} so that the new library paths are \code{unique(c(new, .Library.site, .Library))}. Warning: \code{.libPaths()} is restored to the initial paths, after function execution, i.e., when the app is closed. Ignored if \code{NULL} (default): only the pathways specified by the current \code{.libPaths()} are used for package calling.
 #' @param error_text Single character string used to add information in error messages returned by the function, notably if the function is inside other functions, which is practical for debugging. Example: \code{error_text = " INSIDE <PACKAGE_1>::<FUNCTION_1> INSIDE <PACKAGE_2>::<FUNCTION_2>."}. If \code{NULL}, converted into \code{""}.
 #' @returns
@@ -255,7 +255,7 @@ make <- function(
 
     ######## check of lib_path
     # must be before any :: or ::: non basic package calling
-    # always executed: lib_path is always checked, whatever the value of safer_check
+    # if(safer_check == TRUE){ # this line must be activated if lib_path is only used inside if(safer_check == TRUE){}. Which is not the case using saferDev::arg_check()
     if( ! base::is.null(x = lib_path)){ #  is.null(NA) returns FALSE so OK.
         if( ! base::all(base::typeof(x = lib_path) == "character", na.rm = TRUE)){ # na.rm = TRUE but no NA returned with typeof (typeof(NA) == "character" returns FALSE)
             if(base::all(base::mode(x = lib_path) == "function", na.rm = TRUE)){
@@ -294,11 +294,12 @@ make <- function(
     }else{
         lib_path <- base::.libPaths(new = , include.site = TRUE) # normal to have empty new argument # base::.libPaths(new = lib_path) # or base::.libPaths(new = base::c(base:::.libPaths(), lib_path))
     }
+    # } # this line must be activated if lib_path is only used inside if(safer_check == TRUE){}. Which is not the case using saferDev::arg_check()
     ######## end check of lib_path
 
     ######## check of the required functions from the required packages
     if(safer_check == TRUE){
-        .pack_and_function_check <- utils::getFromNamespace(x = ".pack_and_function_check", ns = "saferDev", pos = , envir = )
+        .pack_and_function_check <- utils::getFromNamespace(x = ".pack_and_function_check", ns = "saferDev", pos = -1, envir = )
         .pack_and_function_check(
             fun = base::c(
                 # functions required in this code
@@ -320,7 +321,7 @@ make <- function(
 
     ######## critical operator checking
     if(safer_check == TRUE){
-        .base_op_check <- utils::getFromNamespace(x = ".base_op_check", ns = "saferDev", pos = , envir = )
+        .base_op_check <- utils::getFromNamespace(x = ".base_op_check", ns = "saferDev", pos = -1, envir = )
         .base_op_check(
             error_text = embed_error_text
         )

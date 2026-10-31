@@ -21,7 +21,7 @@
 #' @param stop_at_first Single logical value. Stop at the first check that modifies the code? If \code{FALSE} (default), the checks are chained: each check is run on the function corrected by the previous checks, so that the returned function is corrected by the seven checks. Whatever this argument, the run stops at the first check that reports findings that it cannot correct itself, or that stops with an error, because the next checks can depend on these findings (e.g., \code{saferDev::all_args_here()} needs the package attributions checked by \code{saferDev::colons_check()}). If \code{TRUE}, the code returned is the one corrected by the check that stopped the run only, so that each correction can be checked before running the checks again. The \code{saferMake::make()} app uses \code{FALSE} and displays the message of this function (see the returned value) to the user.
 #' @param export Single logical value. Write the corrected function into a file? If \code{TRUE}, the file \code{<function name>_safer.R} is written in \code{out_path} (e.g., \code{fun_safer.R} for \code{x = fun}), containing an assignment of the corrected function (\code{fun_safer <- function(...) ...}), so that \code{base::source()}ing it recreates the corrected function. Nothing is exported if nothing has been corrected. An error is returned if the file already exists, and if \code{x} is not designated by a function name (like \code{fun} or \code{package::fun}).
 #' @param out_path Single character string indicating the path of the folder where to write the file when \code{export = TRUE}. \code{"."} (default) means the R working directory. Ignored if \code{export = FALSE}.
-#' @param safer_check Single logical value. Perform some "safer" checks? If \code{TRUE}, checkings are performed before main code running (see the \href{https://github.com/safer-r}{safer-r project}): 1) correct \code{lib_path} argument value 2) required functions and related packages effectively present in local R libraries and 3) R classical operators (like \code{"<-"}) not overwritten by another package because of the R scope. Must be set to \code{FALSE} if this function is used inside another "safer" function to avoid pointless multiple checkings.
+#' @param safer_check Single logical value. Perform the "safer" checks? If \code{TRUE}, checkings are performed before main code running (see the \href{https://github.com/safer-r}{safer-r project}): 1) required functions and related packages effectively present in local R libraries and 2) R classical operators (like \code{"<-"}) not overwritten by another package because of the R scope. Warning: must be set to \code{FALSE} if this function is used inside another "safer" function to avoid pointless multiple checkings.
 #' @param lib_path Vector of characters specifying the absolute pathways of the directories containing the required packages for the function, if not in the default directories. Useful when R packages are not installed in the default directories because of lack of admin rights. More precisely, \code{lib_path} is passed through the \code{new} argument of \code{.libPaths()} so that the new library paths are \code{unique(c(new, .Library.site, .Library))}. Warning: \code{.libPaths()} is restored to the initial paths, after function execution. Ignored if \code{NULL} (default): only the pathways specified by the current \code{.libPaths()} are used for package calling.
 #' @param error_text Single character string used to add information in error messages returned by the function, notably if the function is inside other functions, which is practical for debugging. Example: \code{error_text = " INSIDE <PACKAGE_1>::<FUNCTION_1> INSIDE <PACKAGE_2>::<FUNCTION_2>."}. If \code{NULL}, converted into \code{""}.
 #' @returns
@@ -324,7 +324,7 @@ test <- function(
 
     ######## check of lib_path
     # must be before any :: or ::: non basic package calling
-    # always executed: lib_path is always checked, whatever the value of safer_check
+    # if(safer_check == TRUE){ # this line must be activated if lib_path is only used inside if(safer_check == TRUE){}. Which is not the case using saferDev::arg_check()
     if( ! base::is.null(x = lib_path)){ #  is.null(NA) returns FALSE so OK.
         if( ! base::all(base::typeof(x = lib_path) == "character", na.rm = TRUE)){ # na.rm = TRUE but no NA returned with typeof (typeof(NA) == "character" returns FALSE)
             if(base::all(base::mode(x = lib_path) == "function", na.rm = TRUE)){
@@ -363,11 +363,12 @@ test <- function(
     }else{
         lib_path <- base::.libPaths(new = , include.site = TRUE) # normal to have empty new argument # base::.libPaths(new = lib_path) # or base::.libPaths(new = base::c(base:::.libPaths(), lib_path))
     }
+    # } # this line must be activated if lib_path is only used inside if(safer_check == TRUE){}. Which is not the case using saferDev::arg_check()
     ######## end check of lib_path
 
     ######## check of the required functions from the required packages
     if(safer_check == TRUE){
-        .pack_and_function_check <- utils::getFromNamespace(x = ".pack_and_function_check", ns = "saferDev", pos = , envir = )
+        .pack_and_function_check <- utils::getFromNamespace(x = ".pack_and_function_check", ns = "saferDev", pos = -1, envir = )
         .pack_and_function_check(
             fun = base::c(
                 # functions required in this code
@@ -389,17 +390,17 @@ test <- function(
 
     ######## escaping CRAN submission NOTE for internal functions
 
-    .code_check_steps <- utils::getFromNamespace(x = ".code_check_steps", ns = "saferMake", pos = , envir = )
-    .safer_dev_available <- utils::getFromNamespace(x = ".safer_dev_available", ns = "saferMake", pos = , envir = )
-    .check_var_name <- utils::getFromNamespace(x = ".check_var_name", ns = "saferMake", pos = , envir = )
-    .fun_text <- utils::getFromNamespace(x = ".fun_text", ns = "saferMake", pos = , envir = )
-    .run_check_step <- utils::getFromNamespace(x = ".run_check_step", ns = "saferMake", pos = , envir = )
+    .code_check_steps <- utils::getFromNamespace(x = ".code_check_steps", ns = "saferMake", pos = -1, envir = )
+    .safer_dev_available <- utils::getFromNamespace(x = ".safer_dev_available", ns = "saferMake", pos = -1, envir = )
+    .check_var_name <- utils::getFromNamespace(x = ".check_var_name", ns = "saferMake", pos = -1, envir = )
+    .fun_text <- utils::getFromNamespace(x = ".fun_text", ns = "saferMake", pos = -1, envir = )
+    .run_check_step <- utils::getFromNamespace(x = ".run_check_step", ns = "saferMake", pos = -1, envir = )
 
     ######## end escaping CRAN submission NOTE for internal functions
 
     ######## critical operator checking
     if(safer_check == TRUE){
-        .base_op_check <- utils::getFromNamespace(x = ".base_op_check", ns = "saferDev", pos = , envir = )
+        .base_op_check <- utils::getFromNamespace(x = ".base_op_check", ns = "saferDev", pos = -1, envir = )
         .base_op_check(
             error_text = embed_error_text
         )

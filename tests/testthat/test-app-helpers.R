@@ -907,11 +907,21 @@ testthat::test_that(desc = ".build_rebuilt(user_lib_path = TRUE) excludes lib_pa
                          regexp = NA)
 })
 
-testthat::test_that(desc = ".build_rebuilt() emits the check of lib_path section without the safer_check guard", code = {
+testthat::test_that(desc = ".build_rebuilt() emits the check of lib_path section of backbone v21.2 (safer_check guard lines commented)", code = {
   out <- rebuild(code = code_1)
   testthat::expect_match(object = out,
-                         regexp = "    ######## check of lib_path\n    # must be before any :: or ::: non basic package calling\n    # always executed: lib_path is always checked, whatever the value of safer_check\n    if( ! base::is.null(x = lib_path)){",
+                         regexp = "    ######## check of lib_path\n    # must be before any :: or ::: non basic package calling\n    # if(safer_check == TRUE){ # this line must be activated if lib_path is only used inside if(safer_check == TRUE){}. Which is not the case using saferDev::arg_check()\n    if( ! base::is.null(x = lib_path)){",
                          fixed = TRUE)
+  testthat::expect_match(object = out,
+                         regexp = "\n    }\n    # } # this line must be activated if lib_path is only used inside if(safer_check == TRUE){}. Which is not the case using saferDev::arg_check()\n    ######## end check of lib_path\n",
+                         fixed = TRUE)
+  # utils::getFromNamespace() written with the default value of pos (backbone v21.2)
+  testthat::expect_match(object = out,
+                         regexp = "utils::getFromNamespace(x = \".pack_and_function_check\", ns = \"saferDev\", pos = -1, envir = )",
+                         fixed = TRUE)
+  testthat::expect_no_match(object = out,
+                            regexp = "pos = , envir = )",
+                            fixed = TRUE)
   # the section body is indented one level less than before (no guard wrapper)
   testthat::expect_match(object = out,
                          regexp = "\n    }else{\n        lib_path <- base::.libPaths(new = , include.site = TRUE)",

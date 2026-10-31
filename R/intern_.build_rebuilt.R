@@ -16,7 +16,7 @@
 #' @param seed_arg \code{NULL} (section not inserted), \code{NA} or \code{""} (blank "seed argument" field: only the section delimiters are emitted) or a single string (the user's argument name used as the seed value of set.seed(): full section emitted).
 #' @param graphic_dev Single logical value: \code{TRUE} (full graphic device checking section emitted), \code{FALSE} (only the section delimiters emitted).
 #' @param user_lib_path Single logical value: \code{TRUE} when the user function provides its own lib_path argument (declared in the "Library path argument" section of the app and renamed to lib_path by the caller): the signature does NOT append a second lib_path = NULL (the user formal is kept, with its own default), and "lib_path" is excluded from all the per-argument checking lists (NULL, empty, \code{""}, arg_check()): it is covered by the standard commented safer-r lines of the tempo_arg blocks and by the backbone "check of lib_path" section.
-#' @param lib_path Vector of characters specifying the absolute pathways of the directories containing the required packages for the function, if not in the default directories. Useful when R packages are not installed in the default directories because of lack of admin rights. More precisely, \code{lib_path} is passed through the \code{new} argument of \code{.libPaths()} so that the new library paths are \code{unique(c(new, .Library.site, .Library))}. Warning: \code{.libPaths()} is restored to the initial paths, after function execution. Ignored if \code{NULL} (default) or if the \code{safer_check} argument is \code{FALSE}: only the pathways specified by the current \code{.libPaths()} are used for package calling.
+#' @param lib_path Vector of characters specifying the absolute pathways of the directories containing the required packages for the function, if not in the default directories. Useful when R packages are not installed in the default directories because of lack of admin rights. More precisely, \code{lib_path} is passed through the \code{new} argument of \code{.libPaths()} so that the new library paths are \code{unique(c(new, .Library.site, .Library))}. Warning: \code{.libPaths()} is restored to the initial paths, after function execution. Ignored if \code{NULL} (default): only the pathways specified by the current \code{.libPaths()} are used for package calling.
 #' @param error_text Single character string used to add information in error messages returned by the function, notably if the function is inside other functions, which is practical for debugging. Example: \code{error_text = " INSIDE <PACKAGE_1>::<FUNCTION_1> INSIDE <PACKAGE_2>::<FUNCTION_2>."}. If \code{NULL}, converted into \code{""}.
 #' @returns A single string: the code of the safer-r function.
 #' @details
@@ -324,7 +324,7 @@
 
     ######## escaping CRAN submission NOTE for internal functions
 
-    .build_arg_check_section <- utils::getFromNamespace(x = ".build_arg_check_section", ns = "saferMake", pos = , envir = )
+    .build_arg_check_section <- utils::getFromNamespace(x = ".build_arg_check_section", ns = "saferMake", pos = -1, envir = )
 
     ######## end escaping CRAN submission NOTE for internal functions
 
@@ -1000,7 +1000,7 @@
 
       "    ######## check of lib_path\n",
       "    # must be before any :: or ::: non basic package calling\n",
-      "    # always executed: lib_path is always checked, whatever the value of safer_check\n",
+      "    # if(safer_check == TRUE){ # this line must be activated if lib_path is only used inside if(safer_check == TRUE){}. Which is not the case using saferDev::arg_check()\n",
       "    if( ! base::is.null(x = lib_path)){ #  is.null(NA) returns FALSE so OK.\n",
       "        if( ! base::all(base::typeof(x = lib_path) == \"character\", na.rm = TRUE)){ # na.rm = TRUE but no NA returned with typeof (typeof(NA) == \"character\" returns FALSE)\n",
       "            if(base::all(base::mode(x = lib_path) == \"function\", na.rm = TRUE)){\n",
@@ -1039,12 +1039,13 @@
       "    }else{\n",
       "        lib_path <- base::.libPaths(new = , include.site = TRUE) # normal to have empty new argument # base::.libPaths(new = lib_path) # or base::.libPaths(new = base::c(base:::.libPaths(), lib_path))\n",
       "    }\n",
+      "    # } # this line must be activated if lib_path is only used inside if(safer_check == TRUE){}. Which is not the case using saferDev::arg_check()\n",
       "    ######## end check of lib_path\n",
       "\n",
 
       "    ######## check of the required functions from the required packages\n",
       "    if(safer_check == TRUE){\n",
-      "        .pack_and_function_check <- utils::getFromNamespace(x = \".pack_and_function_check\", ns = \"saferDev\", pos = , envir = )\n",
+      "        .pack_and_function_check <- utils::getFromNamespace(x = \".pack_and_function_check\", ns = \"saferDev\", pos = -1, envir = )\n",
       "        .pack_and_function_check(\n",
       "            fun = base::c(\n",
       "                # functions required in this code\n",
@@ -1063,7 +1064,7 @@
 
       "    ######## escaping CRAN submission NOTE for internal functions\n",
       "\n",
-      "    .base_op_check <- utils::getFromNamespace(x = \".base_op_check\", ns = \"saferDev\", pos = , envir = )\n",
+      "    .base_op_check <- utils::getFromNamespace(x = \".base_op_check\", ns = \"saferDev\", pos = -1, envir = )\n",
       "    # add here in the internal functions that are used in your main code (copy-paste the line above and replace .base_op_check by the name of the internal function\n",
       "    # not mandatory if your function is not designed for submission to the CRAN\n",
       "\n",
