@@ -76,15 +76,16 @@ server <- function(input, output, session) {
   # ERROR_TEXT / INTERNAL_ERROR_TEXT: user-facing texts of the two error channels
   # (Channel 1 = user pasted code error, Channel 3 = internal interface error).
   # Channel 1: ONLY for errors raised when running the pasted function
-  ERROR_TEXT <- "The code provided returned an error. Please, click on the back button and provide a function that runs well."
+  # (the error message of R itself is printed in the R console, see set_error())
+  ERROR_TEXT <- "The code provided returned an error when run in R. The R error message is printed in the R console where saferMake::make() was launched. Please, click on the Back button and provide a function that runs well."
 
   # Channel 3: internal errors of the interface
   # internal error report link (the internal_error_report_link of the backbone of the saferMake functions)
   INTERNAL_ERROR_REPORT_LINK <- "https://github.com/safer-r/saferMake/issues/new"
-  INTERNAL_ERROR_TEXT <- paste0("An internal error occurred in the interface. This is not related to your function. Please report here ", INTERNAL_ERROR_REPORT_LINK, ".")
+  INTERNAL_ERROR_TEXT <- paste0("An internal error occurred in the interface. This is not related to your function. Please report it here ", INTERNAL_ERROR_REPORT_LINK, ", with the message printed in the R console where saferMake::make() was launched.")
   # code modified by saferMake (code checks of window 1, or converted function
   # of the export) that does not run: internal error, never a user error
-  MODIFIED_CODE_ERROR_TEXT <- paste0("INTERNAL ERROR: the code modified by saferMake returned an error when run, whereas your code runs well. This is not related to your function. Please report here ", INTERNAL_ERROR_REPORT_LINK, ".")
+  MODIFIED_CODE_ERROR_TEXT <- paste0("INTERNAL ERROR: the code modified by saferMake returned an error when run, whereas your code runs well. This is not related to your function. Please report it here ", INTERNAL_ERROR_REPORT_LINK, ", with the message printed in the R console where saferMake::make() was launched.")
 
   # ---- App state ----------------------------------------------------------
   rv <- reactiveValues(
@@ -141,8 +142,12 @@ server <- function(input, output, session) {
   }
 
   # NEW: build the inline script that scrolls the window to a target element
+  # ("page_top": top of the page, used when a new screen opens)
   scroll_to_js <- function(target) {
     if (is.null(target) || !nzchar(target)) {return(NULL)}
+    if (identical(target, "page_top")) {
+      return(tags$script(HTML("setTimeout(function(){window.scrollTo({top: 0, left: 0, behavior: 'instant'});}, 50);")))
+    }
     tags$script(HTML(sprintf(
       "setTimeout(function(){var el = document.getElementById('%s');
        if(el){el.scrollIntoView({behavior:'smooth', block:'start'});}}, 50);",
@@ -266,7 +271,9 @@ server <- function(input, output, session) {
               } else if (!nzchar(parts[i])) {
                 character(0)   # dropped empty trailing part: render nothing
               } else {
-                tags$code(parts[i])
+                # no whitespace written around the code span (otherwise
+                # shown as a space before the punctuation that follows it)
+                tags$code(parts[i], .noWS = "outside")
               }
             }))
   }
@@ -294,7 +301,7 @@ server <- function(input, output, session) {
       tags$div(
         tags$ol(class = "input-instruction-list",
                 tags$li(
-                  "This interface helps to convert a R function of class S3 into a function of same class including the ",
+                  "This interface helps to convert an R function of class S3 into a function of the same class following the ",
                   tags$a(href = "https://github.com/safer-r", "safer-r rules",
                          target = "_blank",
                          style = "color: #2980B9; text-decoration: none; font-style: italic;"),
@@ -310,9 +317,9 @@ server <- function(input, output, session) {
   code_instructions <- function() {
     tags$div(
       tags$ol(class = "input-instruction-list",
-              tags$li("Fill the field."),
-              tags$li("Click on the run button."),
-              tags$li("Go to the newly created tab and complete the fields.")
+              tags$li("Paste the code of your function in the box below, then click on the Run button."),
+              tags$li("The code is first checked by the seven safer-r code checks. When they modify the code or need you to complete it, a message explains what to do: check the code of the box, then click on Run again."),
+              tags$li("When the checks are clear, the settings page opens: complete it, then click on its Run button, which tests the settings and downloads the safer-r function.")
       )
     )
   }
@@ -441,7 +448,7 @@ server <- function(input, output, session) {
           "safer-r rules and cannot be used:\n",
           paste(collide, collapse = "\n"),
           ".\nPlease rename ", ifelse(test = length(collide) > 1, "them", no = "it"), " and run again.",
-          ifelse(test = "lib_path" %in% collide, yes = "\nIf this argument takes a R library path, use the Library path argument section of the settings page instead.", no = "")
+          ifelse(test = "lib_path" %in% collide, yes = "\nIf this argument takes an R library path, use the Library path argument section of the settings page instead.", no = "")
         )
       )
       return(invisible())
@@ -526,6 +533,8 @@ server <- function(input, output, session) {
       return(invisible())
     }
 
+    # the settings page opens at its top (not at the scroll position of window 1)
+    rv$scroll_to <- "page_top"
     rv$screen <- "result"
   }
 
@@ -576,12 +585,17 @@ server <- function(input, output, session) {
       }
       rv$lib_path_arg_ok <- TRUE
       rv$lib_path_arg_error_msg <- base::character(length = 0L)
+      # the argument named in the "Library path argument" field (validated
+      # above) becomes the lib_path of the backbone: its arg_check() settings
+      # are ignored (orange message of its section), so they are neither
+      # checked nor tested
+      checked_args <- setdiff(x = rv$fun_args, y = rv$lib_path_arg_name)
       # NEW: consistency errors of the settings themselves (independent of
       # saferDev): detected BEFORE the arg_check() lines are tested. When
       # present, the arg_check() tests are not run and the download is blocked,
       # exactly like a failed arg_check() test.
-      rv$arg_check_errors <- .arg_check_settings_errors(rv$fun_args, rv$arg_check_settings)
-      settings_bad <- rv$fun_args[vapply(rv$fun_args, function(nm) {
+      rv$arg_check_errors <- .arg_check_settings_errors(checked_args, rv$arg_check_settings)
+      settings_bad <- checked_args[vapply(checked_args, function(nm) {
         length(rv$arg_check_errors[[.arg_id(nm)]]) > 0L
       }, logical(1L))]
       if (length(settings_bad) > 0L) {
@@ -590,8 +604,8 @@ server <- function(input, output, session) {
         rv$scroll_to    <- "arg_check_error_summary"
         return(invisible())
       }
-      rv$arg_check_test <- .run_arg_check_tests(rv$fun_args, rv$arg_check_settings)
-      failed <- rv$fun_args[vapply(rv$fun_args, function(nm) {
+      rv$arg_check_test <- .run_arg_check_tests(checked_args, rv$arg_check_settings)
+      failed <- checked_args[vapply(checked_args, function(nm) {
         !isTRUE(rv$arg_check_test[[.arg_id(nm)]]$ok)
       }, logical(1L))]
       if (length(failed) == 0L) {
@@ -921,13 +935,20 @@ server <- function(input, output, session) {
                # is then the code corrected by the chained checks (or the unchanged
                # code if no check modified it).
                if (!is.null(rv$input_notice)) {
-                 # text between backticks shown as code (labels of the checks)
+                 # text between backticks shown as code (labels of the checks).
+                 # Only the inner div of the text is white-space: pre-line (one
+                 # line per "\n" of the text), and no whitespace is written around
+                 # its code spans (.noWS): htmltools writes a newline and an
+                 # indentation around each tag, that pre-line would show as
+                 # line breaks
                  notice_parts <- strsplit(x = paste(rv$input_notice$text, collapse = "\n"), split = "`", fixed = TRUE)[[1]]
                  div(id = "input_check_notice",
                      class = paste0("alert alert-", rv$input_notice$level), role = "alert",
-                     style = "margin-top: 10px; white-space: pre-line;",
-                     lapply(X = seq_along(along.with = notice_parts),
-                            FUN = function(i) {if (i %% 2 == 0) {tags$code(notice_parts[i])} else {notice_parts[i]}}),
+                     style = "margin-top: 10px;",
+                     div(style = "white-space: pre-line;",
+                         lapply(X = seq_along(along.with = notice_parts),
+                                FUN = function(i) {if (i %% 2 == 0) {tags$code(notice_parts[i], .noWS = "outside")} else {notice_parts[i]}}),
+                         .noWS = c("after-begin", "before-end")),
                      if (base::nzchar(x = rv$input_notice$report, keepNA = FALSE)) {
                        tags$pre(style = "margin-top: 10px; margin-bottom: 0; padding: 0; background: transparent; border: none; color: inherit; white-space: pre-wrap;",
                                 rv$input_notice$report)
@@ -990,7 +1011,7 @@ server <- function(input, output, session) {
                pkg_section <- tagList(
                  h4(id = "pkg_section", "Package name"),
                  textInput(inputId = "pkg_name",
-                           label = "Does this function belong to a package? If yes, indicate its name. Otherwise, leave blanck.",
+                           label = "Does this function belong to a package? If yes, indicate its name. Otherwise, leave blank.",
                            value = rv$pkg_name,
                            placeholder = "Package name",
                            width = "100%")
@@ -999,7 +1020,7 @@ server <- function(input, output, session) {
                link_section <- tagList(
                  h4(id = "link_section", "Error report link"),
                  textInput(inputId = "link_name",
-                           label = "Do you have a link for users of your function to report any internal errors? If yes, indicate the full link. Otherwise, leave blanck.",
+                           label = "Do you have a link for users of your function to report any internal errors? If yes, indicate the full link. Otherwise, leave blank.",
                            value = rv$link_name,
                            placeholder = "Error report link",
                            width = "100%")
@@ -1012,7 +1033,7 @@ server <- function(input, output, session) {
                # function argument names (set by the Run button check).
                seed_section <- tagList(
                  h4(id = "seed_section", "Seed argument"),
-                 md_code("If one of the argument is a value for `set.seed()`, please indicate the name. Otherwise, leave blanck."),
+                 md_code("If one of the arguments of your function is the seed value given to `set.seed()`, indicate its name. Otherwise, leave blank."),
                  textInput(inputId = "seed_arg_name",
                            label = NULL,
                            value = rv$seed_arg_name,
@@ -1045,7 +1066,7 @@ server <- function(input, output, session) {
                # announcing the rename when the name is valid.
                lib_path_section <- tagList(
                  h4(id = "lib_path_section", "Library path argument"),
-                 md_code("If one of the argument of your function takes a R library path, please indicates its name. Otherwise, leave blanck."),
+                 md_code("If one of the arguments of your function takes an R library path, indicate its name. Otherwise, leave blank."),
                  textInput(inputId = "lib_path_arg_name",
                            label = NULL,
                            value = rv$lib_path_arg_name,
@@ -1058,8 +1079,11 @@ server <- function(input, output, session) {
                        lib_path_arg_error())
                  } else if (base::nzchar(x = rv$lib_path_arg_name) &&
                             rv$lib_path_arg_name %in% rv$fun_args) {
+                   # (no white-space: pre-line: the text has no line break, and
+                   # pre-line would show the newline written by htmltools after
+                   # the start of the div as an empty first line)
                    div(class = "alert alert-warning", role = "alert",
-                       style = "margin-top: 5px; margin-bottom: 5px; white-space: pre-line;",
+                       style = "margin-top: 5px; margin-bottom: 5px;",
                        md_code(paste0(
                          "The argument `", rv$lib_path_arg_name,
                          "` will be renamed to `lib_path` in the safer-r function. Its value checking is ",
@@ -1143,6 +1167,10 @@ server <- function(input, output, session) {
                    hr(),
                    lib_path_section,
                    hr(),
+                   # what saferDev::arg_check() needs in each argument section
+                   # (otherwise reported by .arg_check_settings_errors())
+                   tags$p(id = "arg_values_intro",
+                          md_code("In each \"Values of argument\" section below, fill at least one of the class, type, mode, length or restricted values fields, or tick the \"Argument values are proportions.\" box: `saferDev::arg_check()` needs at least one of them to check the values of the argument. Blank fields are not evaluated.")),
                    # One section per argument: NULL/empty checkboxes, then the five
                    # arg_check() text fields stacked vertically (free text, no
                    # dropdown: blank = default value), then the six tick boxes
@@ -1169,7 +1197,7 @@ server <- function(input, output, session) {
                      typeof_disp <- if (identical(st$typeof, "NULL")) {""} else {st$typeof}
                      mode_disp   <- if (identical(st$mode, "NULL")) {""} else {st$mode}
                      sec <- tagList(
-                       h4(id = aid, md_code(paste0("Value of argument `", nm, "`"))),
+                       h4(id = aid, md_code(paste0("Values of argument `", nm, "`"))),
                        checkboxInput(inputId = .null_cb_id(nm),
                                      label = "Accepts the NULL value",
                                      value = nm %in% rv$null_args,
@@ -1180,7 +1208,7 @@ server <- function(input, output, session) {
                                      width = "100%"),
                        hr(),
                        textInput(inputId = ids$class,
-                                 label = md_code("Class of the argument values. Left blank means not evaluated by `class()`"),
+                                 label = md_code("Class of the argument values. Left blank means not evaluated by `class()`."),
                                  value = class_disp,
                                  placeholder = "e.g., matrix, data.frame",
                                  width = "100%"),
@@ -1226,7 +1254,7 @@ server <- function(input, output, session) {
                                      value = isTRUE(st$neg_values),
                                      width = "100%"),
                        checkboxInput(inputId = ids$inf_values,
-                                     label = "Values can be Inf or -Inf if they are numeric. Evaluated only if unticked, Inf or -Inf values authorized.",
+                                     label = "Values can be Inf or -Inf if they are numeric. Evaluated only if unticked, meaning no Inf or -Inf values authorized.",
                                      value = isTRUE(st$inf_values),
                                      width = "100%"),
                        checkboxInput(inputId = ids$no_empty_string,

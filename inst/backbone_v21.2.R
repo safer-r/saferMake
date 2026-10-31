@@ -2,8 +2,8 @@ BACKBONE <- function(
     data, # example of argument. Adapt to your own function
     arg1 = "test", # example of argument. Adapt to your own function or remove
     seed = NULL, # remove this argument if no random seed setting required
-    lib_path = NULL, # mandatory argument of safer functions
     safer_check = TRUE, # mandatory argument of safer functions
+    lib_path = NULL, # mandatory argument of safer functions
     error_text = "" # mandatory argument of safer functions. Warning: do not change the default value.
 ){
 

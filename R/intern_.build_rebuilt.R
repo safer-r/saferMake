@@ -772,7 +772,7 @@
       if (base::isTRUE(x = user_lib_path)) {
           "\n    safer_check = TRUE, \n    error_text = \"\" \n){\n"
       } else {
-          "\n    lib_path = NULL, \n    safer_check = TRUE, \n    error_text = \"\" \n){\n"
+          "\n    safer_check = TRUE, \n    lib_path = NULL, \n    error_text = \"\" \n){\n"
       },
       "\n    #### package name\n    ", pkg_line, "\n    #### end package name\n",
       "\n    #### internal error report link\n",

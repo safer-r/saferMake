@@ -200,6 +200,8 @@ testthat::test_that(desc = ".run_code_checks() stops at check 1 on a superassign
   testthat::expect_match(object = res$report, regexp = "THE SUPERASSIGNMENT OPERATORS <<- AND ->> ARE NOT ALLOWED", fixed = TRUE)
   testthat::expect_match(object = res$report, regexp = "y <<- x", fixed = TRUE)
   testthat::expect_match(object = base::paste(res$notice, collapse = "\n"), regexp = "Check 1/7 (", fixed = TRUE)
+  # the six checks not run are grouped in a single line of the message
+  testthat::expect_identical(object = res$notice[1:2], expected = base::c("Check 1/7 (superassignments `<<-` `->>`): saferDev stopped with the message given in the report below.", "Checks 2/7 to 7/7: not run (the run stopped at check 1/7)."))
   # ->> is also reported
   res2 <- run_checks(code = "my_fun <- function(x){\n    x ->> y\n}")
   testthat::expect_identical(object = res2$stage, expected = "error")

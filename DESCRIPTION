@@ -1,16 +1,23 @@
 Package: saferMake
 Type: Package
-Title: Shiny app to convert a R function to a safer-r function
+Title: 'shiny' App to Convert an R Function into a Safer-R Function
 Version: 1.0.0
-Date: 2026-09-22
+Date: 2026-10-31
 Authors@R: c(
-    person(given = "Gael", family = "Millot",  email = "gael.millot@pasteur.fr", role = c("cre", "aut", "ctb"), comment = c(ORCID = "0000-0002-0591-3509"))
+    person(given = "Gael", family = "Millot",  email = "gael.millot@pasteur.fr", role = c("cre", "aut", "ctb"), comment = c(ORCID = "0000-0002-0591-3509")),
+    person(given = "Dave", family = "Snider", role = "cph", comment = "sphinx_rtd_theme stylesheet (inst/app/www/theme.css), see inst/COPYRIGHTS"),
+    person(given = "Read the Docs, Inc.", role = "cph", comment = "sphinx_rtd_theme stylesheet (inst/app/www/theme.css), see inst/COPYRIGHTS"),
+    person(given = "Lukasz", family = "Dziedzic", role = "cph", comment = "Lato font (inst/app/www/fonts), see inst/COPYRIGHTS"),
+    person(given = "Google Inc.", role = "cph", comment = "Roboto Slab font (inst/app/www/fonts), see inst/COPYRIGHTS"),
+    person(given = "Dave", family = "Gandy", role = "cph", comment = "Font Awesome 4.7.0 font and stylesheet (inst/app/www), see inst/COPYRIGHTS")
   )
 Encoding: UTF-8
 Maintainer: Gael Millot <gael.millot@pasteur.fr>
-Description: Shiny app, launched by make(), that converts a user R function into a function written according to the safer-r project recommendations for R function development (see <https://github.com/safer-r>), and test() function that runs the safer-r code checks of the 'saferDev' package on a function. This includes strict checking of argument values, explicit package namespace qualification of all the called functions and explicit writing of all their arguments, among other things.
-URL: <https://github.com/safer-r/saferMake>, <https://safer-r.github.io/saferMake/>
+Description: A 'shiny' app, launched by make(), that converts a user R function into a function written according to the safer-r project recommendations for R function development (see <https://github.com/safer-r>), and a test() function that runs the safer-r code checks of the 'saferDev' package on a function. This includes strict checking of argument values, explicit package namespace qualification of all the called functions and explicit writing of all their arguments, among other things.
+URL: https://github.com/safer-r/saferMake
+BugReports: https://github.com/safer-r/saferMake/issues
 License: GPL-3
+Copyright: See the file COPYRIGHTS for the copyright holders and the licenses of the stylesheet and fonts bundled in inst/app/www.
 Config/roxygen2/version: 8.0.0
 Depends:
     R (>= 4.6.0)
@@ -20,9 +27,6 @@ Imports:
     shiny,
     utils
 Suggests:
-    knitr,
-    rmarkdown,
     testthat (>= 3.0.0)
 Remotes:
     safer-r/saferDev
-VignetteBuilder: knitr

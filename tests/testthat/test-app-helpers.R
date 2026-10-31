@@ -93,14 +93,39 @@ testthat::test_that(desc = ".field_blank() detects NULL and whitespace-only valu
 
 # --- .arg_check_settings_errors() ---------------------------------------------
 
-testthat::test_that(desc = ".arg_check_settings_errors() is silent for the default settings", code = {
+testthat::test_that(desc = ".arg_check_settings_errors() reports the blank fields of the default settings", code = {
+  # saferDev::arg_check() needs at least one of class, typeof, mode, length,
+  # options or prop = TRUE: all blank (the default settings) is reported
   res <- saferMake:::.arg_check_settings_errors(
     fun_args = base::c("x", "y"),
     arg_check_settings = base::list(arg_x = saferMake:::.arg_check_defaults,
                                     arg_y = saferMake:::.arg_check_defaults)
   , lib_path = NULL, error_text = "")
-  testthat::expect_identical(object = res$arg_x, expected = base::character(length = 0L))
-  testthat::expect_identical(object = res$arg_y, expected = base::character(length = 0L))
+  testthat::expect_length(object = res$arg_x, n = 1L)
+  testthat::expect_match(object = res$arg_x, regexp = "fields are all blank", fixed = TRUE)
+  testthat::expect_match(object = res$arg_x, regexp = "saferDev::arg_check() needs at least one of them", fixed = TRUE)
+  testthat::expect_identical(object = res$arg_y, expected = res$arg_x)
+})
+
+testthat::test_that(desc = ".arg_check_settings_errors() is silent when one field is filled or the proportions box is ticked", code = {
+  filled <- base::list(base::list(typeof = "double"), base::list(class = "character"), base::list(mode = "list"),
+                       base::list(length = "2"), base::list(options = "a, b"), base::list(prop = TRUE))
+  for (i1 in base::seq_along(along.with = filled)) {
+    st <- utils::modifyList(x = saferMake:::.arg_check_defaults, val = filled[[i1]], keep.null = FALSE)
+    testthat::expect_identical(
+      object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st), lib_path = NULL, error_text = "")$arg_x,
+      expected = base::character(length = 0L))
+  }
+})
+
+testthat::test_that(desc = ".arg_check_settings_errors() reports a length field that is not a whole number", code = {
+  # before, such a value was silently ignored (.arg_check_parse_length() returns NULL)
+  for (len in base::c("abc", "2.5", "3L", "-1")) {
+    st <- utils::modifyList(x = saferMake:::.arg_check_defaults, val = base::list(length = len), keep.null = FALSE)
+    testthat::expect_identical(
+      object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st), lib_path = NULL, error_text = "")$arg_x,
+      expected = base::paste0("The length field (\"", len, "\") must be a whole number, like 3, or left blank.", collapse = NULL, recycle0 = FALSE))
+  }
 })
 
 testthat::test_that(desc = ".arg_check_settings_errors() accepts character in class, typeof or mode", code = {
@@ -122,8 +147,9 @@ testthat::test_that(desc = ".arg_check_settings_errors() accepts character in cl
 })
 
 testthat::test_that(desc = ".arg_check_settings_errors() reports the missing character error", code = {
+  # length filled: the fields are not all blank
   st <- utils::modifyList(x = saferMake:::.arg_check_defaults,
-                          val = base::list(no_empty_string = TRUE), keep.null = FALSE)
+                          val = base::list(no_empty_string = TRUE, length = "1"), keep.null = FALSE)
   res <- saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st), lib_path = NULL, error_text = "")
   testthat::expect_length(object = res$arg_x, n = 1L)
   testthat::expect_match(object = res$arg_x, regexp = "empty strings", fixed = TRUE)
@@ -152,7 +178,7 @@ testthat::test_that(desc = ".arg_check_settings_errors() accepts numeric/double 
 
 testthat::test_that(desc = ".arg_check_settings_errors() reports the missing numeric errors for both boxes", code = {
   st <- utils::modifyList(x = saferMake:::.arg_check_defaults,
-                          val = base::list(neg_values = FALSE, inf_values = FALSE), keep.null = FALSE)
+                          val = base::list(neg_values = FALSE, inf_values = FALSE, length = "1"), keep.null = FALSE)
   res <- saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st), lib_path = NULL, error_text = "")
   testthat::expect_length(object = res$arg_x, n = 2L)
   testthat::expect_match(object = res$arg_x[1],
@@ -163,14 +189,19 @@ testthat::test_that(desc = ".arg_check_settings_errors() reports the missing num
 
 testthat::test_that(desc = ".arg_check_settings_errors() is silent when the numeric boxes are ticked (default)", code = {
   # defaults: neg_values = TRUE and inf_values = TRUE -> no error, even with
-  # blank Class/typeof/mode fields
-  res <- saferMake:::.arg_check_settings_errors("x", base::list(arg_x = saferMake:::.arg_check_defaults), lib_path = NULL, error_text = "")
+  # blank Class/typeof/mode fields (length filled: the fields are not all blank)
+  st <- utils::modifyList(x = saferMake:::.arg_check_defaults, val = base::list(length = "1"), keep.null = FALSE)
+  res <- saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st), lib_path = NULL, error_text = "")
   testthat::expect_identical(object = res$arg_x, expected = base::character(length = 0L))
 })
 
 testthat::test_that(desc = ".arg_check_settings_errors() uses the default settings when an argument has none", code = {
+  # default settings: all fields blank -> reported
   res <- saferMake:::.arg_check_settings_errors("x", arg_check_settings = base::list(), lib_path = NULL, error_text = "")
-  testthat::expect_identical(object = res$arg_x, expected = base::character(length = 0L))
+  testthat::expect_identical(
+    object = res$arg_x,
+    expected = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = saferMake:::.arg_check_defaults), lib_path = NULL, error_text = "")$arg_x)
+  testthat::expect_match(object = res$arg_x, regexp = "fields are all blank", fixed = TRUE)
 })
 
 testthat::test_that(desc = ".arg_check_settings_errors() handles empty fun_args", code = {
@@ -180,7 +211,7 @@ testthat::test_that(desc = ".arg_check_settings_errors() handles empty fun_args"
 
 testthat::test_that(desc = ".arg_check_settings_errors() reports a single neg_values error", code = {
   st <- utils::modifyList(x = saferMake:::.arg_check_defaults,
-                          val = base::list(neg_values = FALSE), keep.null = FALSE)
+                          val = base::list(neg_values = FALSE, length = "1"), keep.null = FALSE)
   res <- saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st), lib_path = NULL, error_text = "")
   testthat::expect_length(object = res$arg_x, n = 1L)
   testthat::expect_match(object = res$arg_x[1],
@@ -298,6 +329,19 @@ testthat::test_that(desc = ".build_rebuilt() injects the three mandatory safer-r
   testthat::expect_match(object = out, regexp = "lib_path = NULL,", fixed = TRUE)
   testthat::expect_match(object = out, regexp = "safer_check = TRUE,", fixed = TRUE)
   testthat::expect_match(object = out, regexp = 'error_text = ""', fixed = TRUE)
+})
+
+testthat::test_that(desc = ".build_rebuilt() ends the signature with safer_check, lib_path, error_text", code = {
+  # the generated code is evaluated (the function is only defined, not run) and
+  # its formals are read: the three safer-r arguments are the last ones, in the
+  # order of the safer-r rules
+  out <- rebuild(code = code_1)
+  env <- base::new.env(hash = TRUE, parent = base::globalenv(), size = 29L)
+  base::eval(expr = base::parse(file = "", n = NULL, text = out, prompt = "?", keep.source = FALSE,
+                                srcfile = NULL, encoding = "unknown"),
+             envir = env, enclos = base::baseenv())
+  testthat::expect_identical(object = base::names(x = base::formals(fun = env$my_fun, envir = env)),
+                             expected = base::c("x", "y", "safer_check", "lib_path", "error_text"))
 })
 
 testthat::test_that(desc = ".build_rebuilt() emits the no-default-value section only when needed", code = {
@@ -770,7 +814,8 @@ testthat::test_that(desc = ".arg_check_settings_errors() leaves the settings inc
   # "Values can be negative" box unticked: allowed with proportions (range 0 to 1), still an error without
   st_neg <- utils::modifyList(x = st, val = base::list(neg_values = FALSE), keep.null = FALSE)
   testthat::expect_length(object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_neg), lib_path = NULL, error_text = "")$arg_x, n = 0L)
-  st_neg_no_prop <- utils::modifyList(x = st_neg, val = base::list(prop = FALSE), keep.null = FALSE)
+  # (length filled: without prop, the fields are not all blank)
+  st_neg_no_prop <- utils::modifyList(x = st_neg, val = base::list(prop = FALSE, length = "1"), keep.null = FALSE)
   testthat::expect_match(object = saferMake:::.arg_check_settings_errors("x", base::list(arg_x = st_neg_no_prop), lib_path = NULL, error_text = "")$arg_x, regexp = "Values can be negative if they are numeric", fixed = TRUE)
   # "Values can be Inf or -Inf" box unticked: still an error with proportions
   st_inf <- utils::modifyList(x = st, val = base::list(inf_values = FALSE), keep.null = FALSE)

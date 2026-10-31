@@ -12,10 +12,11 @@
 #' @examples
 #' # Warning: these examples may not work well when using the "Run examples" link
 #' # because of a particular environment. Please, copy-paste in a local environment.
-#' \dontrun{
-#' saferMake::make()
-#' # all the arguments.
-#' saferMake::make(safer_check = TRUE, lib_path = NULL, error_text = "")
+#' # the app is run only in an interactive R session (it blocks the session until it is closed)
+#' if(base::interactive()){
+#'     saferMake::make()
+#'     # all the arguments.
+#'     saferMake::make(safer_check = TRUE, lib_path = NULL, error_text = "")
 #' }
 #' @export
 #' @importFrom shiny runApp

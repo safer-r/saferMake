@@ -1,6 +1,11 @@
 # Consistency errors of the arg_check() settings, detected BEFORE the
 # saferDev::arg_check() lines are tested (rendered in red in the argument
 # sections of the settings page, exactly like the test result messages):
+# - the Class, typeof, mode, length and options fields are all blank and the
+#   "Argument values are proportions." box is not ticked: saferDev::arg_check()
+#   needs at least one of them (it stops otherwise);
+# - the length field is not blank and is not a whole number (it would be
+#   silently ignored by .arg_check_parse_length(), which returns NULL);
 # - the "If values are strings, they cannot contain empty strings \"\"" box is
 #   ticked but no character value has been used in any of the Class, typeof or
 #   mode fields;
@@ -14,14 +19,14 @@
 #   prop = TRUE, saferDev::arg_check() requires empty Class, typeof, mode and
 #   Options fields and reports itself any other setting when the arg_check()
 #   lines are tested;
-# - blank Class/typeof/mode fields are stored as "NULL" (no constraint), so
-#   they never count as a used value.
+# - blank Class/typeof/mode/length/options fields are stored as "NULL" (no
+#   constraint), so they never count as a used value.
 # Returns a named list (key = .arg_id(nm)) of character vectors: zero-length
 # when the settings of the argument are consistent, otherwise the error
 # messages to display.
 #' @title Consistency Errors of the arg_check() Settings
 #' @description
-#' Consistency errors of the \code{saferDev::arg_check()} settings of each argument, detected before the \code{saferDev::arg_check()} lines are tested: "cannot contain empty strings" box ticked without any character value in the Class, typeof or mode fields; "Values can be negative" box unticked without any numeric/double value in these fields and without the "Argument values are proportions." box ticked; "Values can be Inf or -Inf" box unticked without any numeric/double value in these fields. The settings incompatible with the "Argument values are proportions." box are not checked here: they are reported by \code{saferDev::arg_check()} itself when the \code{saferDev::arg_check()} lines are tested.
+#' Consistency errors of the \code{saferDev::arg_check()} settings of each argument, detected before the \code{saferDev::arg_check()} lines are tested: Class, typeof, mode, length and options fields all blank without the "Argument values are proportions." box ticked (\code{saferDev::arg_check()} needs at least one of them); length field that is not a whole number; "cannot contain empty strings" box ticked without any character value in the Class, typeof or mode fields; "Values can be negative" box unticked without any numeric/double value in these fields and without the "Argument values are proportions." box ticked; "Values can be Inf or -Inf" box unticked without any numeric/double value in these fields. The settings incompatible with the "Argument values are proportions." box are not checked here: they are reported by \code{saferDev::arg_check()} itself when the \code{saferDev::arg_check()} lines are tested.
 #' @param fun_args Vector of character strings. Names of the arguments of the function pasted by the user. Can be empty (function without arguments).
 #' @param arg_check_settings Named list (key = \code{.arg_id(nm)}) of the \code{saferDev::arg_check()} settings of each argument (see \code{.arg_check_defaults}). An argument without settings uses \code{.arg_check_defaults}. Can be empty.
 #' @param lib_path Vector of characters specifying the absolute pathways of the directories containing the required packages for the function, if not in the default directories. Useful when R packages are not installed in the default directories because of lack of admin rights. More precisely, \code{lib_path} is passed through the \code{new} argument of \code{.libPaths()} so that the new library paths are \code{unique(c(new, .Library.site, .Library))}. Warning: \code{.libPaths()} is restored to the initial paths, after function execution. Ignored if \code{NULL} (default): only the pathways specified by the current \code{.libPaths()} are used for package calling.
@@ -30,8 +35,8 @@
 #' @details
 #' Warnings:
 #' \itemize{
-#'   \item requires \code{saferDev::arg_check}, \code{.arg_id}.
-#'   \item In the safer Backbone section \code{"######## check of the required functions from the required packages"}, add also these 2 functions when checking for the presence of \code{.arg_check_settings_errors}.
+#'   \item requires \code{saferDev::arg_check}, \code{.arg_id}, \code{.arg_check_parse_length}.
+#'   \item In the safer Backbone section \code{"######## check of the required functions from the required packages"}, add also these 3 functions when checking for the presence of \code{.arg_check_settings_errors}.
 #' }
 #' @author \href{mailto:gael.millot@pasteur.fr}{Gael Millot}
 #' @keywords internal
@@ -284,6 +289,7 @@
     ######## check of the required functions from the required packages
     # saferDev::arg_check is required here
     # saferMake:::.arg_id is required here
+    # saferMake:::.arg_check_parse_length is required here
     # saferMake:::.arg_check_defaults is required here
     # but check already done in the main safer function
     ######## end check of the required functions from the required packages
@@ -291,6 +297,7 @@
     ######## escaping CRAN submission NOTE for internal functions
 
     .arg_id <- utils::getFromNamespace(x = ".arg_id", ns = "saferMake", pos = -1, envir = )
+    .arg_check_parse_length <- utils::getFromNamespace(x = ".arg_check_parse_length", ns = "saferMake", pos = -1, envir = )
     .arg_check_defaults <- utils::getFromNamespace(x = ".arg_check_defaults", ns = "saferMake", pos = -1, envir = )
 
     ######## end escaping CRAN submission NOTE for internal functions
@@ -353,6 +360,13 @@
     #### end second round of checking and data preparation
 
     #### main code
+    msg_blank <- base::paste0(
+        "The class, type, mode, length and restricted values fields are all blank, ",
+        "and the \"Argument values are proportions.\" box is not ticked: ",
+        "fill at least one of these fields, or tick this box, since saferDev::arg_check() needs at least one of them to check the argument values.",
+        collapse = NULL,
+        recycle0 = FALSE
+    )
     msg_char <- base::paste0(
         "The \"If values are strings, they cannot contain empty strings \\\"\\\"\" box is ticked ",
         "but character value has not been used in any of the Class, typeof or mode field.",
@@ -389,6 +403,19 @@
         char_used <- base::any(kinds == "character", na.rm = TRUE) # no x argument in base::any(..., na.rm)
         num_used  <- base::any(kinds == "numeric" | kinds == "double", na.rm = TRUE)
         errs <- base::character(length = 0L)
+        # blank text fields are stored as "NULL" (no constraint): class, typeof, mode, length, options
+        blank <- base::vapply(
+            X = base::list(st$class, st$typeof, st$mode, st$length, st$options),
+            FUN = function(x){base::is.null(x = x) || base::identical(x = x, y = "NULL", num.eq = TRUE, single.NA = TRUE, attrib.as.set = TRUE, ignore.bytecode = TRUE, ignore.environment = FALSE, ignore.srcref = TRUE, extptr.as.ref = FALSE)},
+            FUN.VALUE = base::logical(length = 1L),
+            USE.NAMES = FALSE
+        )
+        if (base::all(blank, na.rm = FALSE) && ! base::isTRUE(x = st$prop)) {
+            errs <- base::c(errs, msg_blank)
+        }
+        if (! blank[4] && base::is.null(x = .arg_check_parse_length(txt = st$length, lib_path = lib_path, error_text = embed_error_text))) {
+            errs <- base::c(errs, base::paste0("The length field (\"", st$length, "\") must be a whole number, like 3, or left blank.", collapse = NULL, recycle0 = FALSE))
+        }
         if (base::isTRUE(x = st$no_empty_string) && ! char_used) {
             errs <- base::c(errs, msg_char)
         }

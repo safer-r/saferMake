@@ -19,13 +19,13 @@
 A named list (key = \code{.arg_id(nm)}) of character vectors: zero-length when the settings of the argument are consistent, otherwise the error messages to display. Empty list if \code{fun_args} is empty.
 }
 \description{
-Consistency errors of the \code{saferDev::arg_check()} settings of each argument, detected before the \code{saferDev::arg_check()} lines are tested: "cannot contain empty strings" box ticked without any character value in the Class, typeof or mode fields; "Values can be negative" box unticked without any numeric/double value in these fields and without the "Argument values are proportions." box ticked; "Values can be Inf or -Inf" box unticked without any numeric/double value in these fields. The settings incompatible with the "Argument values are proportions." box are not checked here: they are reported by \code{saferDev::arg_check()} itself when the \code{saferDev::arg_check()} lines are tested.
+Consistency errors of the \code{saferDev::arg_check()} settings of each argument, detected before the \code{saferDev::arg_check()} lines are tested: Class, typeof, mode, length and options fields all blank without the "Argument values are proportions." box ticked (\code{saferDev::arg_check()} needs at least one of them); length field that is not a whole number; "cannot contain empty strings" box ticked without any character value in the Class, typeof or mode fields; "Values can be negative" box unticked without any numeric/double value in these fields and without the "Argument values are proportions." box ticked; "Values can be Inf or -Inf" box unticked without any numeric/double value in these fields. The settings incompatible with the "Argument values are proportions." box are not checked here: they are reported by \code{saferDev::arg_check()} itself when the \code{saferDev::arg_check()} lines are tested.
 }
 \details{
 Warnings:
 \itemize{
-  \item requires \code{saferDev::arg_check}, \code{.arg_id}.
-  \item In the safer Backbone section \code{"######## check of the required functions from the required packages"}, add also these 2 functions when checking for the presence of \code{.arg_check_settings_errors}.
+  \item requires \code{saferDev::arg_check}, \code{.arg_id}, \code{.arg_check_parse_length}.
+  \item In the safer Backbone section \code{"######## check of the required functions from the required packages"}, add also these 3 functions when checking for the presence of \code{.arg_check_settings_errors}.
 }
 }
 \author{

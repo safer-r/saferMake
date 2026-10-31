@@ -455,9 +455,12 @@
     na_txt <- base::regmatches(x = na_reports, m = base::regexpr(pattern = "CORRECTIONS NOT APPLIED:[\\s\\S]*$", text = na_reports, ignore.case = FALSE, perl = TRUE, fixed = FALSE, useBytes = FALSE), invert = FALSE)
     res$report_msg <- base::trimws(x = base::paste(base::c(stop_report, na_txt), sep = " ", collapse = "\n\n", recycle0 = FALSE), which = "both", whitespace = "[ \t\r\n]")
     dl_txt <- "The full report of the checks (followed by the modified code, if any) can be downloaded with the Download report button below."
-    # one line per check, in the order of execution: "clear", the modification
-    # made, the findings or the error that stopped the run, or "not run"
-    step_txt <- base::vapply(X = base::seq_len(length.out = n_steps), FUN = function(i) {
+    # one line per check run, in the order of execution: "clear", the
+    # modification made, the findings or the error that stopped the run; the
+    # checks not run (after the one that stopped the run) are grouped in a
+    # single line
+    not_run <- out$checks$status == "not run"
+    step_txt <- base::vapply(X = base::which(x = ! not_run, arr.ind = FALSE, useNames = FALSE), FUN = function(i) {
       tempo_status <- out$checks$status[i]
       tempo_txt <- if (tempo_status == "modified" & i %in% res$modified) {
         .code_check_steps[[i]]$done
@@ -465,13 +468,17 @@
         "clear."
       } else if (tempo_status == "error") {
         "saferDev stopped with the message given in the report below."
-      } else if (tempo_status == "findings") {
-        "the check reported the findings given in the report below, that could not be corrected automatically."
       } else {
-        base::paste0("not run (the run stopped at check ", out$step, "/", n_steps, ").", collapse = NULL, recycle0 = FALSE)
+        "the check reported the findings given in the report below, that could not be corrected automatically."
       }
       base::paste0("Check ", i, "/", n_steps, " (", .code_check_steps[[i]]$label, "): ", tempo_txt, collapse = NULL, recycle0 = FALSE)
     } , FUN.VALUE = base::character(length = 1L), USE.NAMES = FALSE)
+    not_run_nb <- base::which(x = not_run, arr.ind = FALSE, useNames = FALSE)
+    if (base::length(x = not_run_nb) == 1L) {
+      step_txt <- base::c(step_txt, base::paste0("Check ", not_run_nb, "/", n_steps, " (", .code_check_steps[[not_run_nb]]$label, "): not run (the run stopped at check ", out$step, "/", n_steps, ").", collapse = NULL, recycle0 = FALSE))
+    } else if (base::length(x = not_run_nb) > 1L) {
+      step_txt <- base::c(step_txt, base::paste0("Checks ", base::min(not_run_nb, na.rm = FALSE), "/", n_steps, " to ", base::max(not_run_nb, na.rm = FALSE), "/", n_steps, ": not run (the run stopped at check ", out$step, "/", n_steps, ").", collapse = NULL, recycle0 = FALSE))
+    }
     if (out$stage %in% base::c("error", "findings")) {
       i <- out$step
       res$stage <- out$stage

@@ -109,6 +109,22 @@ ui <- fluidPage(
         color: inherit;
         white-space: normal;
       }
+      /* inline code inside the coloured messages (orange, red, green): dark
+         text on a light pill, readable on the white text of the alerts */
+      .rst-content .alert code {
+        color: #212529;
+        background-color: rgba(255, 255, 255, 0.85);
+      }
+      /* code box of window 1: monospace font, long lines not wrapped
+         (horizontal scrolling instead) */
+      #user_ini_fun {
+        font-family: SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', Courier, monospace;
+        font-size: 13px;
+        tab-size: 4;
+        white-space: pre;
+        overflow-wrap: normal;
+        overflow-x: auto;
+      }
     "))
   ),
   
